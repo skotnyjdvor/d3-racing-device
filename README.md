@@ -39,3 +39,21 @@ npm test
 - выбор сессии, GPS-трасса, скорость и IMU-метрики;
 - агрегированный контекст для будущего AI-инженера.
 - локализация интерфейса: русский, английский и польский с сохранением выбора.
+
+## iPhone / iOS
+
+В iOS-приложении используется нативный CoreBluetooth через Capacitor, потому что Safari не предоставляет Web Bluetooth. Сборка iOS выполняется на Mac с установленными Xcode и Node.js:
+
+```bash
+npm install
+npm run ios:add
+npm run ios:open
+```
+
+После открытия Xcode выберите Apple Development Team, подключите настоящий iPhone и запустите target `App`. Bluetooth не работает в iOS Simulator. После изменений веб-интерфейса выполняйте:
+
+```bash
+npm run ios:sync
+```
+
+Bundle ID приложения: `com.d3racinglab.laptrace`. Скрипт `ios:add` автоматически добавляет обязательное разрешение `NSBluetoothAlwaysUsageDescription` в `Info.plist`.

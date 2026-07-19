@@ -1,0 +1,19 @@
+{
+  "appId": "com.d3racinglab.laptrace",
+  "appName": "LapTrace",
+  "webDir": "dist",
+  "ios": {
+    "contentInset": "automatic",
+    "preferredContentMode": "mobile"
+  },
+  "plugins": {
+    "BluetoothLe": {
+      "displayStrings": {
+        "scanning": "Поиск LapTrace...",
+        "cancel": "Отмена",
+        "availableDevices": "Доступные устройства",
+        "noDeviceFound": "LapTrace не найден"
+      }
+    }
+  }
+}

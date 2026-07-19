@@ -177,7 +177,11 @@ function selectSession(id) {
 }
 
 async function createClient() {
-  const Client = testMode ? (await import("./ble/mock-racebox.js")).MockRaceBoxClient : RaceBoxBleClient;
+  let Client = RaceBoxBleClient;
+  if (testMode) Client = (await import("./ble/mock-racebox.js")).MockRaceBoxClient;
+  else if (globalThis.Capacitor?.isNativePlatform?.()) {
+    Client = (await import("./ble/capacitor-racebox.js")).CapacitorRaceBoxClient;
+  }
   return new Client({ onTelemetry: renderTelemetry, onStatus: (status, name) => {
     const connected = status === "connected";
     state.connected = connected;

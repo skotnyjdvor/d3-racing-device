@@ -4,8 +4,8 @@ export const RACEBOX_UART_SERVICE = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
 export const RACEBOX_RX = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
 export const RACEBOX_TX = "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
 
-const CLASS = 0xff;
-const MESSAGE = {
+export const RACEBOX_CLASS = 0xff;
+export const RACEBOX_MESSAGE = {
   DATA: 0x01,
   ACK: 0x02,
   NACK: 0x03,
@@ -16,9 +16,11 @@ const MESSAGE = {
   STATE_CHANGE: 0x26,
   UNLOCK: 0x30,
 };
+const CLASS = RACEBOX_CLASS;
+const MESSAGE = RACEBOX_MESSAGE;
 
-const DEVICE_INFO_SERVICE = "0000180a-0000-1000-8000-00805f9b34fb";
-const MODEL_CHARACTERISTIC = "00002a24-0000-1000-8000-00805f9b34fb";
+export const DEVICE_INFO_SERVICE = "0000180a-0000-1000-8000-00805f9b34fb";
+export const MODEL_CHARACTERISTIC = "00002a24-0000-1000-8000-00805f9b34fb";
 
 function viewOf(payload) {
   return new DataView(payload.buffer, payload.byteOffset, payload.byteLength);
@@ -174,7 +176,7 @@ export class HistoryDownloadCollector {
   }
 }
 
-function isReplyFor(packet, replyId, operationId) {
+export function isReplyFor(packet, replyId, operationId) {
   return packet.messageClass === CLASS && packet.messageId === replyId &&
     packet.payload.length === 2 && packet.payload[0] === CLASS && packet.payload[1] === operationId;
 }
