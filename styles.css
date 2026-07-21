@@ -51,14 +51,8 @@ main { width: min(1480px, calc(100% - 40px)); margin: 0 auto; }
 .device-orbit::before, .orbit-line { content: ""; position: absolute; inset: 5%; border: 1px solid #27323d; border-radius: 50%; }
 .orbit-line { inset: 17%; border-color: rgba(201,255,55,.18); }
 .device-orbit::after { content: ""; position: absolute; inset: 24%; border-radius: 50%; background: rgba(201,255,55,.07); filter: blur(35px); }
-.device-card { width: 215px; height: 310px; padding: 18px; z-index: 1; position: relative; border-radius: 26px; border: 2px solid #313b45; background: linear-gradient(145deg,#252d35,#0a0e13 66%); box-shadow: 0 40px 90px #000, inset 0 1px 0 rgba(255,255,255,.12); transform: rotate(8deg); }
-.device-card-top { display: flex; justify-content: space-between; align-items: center; }
-.device-card-top small { font: 800 11px ui-monospace,monospace; letter-spacing: .13em; }
-.device-screen { margin-top: 30px; height: 150px; padding: 28px 22px; display: grid; align-content: center; background: #060a0d; border: 1px solid #313c46; box-shadow: inset 0 0 20px rgba(0,0,0,.8); }
-.device-screen i { width: 7px; height: 7px; border-radius: 50%; background: var(--acid); box-shadow: 0 0 13px var(--acid); }
-.device-screen strong { margin-top: 13px; font: 800 23px ui-monospace,monospace; color: var(--acid); }
-.device-screen span { color: #778593; font: 11px ui-monospace,monospace; }
-.device-led { position: absolute; left: calc(50% - 5px); bottom: 22px; width: 10px; height: 10px; border-radius: 50%; background: var(--orange); box-shadow: 0 0 18px var(--orange); }
+.landing-device-image { position: relative; z-index: 1; width: 88%; height: 88%; object-fit: contain; filter: drop-shadow(0 45px 55px rgba(0,0,0,.7)); transform: rotate(5deg); animation: deviceFloat 6s ease-in-out infinite; }
+@keyframes deviceFloat { 50% { transform: rotate(3deg) translateY(-10px); } }
 .orbit-label { position: absolute; padding: 10px 13px; color: var(--muted); background: #0c1117; border: 1px solid var(--line); font: 10px/1.5 ui-monospace,monospace; letter-spacing: .1em; }
 .orbit-label b { color: var(--text); font-size: 14px; }.orbit-gps { top: 17%; right: 1%; }.orbit-imu { bottom: 18%; left: 2%; }
 .demo-section { padding: 100px 0 90px; border-top: 1px solid var(--line); scroll-margin-top: 76px; }
@@ -229,8 +223,7 @@ footer { width: min(1480px, calc(100% - 40px)); min-height: 74px; margin: 0 auto
   .landing-actions .primary, .landing-link { width: 100%; }
   .landing-proof { gap: 20px; justify-content: space-between; }
   .device-orbit { width: 100%; }
-  .device-card { width: 175px; height: 255px; }
-  .device-screen { height: 118px; padding: 18px; }
+  .landing-device-image { width: 92%; height: 92%; }
   .demo-section { padding: 65px 0; }
   .demo-metrics { grid-template-columns: repeat(2,1fr); border-bottom: 1px solid var(--line); }
   .demo-metrics div:nth-child(2) { border-right: 0; }
