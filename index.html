@@ -69,7 +69,7 @@
           <p data-i18n="landing.demoCopy"></p>
         </div>
         <div class="demo-metrics">
-          <div><span data-i18n="landing.bestLap"></span><strong>1:01.842</strong><small>Lap 6</small></div>
+          <div><span data-i18n="landing.bestLap"></span><strong id="demoBestLap">—</strong><small id="demoBestLapLabel">Viterbo · —</small></div>
           <div><span data-i18n="landing.liveSpeed"></span><strong id="demoSpeed">118.6</strong><small>km/h</small></div>
           <div><span data-i18n="landing.liveG"></span><strong id="demoGForce">0.72 g</strong><small id="demoSector">T4 · 58%</small></div>
           <div><span data-i18n="landing.liveDelta"></span><strong class="acid" id="demoDelta">−0.412</strong><small>vs Lap 5</small></div>
@@ -79,10 +79,10 @@
             <div class="panel-head"><div><p class="eyebrow" data-i18n="track.kicker"></p><h2>Circuito di Viterbo</h2></div><span class="demo-badge">DEMO LOG</span></div>
             <svg viewBox="0 0 640 430" role="img" aria-label="Viterbo racing line demo">
               <defs><linearGradient id="trackGradient" x1="0" y1="1" x2="1" y2="0"><stop stop-color="#37d7ff"/><stop offset=".5" stop-color="#c9ff37"/><stop offset="1" stop-color="#ff5f35"/></linearGradient></defs>
-              <path class="track-shadow" d="M164 342 C92 285 82 174 147 93 C205 20 324 29 373 81 C414 124 391 174 438 190 C509 213 558 246 532 303 C505 360 412 381 349 337 C298 302 282 371 220 372 C198 372 180 360 164 342Z"/>
-              <path class="track-line" id="demoTrackPath" d="M164 342 C92 285 82 174 147 93 C205 20 324 29 373 81 C414 124 391 174 438 190 C509 213 558 246 532 303 C505 360 412 381 349 337 C298 302 282 371 220 372 C198 372 180 360 164 342Z"/>
+              <path class="track-shadow" id="demoTrackShadow" d="M80 215H560"/>
+              <path class="track-line" id="demoTrackPath" d="M80 215H560"/>
               <g id="demoTrackMarker"><circle cx="0" cy="0" r="8" class="track-point"/><circle cx="0" cy="0" r="15" class="track-point-ring"/></g>
-              <g class="turn-labels"><text x="132" y="105">T1</text><text x="455" y="192">T4</text><text x="515" y="323">T7</text><text x="210" y="393">T10</text></g>
+              <g class="turn-labels"><text x="26" y="35">GPS · VITERBO · 2026-07-10</text></g>
             </svg>
             <div class="legend"><span data-i18n="track.slower"></span><i></i><span data-i18n="track.faster"></span></div>
           </article>
@@ -90,12 +90,12 @@
             <div class="panel-head"><div><p class="eyebrow" data-i18n="landing.compareKicker"></p><h2 data-i18n="landing.compareTitle"></h2></div><span class="chart-unit">km/h</span></div>
             <svg viewBox="0 0 640 300" preserveAspectRatio="none" role="img" aria-label="Two lap speed comparison">
               <g class="chart-grid"><path d="M52 42H620M52 102H620M52 162H620M52 222H620M52 270H620"/><path d="M52 30V270M194 30V270M336 30V270M478 30V270M620 30V270"/></g>
-              <path class="chart-secondary" d="M52 235 C100 212 112 83 166 102 S235 246 276 180 S340 62 384 112 S438 245 482 180 S558 64 620 89"/>
-              <path class="chart-primary" d="M52 232 C96 202 118 73 166 94 S232 232 276 168 S343 51 384 98 S441 229 482 166 S558 53 620 75"/>
+              <path class="chart-secondary" id="demoSecondaryLine" d="M52 235H620"/>
+              <path class="chart-primary" id="demoPrimaryLine" d="M52 225H620"/>
               <line id="demoChartCursor" x1="384" y1="30" x2="384" y2="270" class="chart-cursor"/><circle id="demoPrimaryDot" cx="384" cy="98" r="6" class="chart-dot-primary"/><circle id="demoSecondaryDot" cx="384" cy="112" r="5" class="chart-dot-secondary"/>
               <g class="chart-labels"><text x="15" y="46">140</text><text x="22" y="106">100</text><text x="28" y="166">60</text><text x="42" y="292">0%</text><text x="185" y="292">25%</text><text x="327" y="292">50%</text><text x="469" y="292">75%</text><text x="596" y="292">100%</text></g>
             </svg>
-            <div class="demo-legend"><span class="lap-six">Lap 6 · 1:01.842</span><span class="lap-five">Lap 5 · 1:02.526</span></div>
+            <div class="demo-legend"><span class="lap-six" id="demoPrimaryLegend">Viterbo · —</span><span class="lap-five" id="demoSecondaryLegend">Viterbo · —</span></div>
             <div class="demo-scrubber"><button id="demoPlayButton" type="button" aria-label="Play demo">▶</button><input id="demoProgress" type="range" min="0" max="1000" value="580" aria-label="Lap position"/><output id="demoProgressLabel">58%</output></div>
           </article>
           <article class="demo-insight panel">
