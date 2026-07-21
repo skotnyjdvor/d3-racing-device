@@ -71,6 +71,7 @@ export async function loadLogs() {
   return logs.map((record, index) => ({
     id: `cloud-${record.id}`,
     cloudId: record.id,
+    title: record.title,
     displayId: index + 1,
     source: "cloud",
     deviceName: record.deviceName,
@@ -78,4 +79,12 @@ export async function loadLogs() {
     endedAt: record.endedAt,
     points: record.points ?? [],
   }));
+}
+
+export async function renameLog(id, title) {
+  return request(`/api/logs/${id}`, { method: "PATCH", body: JSON.stringify({ title }) });
+}
+
+export async function deleteLog(id) {
+  await request(`/api/logs/${id}`, { method: "DELETE" });
 }

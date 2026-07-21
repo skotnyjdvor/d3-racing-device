@@ -22,3 +22,5 @@ create table if not exists telemetry_logs (
 
 create index if not exists telemetry_logs_user_started_idx
 on telemetry_logs (user_id, started_at desc);
+
+alter table telemetry_logs add column if not exists title text;

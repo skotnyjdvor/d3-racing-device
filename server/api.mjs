@@ -73,10 +73,10 @@ app.get("/api/auth/me", authenticate, async (request, response, next) => {
 
 app.get("/api/logs", authenticate, async (request, response, next) => {
   try {
-    const result = await requireDatabase().query(`select id, device_name, started_at, ended_at, point_count, payload
+    const result = await requireDatabase().query(`select id, title, device_name, started_at, ended_at, point_count, payload
       from telemetry_logs where user_id = $1 order by started_at desc limit 20`, [request.auth.sub]);
     response.json({ logs: result.rows.map((row) => ({
-      id: row.id, deviceName: row.device_name, startedAt: row.started_at, endedAt: row.ended_at,
+      id: row.id, title: row.title, deviceName: row.device_name, startedAt: row.started_at, endedAt: row.ended_at,
       pointCount: row.point_count, points: row.payload.points,
     })) });
   } catch (error) { next(error); }
@@ -95,6 +95,30 @@ app.post("/api/logs", authenticate, async (request, response, next) => {
         point_count = excluded.point_count, payload = excluded.payload, updated_at = now()
       returning id`, [randomUUID(), request.auth.sub, String(deviceName).slice(0, 100), startedAt, endedAt, points.length, JSON.stringify({ points })]);
     response.status(201).json({ id: result.rows[0].id });
+  } catch (error) { next(error); }
+});
+
+app.patch("/api/logs/:id", authenticate, async (request, response, next) => {
+  try {
+    const title = String(request.body.title || "").trim().slice(0, 100);
+    if (!title) return response.status(400).json({ error: "Log title is required" });
+    const result = await requireDatabase().query(
+      "update telemetry_logs set title = $1, updated_at = now() where id = $2 and user_id = $3 returning id, title",
+      [title, request.params.id, request.auth.sub],
+    );
+    if (!result.rows[0]) return response.status(404).json({ error: "Log not found" });
+    response.json(result.rows[0]);
+  } catch (error) { next(error); }
+});
+
+app.delete("/api/logs/:id", authenticate, async (request, response, next) => {
+  try {
+    const result = await requireDatabase().query(
+      "delete from telemetry_logs where id = $1 and user_id = $2 returning id",
+      [request.params.id, request.auth.sub],
+    );
+    if (!result.rows[0]) return response.status(404).json({ error: "Log not found" });
+    response.status(204).end();
   } catch (error) { next(error); }
 });
 

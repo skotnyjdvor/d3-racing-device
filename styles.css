@@ -103,10 +103,15 @@ h1 .solid-title { color: var(--text); -webkit-text-stroke: 0; }
 .legend i { width: 130px; height: 4px; background: linear-gradient(90deg, var(--cyan), var(--acid), var(--orange)); }
 .table-wrap { max-height: 500px; overflow: auto; }
 .session-list { max-height: 500px; overflow: auto; padding: 10px; display: grid; gap: 8px; }
-.session-item { width: 100%; text-align: left; color: var(--text); background: #151c24; border: 1px solid #28323d; padding: 15px; display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; }
+.session-item { width: 100%; color: var(--text); background: #151c24; border: 1px solid #28323d; display: grid; grid-template-columns: 1fr auto; align-items: stretch; }
 .session-item:hover, .session-item.selected { border-color: var(--acid); background: #1b242d; }
-.session-item span { color: #c8d0d8; font-size: 12px; }
-.session-item small { grid-column: 1 / -1; color: var(--muted); }
+.session-open { min-width: 0; padding: 15px; text-align: left; color: var(--text); background: transparent; border: 0; display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; }
+.session-open span { color: #c8d0d8; font-size: 12px; }
+.session-open small { grid-column: 1 / -1; color: var(--muted); }
+.session-actions { padding: 8px; border-left: 1px solid #28323d; display: grid; align-content: center; gap: 5px; }
+.session-actions button { width: 30px; height: 30px; padding: 0; color: var(--muted); background: transparent; border: 1px solid transparent; font-size: 17px; }
+.session-actions button:hover { color: var(--acid); border-color: var(--line); }
+.session-actions button:last-child:hover { color: #ff8262; }
 table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 th, td { padding: 16px 18px; text-align: right; border-bottom: 1px solid #222a33; }
 th:first-child, td:first-child { text-align: left; }

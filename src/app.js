@@ -3,7 +3,7 @@ import { analyzeSession, generateLocalInsights } from "./domain/analysis.js";
 import { buildAiPrompt } from "./domain/ai-context.js";
 import { distanceMeters, identifyTrack } from "./domain/tracks.js";
 import { applyTranslations, getLanguage, onLanguageChange, setLanguage, t } from "./i18n.js";
-import { cloudConfigured, currentUser, loadLogs, onAuthChange, saveLog, signIn, signOut, signUp } from "./cloud/api.js";
+import { cloudConfigured, currentUser, deleteLog, loadLogs, onAuthChange, renameLog, saveLog, signIn, signOut, signUp } from "./cloud/api.js";
 
 const elements = Object.fromEntries([...document.querySelectorAll("[id]")].map((element) => [element.id, element]));
 const state = { client: null, connected: false, deviceName: "", deviceModel: "", latestTelemetry: null, storage: null, sessions: [], selectedSession: null, analysis: null, selectedLapNumber: null, comparisonLapNumber: null, cursorProgress: null, track: null, user: null, cloudLogs: [], pollTimer: null };
@@ -284,11 +284,53 @@ async function refreshStorage() {
 function renderSessions() {
   elements.sessionsValue.textContent = String(state.sessions.length);
   elements.sessionsMeta.textContent = t("progress.records", { received: state.sessions.reduce((sum, session) => sum + session.points.length, 0).toLocaleString(getLanguage()), expected: state.sessions.reduce((sum, session) => sum + session.points.length, 0).toLocaleString(getLanguage()) });
+  if (!state.sessions.length) {
+    elements.sessionList.innerHTML = `<p class="empty">${t("sessions.empty")}</p>`;
+    return;
+  }
   elements.sessionList.innerHTML = state.sessions.map((session) => `
-    <button class="session-item ${session === state.selectedSession ? "selected" : ""}" data-session="${session.id}">
-      <strong>${t("sessions.item", { id: session.displayId ?? session.id })}${session.source === "cloud" ? " ☁" : ""}</strong><span>${formatDate(session.startedAt)}</span><small>${formatDuration(new Date(session.endedAt) - new Date(session.startedAt))} · ${t("sessions.points", { count: session.points.length.toLocaleString(getLanguage()) })}</small>
-    </button>`).join("");
+    <div class="session-item ${session === state.selectedSession ? "selected" : ""}">
+      <button class="session-open" data-session="${session.id}">
+        <strong>${session.title || t("sessions.item", { id: session.displayId ?? session.id })}${session.source === "cloud" ? " ☁" : ""}</strong><span>${formatDate(session.startedAt)}</span><small>${formatDuration(new Date(session.endedAt) - new Date(session.startedAt))} · ${t("sessions.points", { count: session.points.length.toLocaleString(getLanguage()) })}</small>
+      </button>
+      ${session.source === "cloud" ? `<div class="session-actions"><button data-rename="${session.cloudId}" title="${t("sessions.rename")}">✎</button><button data-delete="${session.cloudId}" title="${t("sessions.delete")}">×</button></div>` : ""}
+    </div>`).join("");
   elements.sessionList.querySelectorAll("[data-session]").forEach((button) => button.addEventListener("click", () => selectSession(button.dataset.session)));
+  elements.sessionList.querySelectorAll("[data-rename]").forEach((button) => button.addEventListener("click", () => renameCloudSession(button.dataset.rename)));
+  elements.sessionList.querySelectorAll("[data-delete]").forEach((button) => button.addEventListener("click", () => deleteCloudSession(button.dataset.delete)));
+}
+
+async function renameCloudSession(cloudId) {
+  const session = state.sessions.find((item) => item.cloudId === cloudId);
+  if (!session) return;
+  const title = prompt(t("sessions.renamePrompt"), session.title || "");
+  if (!title?.trim()) return;
+  try { await renameLog(cloudId, title.trim()); session.title = title.trim(); renderSessions(); }
+  catch (error) { setAccountMessage(error.message, true); }
+}
+
+async function deleteCloudSession(cloudId) {
+  const session = state.sessions.find((item) => item.cloudId === cloudId);
+  if (!session || !confirm(t("sessions.deleteConfirm", { title: session.title || t("sessions.item", { id: session.displayId ?? session.id }) }))) return;
+  try {
+    await deleteLog(cloudId);
+    const wasSelected = session === state.selectedSession;
+    state.sessions = state.sessions.filter((item) => item !== session);
+    state.cloudLogs = state.cloudLogs.filter((item) => item.cloudId !== cloudId);
+    if (wasSelected) {
+      state.selectedSession = null; state.analysis = null;
+      const replacement = state.sessions[0];
+      if (replacement) selectSession(replacement.id);
+      else {
+        elements.durationValue.textContent = "—"; elements.durationMeta.textContent = t("summary.selected");
+        elements.maxSpeedValue.textContent = "—"; elements.sampleRateValue.textContent = "—";
+        elements.trackTitle.textContent = t("track.empty"); elements.copyAiButton.disabled = true;
+        elements.insightsList.innerHTML = `<li>${t("insights.empty")}</li>`;
+        drawTrack(); drawCharts();
+      }
+    }
+    renderAccount(); renderSessions();
+  } catch (error) { setAccountMessage(error.message, true); }
 }
 
 function renderLapControls() {
