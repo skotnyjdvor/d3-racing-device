@@ -530,6 +530,7 @@ elements.downloadButton.addEventListener("click", downloadHistory);
 elements.cancelButton.addEventListener("click", () => state.client?.cancelDownload());
 elements.accountButton.addEventListener("click", openAccountDialog);
 elements.gateAccountButton.addEventListener("click", openAccountDialog);
+elements.demoAccountButton.addEventListener("click", openAccountDialog);
 elements.accountClose.addEventListener("click", () => elements.accountDialog.close());
 elements.accountDialog.addEventListener("click", (event) => { if (event.target === elements.accountDialog) elements.accountDialog.close(); });
 elements.accountForm.addEventListener("submit", async (event) => { event.preventDefault(); await submitAccount(signIn); });
