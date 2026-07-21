@@ -6,6 +6,7 @@
   "scripts": {
     "start": "vite --host 127.0.0.1 --port 4173",
     "start:server": "node server/api.mjs",
+    "start:render": "node server/api.mjs",
     "test": "node --test",
     "build": "vite build",
     "ios:add": "npm run build && cap add ios && node scripts/configure-ios.mjs",
