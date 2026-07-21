@@ -3,9 +3,10 @@ import { analyzeSession, generateLocalInsights } from "./domain/analysis.js";
 import { buildAiPrompt } from "./domain/ai-context.js";
 import { distanceMeters, identifyTrack } from "./domain/tracks.js";
 import { applyTranslations, getLanguage, onLanguageChange, setLanguage, t } from "./i18n.js";
+import { cloudConfigured, currentUser, loadLogs, onAuthChange, saveLog, signIn, signOut, signUp } from "./cloud/render-api.js";
 
 const elements = Object.fromEntries([...document.querySelectorAll("[id]")].map((element) => [element.id, element]));
-const state = { client: null, connected: false, deviceName: "", deviceModel: "", latestTelemetry: null, storage: null, sessions: [], selectedSession: null, analysis: null, selectedLapNumber: null, comparisonLapNumber: null, cursorProgress: null, track: null, pollTimer: null };
+const state = { client: null, connected: false, deviceName: "", deviceModel: "", latestTelemetry: null, storage: null, sessions: [], selectedSession: null, analysis: null, selectedLapNumber: null, comparisonLapNumber: null, cursorProgress: null, track: null, user: null, cloudLogs: [], pollTimer: null };
 const testMode = new URLSearchParams(location.search).has("mock");
 
 const formatDuration = (milliseconds) => {
@@ -285,9 +286,9 @@ function renderSessions() {
   elements.sessionsMeta.textContent = t("progress.records", { received: state.sessions.reduce((sum, session) => sum + session.points.length, 0).toLocaleString(getLanguage()), expected: state.sessions.reduce((sum, session) => sum + session.points.length, 0).toLocaleString(getLanguage()) });
   elements.sessionList.innerHTML = state.sessions.map((session) => `
     <button class="session-item ${session === state.selectedSession ? "selected" : ""}" data-session="${session.id}">
-      <strong>${t("sessions.item", { id: session.id })}</strong><span>${formatDate(session.startedAt)}</span><small>${formatDuration(new Date(session.endedAt) - new Date(session.startedAt))} · ${t("sessions.points", { count: session.points.length.toLocaleString(getLanguage()) })}</small>
+      <strong>${t("sessions.item", { id: session.displayId ?? session.id })}${session.source === "cloud" ? " ☁" : ""}</strong><span>${formatDate(session.startedAt)}</span><small>${formatDuration(new Date(session.endedAt) - new Date(session.startedAt))} · ${t("sessions.points", { count: session.points.length.toLocaleString(getLanguage()) })}</small>
     </button>`).join("");
-  elements.sessionList.querySelectorAll("[data-session]").forEach((button) => button.addEventListener("click", () => selectSession(Number(button.dataset.session))));
+  elements.sessionList.querySelectorAll("[data-session]").forEach((button) => button.addEventListener("click", () => selectSession(button.dataset.session)));
 }
 
 function renderLapControls() {
@@ -310,13 +311,13 @@ function updateLapView() {
   elements.durationMeta.textContent = lap ? t("laps.legend", { lap: lap.number }) : formatDate(state.selectedSession.startedAt);
   elements.maxSpeedValue.textContent = (lap?.maxSpeed ?? state.analysis.session.maxSpeed).toFixed(1);
   elements.sampleRateValue.textContent = state.analysis.sampleRateHz.toFixed(0);
-  elements.trackTitle.textContent = `${state.track ? `${state.track.name} · ` : ""}${t("sessions.item", { id: state.selectedSession.id })}${lap ? ` · ${t("laps.legend", { lap: lap.number })}` : ""}`;
+  elements.trackTitle.textContent = `${state.track ? `${state.track.name} · ` : ""}${t("sessions.item", { id: state.selectedSession.displayId ?? state.selectedSession.id })}${lap ? ` · ${t("laps.legend", { lap: lap.number })}` : ""}`;
   renderLapControls(); drawTrack(); drawCharts();
 }
 
 function selectSession(id) {
-  const isNewSession = state.selectedSession?.id !== id;
-  state.selectedSession = state.sessions.find((session) => session.id === id);
+  const isNewSession = String(state.selectedSession?.id) !== String(id);
+  state.selectedSession = state.sessions.find((session) => String(session.id) === String(id));
   if (!state.selectedSession?.points.length) return;
   state.analysis = analyzeSession(state.selectedSession.points);
   state.track = identifyTrack(state.selectedSession.points);
@@ -330,6 +331,70 @@ function selectSession(id) {
   elements.copyStatus.textContent = "Контекст строится только по выбранной сессии.";
   elements.insightsList.innerHTML = generateLocalInsights(state.analysis, t).map((insight) => `<li>${insight}</li>`).join("");
   renderSessions(); updateLapView();
+}
+
+function setAccountMessage(message = "", error = false) {
+  elements.accountMessage.textContent = message;
+  elements.accountMessage.classList.toggle("error", error);
+}
+
+function renderAccount() {
+  const email = state.user?.email ?? "";
+  elements.accountGuest.hidden = Boolean(state.user);
+  elements.accountMember.hidden = !state.user;
+  elements.accountLabel.textContent = email || t("account.signIn");
+  elements.accountAvatar.textContent = email ? email[0] : "?";
+  elements.accountUserEmail.textContent = email;
+  elements.cloudLogStatus.textContent = state.user ? t("account.logs", { count: state.cloudLogs.length }) : "";
+  if (!cloudConfigured) {
+    setAccountMessage(t("account.notConfigured"), true);
+    elements.accountForm.querySelectorAll("input, button").forEach((element) => { element.disabled = true; });
+  }
+}
+
+async function syncCloudLogs() {
+  if (!state.user) return;
+  try {
+    state.cloudLogs = await loadLogs();
+    const localLogs = state.sessions.filter((session) => session.source !== "cloud");
+    const localDates = new Set(localLogs.map((session) => session.startedAt));
+    state.sessions = [...localLogs, ...state.cloudLogs.filter((session) => !localDates.has(session.startedAt))];
+    renderAccount(); renderSessions();
+    if (!state.selectedSession && state.sessions.length) selectSession(state.sessions[0].id);
+  } catch (error) { setAccountMessage(error.message, true); }
+}
+
+async function applyUser(user) {
+  state.user = user;
+  if (!user) {
+    state.cloudLogs = [];
+    state.sessions = state.sessions.filter((session) => session.source !== "cloud");
+    if (state.selectedSession?.source === "cloud") state.selectedSession = null;
+    renderAccount(); renderSessions();
+    return;
+  }
+  renderAccount();
+  await syncCloudLogs();
+}
+
+async function submitAccount(action) {
+  const email = elements.accountEmail.value.trim();
+  const password = elements.accountPassword.value;
+  setAccountMessage("");
+  try {
+    const user = await action(email, password);
+    if (user) await applyUser(user);
+    else setAccountMessage(t("account.confirm"));
+  } catch (error) { setAccountMessage(error.message, true); }
+}
+
+async function saveDownloadedLogs(sessions) {
+  if (!state.user) return;
+  try {
+    await Promise.all(sessions.map((session) => saveLog(session, state.deviceName)));
+    await syncCloudLogs();
+    setAccountMessage(t("account.saved"));
+  } catch (error) { setAccountMessage(error.message, true); }
 }
 
 async function createClient() {
@@ -393,6 +458,7 @@ async function downloadHistory() {
     if (!sessions.length) throw new Error("В памяти не найдено записей телеметрии");
     state.sessions = sessions; state.selectedSession = sessions.at(-1);
     renderSessions(); selectSession(state.selectedSession.id);
+    await saveDownloadedLogs(sessions);
     elements.progressBar.value = 100; elements.progressLabel.textContent = t("progress.done", { count: sessions.length });
     elements.cancelButton.hidden = true;
     setStatus(t("state.loaded", { name: state.deviceName }), true); setHint(t("state.loaded", { name: state.deviceName }));
@@ -404,6 +470,12 @@ elements.connectButton.addEventListener("click", connect);
 elements.recordButton.addEventListener("click", toggleRecording);
 elements.downloadButton.addEventListener("click", downloadHistory);
 elements.cancelButton.addEventListener("click", () => state.client?.cancelDownload());
+elements.accountButton.addEventListener("click", () => { renderAccount(); elements.accountDialog.showModal(); });
+elements.accountClose.addEventListener("click", () => elements.accountDialog.close());
+elements.accountDialog.addEventListener("click", (event) => { if (event.target === elements.accountDialog) elements.accountDialog.close(); });
+elements.accountForm.addEventListener("submit", async (event) => { event.preventDefault(); await submitAccount(signIn); });
+elements.registerButton.addEventListener("click", () => submitAccount(signUp));
+elements.logoutButton.addEventListener("click", async () => { try { await signOut(); await applyUser(null); } catch (error) { setAccountMessage(error.message, true); } });
 elements.unlockForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   try {
@@ -429,6 +501,7 @@ elements.comparisonLapSelect.addEventListener("change", () => {
 window.addEventListener("resize", () => { drawTrack(); drawCharts(); });
 elements.languageSelect.addEventListener("change", () => setLanguage(elements.languageSelect.value));
 onLanguageChange(() => {
+  renderAccount();
   if (state.storage) renderStorage(state.storage);
   if (state.latestTelemetry) renderTelemetry(state.latestTelemetry);
   if (state.sessions.length) renderSessions();
@@ -443,6 +516,12 @@ onLanguageChange(() => {
   }
 });
 applyTranslations();
+renderAccount();
 drawTrack(); drawCharts();
+
+if (cloudConfigured) {
+  onAuthChange((user) => { if (user?.id !== state.user?.id) applyUser(user); });
+  currentUser().then(applyUser);
+}
 
 if (testMode) elements.actionHint.textContent = t("hint.mock");

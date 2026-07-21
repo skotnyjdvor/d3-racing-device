@@ -25,6 +25,9 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .brand small { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .14em; margin-top: 2px; }
 .device-state { display: flex; align-items: center; gap: 9px; color: var(--muted); font-size: 13px; }
 .header-actions { display: flex; align-items: center; gap: 18px; }
+.account-button { min-height: 38px; padding: 4px 10px 4px 5px; display: flex; align-items: center; gap: 8px; color: var(--text); background: #121820; border: 1px solid var(--line); }
+.account-button span { width: 27px; height: 27px; display: grid; place-items: center; border-radius: 50%; color: #080b10; background: var(--acid); font-size: 12px; font-weight: 900; text-transform: uppercase; }
+.account-button b { max-width: 150px; overflow: hidden; text-overflow: ellipsis; font-size: 11px; white-space: nowrap; }
 .language-picker { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 9px; text-transform: uppercase; letter-spacing: .1em; }
 .language-picker select { color: var(--text); background: #121820; border: 1px solid var(--line); padding: 7px 8px; outline: none; }
 .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #56606b; box-shadow: 0 0 0 4px rgba(86, 96, 107, .12); }
@@ -69,6 +72,20 @@ h1 .solid-title { color: var(--text); -webkit-text-stroke: 0; }
 .secondary { color: var(--text); background: #202832; border: 1px solid #333e49; }
 .secondary:hover { background: #2a3540; }
 .ghost { padding: 0 14px; min-height: 34px; color: #bcc6d0; background: transparent; border: 1px solid var(--line); font-size: 12px; }
+
+.account-dialog { width: min(480px, calc(100% - 32px)); color: var(--text); background: #11171e; border: 1px solid #394551; padding: 34px; box-shadow: 0 24px 90px rgba(0,0,0,.7); }
+.account-dialog::backdrop { background: rgba(3,6,9,.78); backdrop-filter: blur(5px); }
+.account-dialog h2 { margin: 0 0 12px; font-size: 30px; }
+.dialog-close { position: absolute; top: 12px; right: 14px; color: var(--muted); background: transparent; border: 0; font-size: 25px; }
+.dialog-copy, .account-message { color: var(--muted); font-size: 13px; line-height: 1.5; }
+.account-dialog form { display: grid; gap: 14px; margin-top: 24px; }
+.account-dialog form label { display: grid; gap: 7px; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+.account-dialog input { width: 100%; color: var(--text); background: #090e13; border: 1px solid var(--line); padding: 13px; outline: none; }
+.account-dialog input:focus { border-color: var(--acid); }
+.account-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.account-dialog #logoutButton { width: 100%; }
+.account-email { padding: 13px; color: var(--acid); background: #0a0f14; border: 1px solid var(--line); font-family: ui-monospace, monospace; }
+.account-message.error { color: #ff8262; }
 
 .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--line); }
 .metric { min-height: 154px; padding: 26px; border-right: 1px solid var(--line); background: rgba(16, 21, 28, .82); display: flex; flex-direction: column; }

@@ -2,6 +2,7 @@ export const SUPPORTED_LANGUAGES = ["ru", "en", "pl"];
 
 const translations = {
   ru: {
+    "account.kicker": "ОБЛАЧНЫЙ ГАРАЖ", "account.title": "Аккаунт LapTrace", "account.copy": "Войдите, чтобы сохранять логи и открывать их на любом устройстве.", "account.password": "Пароль", "account.signIn": "Войти", "account.register": "Регистрация", "account.signOut": "Выйти", "account.profile": "Ваш гараж", "account.logs": "В облаке: {count} логов", "account.saved": "Логи сохранены в облаке.", "account.confirm": "Проверьте email для подтверждения регистрации.", "account.notConfigured": "Облако ещё не настроено администратором.",
     "status.disconnected": "LapTrace не подключён", "status.searching": "Поиск LapTrace…", "status.connectFailed": "Подключение не выполнено",
     "hero.kicker": "АНАЛИЗ ПАМЯТИ LAPTRACE", "hero.title": "Лог с устройства.", "hero.accent": "Сразу в разбор.",
     "hero.copy": "Подключитесь после заезда, скачайте сохранённую телеметрию по Bluetooth и выберите нужную сессию. Файлы и ручной импорт не нужны.",
@@ -28,6 +29,7 @@ const translations = {
     "insight.fastest": "Лучший круг — №{lap}; разброс до самого медленного круга составляет {delta} с.", "insight.braking": "Самое сильное продольное замедление на круге №{lap}: {value} g. Знак зависит от ориентации устройства.", "insight.lateral": "Пиковая боковая нагрузка — {value} g на круге №{lap}.", "insight.qualityGood": "Поток ровный: {hz} Гц, разрывов длиннее {gap} мс не обнаружено.", "insight.qualityBad": "Обнаружено {count} разрывов потока; проверьте качество записи.",
   },
   en: {
+    "account.kicker": "CLOUD GARAGE", "account.title": "LapTrace account", "account.copy": "Sign in to save logs and open them on any device.", "account.password": "Password", "account.signIn": "Sign in", "account.register": "Register", "account.signOut": "Sign out", "account.profile": "Your garage", "account.logs": "Cloud logs: {count}", "account.saved": "Logs saved to the cloud.", "account.confirm": "Check your email to confirm registration.", "account.notConfigured": "Cloud storage has not been configured yet.",
     "status.disconnected": "LapTrace disconnected", "status.searching": "Searching for LapTrace…", "status.connectFailed": "Connection failed",
     "hero.kicker": "LAPTRACE MEMORY ANALYSIS", "hero.title": "Device log.", "hero.accent": "Ready for analysis.", "hero.copy": "Connect after the run, download the recorded telemetry over Bluetooth, and choose a session. No files or manual imports required.",
     "action.connect": "Connect LapTrace", "action.disconnect": "Disconnect LapTrace", "action.start": "Start recording", "action.stop": "Stop recording", "action.download": "Download saved sessions", "action.cancel": "Cancel", "action.unlock": "Unlock",
@@ -45,6 +47,7 @@ const translations = {
     "insight.fastest": "Fastest lap: #{lap}; spread to the slowest lap is {delta} s.", "insight.braking": "Strongest longitudinal deceleration on lap #{lap}: {value} g. The sign depends on device orientation.", "insight.lateral": "Peak lateral load: {value} g on lap #{lap}.", "insight.qualityGood": "Stable stream: {hz} Hz with no gaps longer than {gap} ms.", "insight.qualityBad": "Detected {count} stream gaps; check recording quality.",
   },
   pl: {
+    "account.kicker": "GARAŻ W CHMURZE", "account.title": "Konto LapTrace", "account.copy": "Zaloguj się, aby zapisywać logi i otwierać je na dowolnym urządzeniu.", "account.password": "Hasło", "account.signIn": "Zaloguj", "account.register": "Rejestracja", "account.signOut": "Wyloguj", "account.profile": "Twój garaż", "account.logs": "Logi w chmurze: {count}", "account.saved": "Logi zapisano w chmurze.", "account.confirm": "Sprawdź email, aby potwierdzić rejestrację.", "account.notConfigured": "Chmura nie została jeszcze skonfigurowana.",
     "status.disconnected": "LapTrace rozłączony", "status.searching": "Wyszukiwanie LapTrace…", "status.connectFailed": "Nie udało się połączyć",
     "hero.kicker": "ANALIZA PAMIĘCI LAPTRACE", "hero.title": "Log z urządzenia.", "hero.accent": "Gotowy do analizy.", "hero.copy": "Połącz się po przejeździe, pobierz zapisaną telemetrię przez Bluetooth i wybierz sesję. Bez plików i ręcznego importu.",
     "action.connect": "Połącz LapTrace", "action.disconnect": "Rozłącz LapTrace", "action.start": "Rozpocznij zapis", "action.stop": "Zatrzymaj zapis", "action.download": "Pobierz zapisane sesje", "action.cancel": "Anuluj", "action.unlock": "Odblokuj",

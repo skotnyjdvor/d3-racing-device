@@ -1,17 +1,282 @@
-<!doctype html><html lang="ru"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/><meta name="theme-color" content="#0a0d12"/><title>D3 Racing Lab</title><link rel="stylesheet" href="/styles.css"/></head>
-<body><header class="topbar"><a class="brand" href="#" aria-label="D3 Racing Lab"><span class="brand-mark">D3</span><span><strong>Racing Lab</strong><small>Telemetry intelligence</small></span></a><div class="header-actions"><label class="language-picker"><span>Language</span><select id="languageSelect" aria-label="Language"><option value="ru">RU</option><option value="en">EN</option><option value="pl">PL</option></select></label><div class="device-state"><span class="status-dot" id="statusDot"></span><span id="deviceStatus" data-i18n="status.disconnected"></span></div></div></header>
-<main><section class="hero device-hero"><div><p class="eyebrow" data-i18n="hero.kicker"></p><h1><span class="solid-title" data-i18n="hero.title"></span><br/><span data-i18n="hero.accent"></span></h1><p class="hero-copy" data-i18n="hero.copy"></p></div>
-<div class="action-panel device-panel"><button class="primary" id="connectButton" data-i18n="action.connect"></button><div class="device-health" id="deviceHealth" hidden><div><span data-i18n="device.gps"></span><strong id="gpsFix">—</strong><small id="satellites">—</small></div><div><span data-i18n="device.battery"></span><strong id="batteryLevel">—</strong><small id="batteryMeta" data-i18n="device.waiting"></small></div><div><span data-i18n="device.free"></span><strong id="memoryFree">—</strong><small id="memoryFreeMeta" data-i18n="device.memory"></small></div></div>
-<button class="record-button" id="recordButton" disabled><span></span><b data-i18n="action.start"></b></button><div class="storage-state" id="storageState" hidden><div><span data-i18n="device.used"></span><strong id="memoryLevel">—</strong></div><div><span data-i18n="device.records"></span><strong id="storedMessages">—</strong></div></div>
-<form class="unlock-form" id="unlockForm" hidden><label for="securityCode" data-i18n="memory.protected"></label><div><input id="securityCode" type="password" inputmode="numeric" data-i18n-placeholder="memory.code"/><button class="secondary" type="submit" data-i18n="action.unlock"></button></div></form>
-<button class="secondary" id="downloadButton" disabled data-i18n="action.download"></button><div class="download-progress" id="downloadProgress" hidden><div><span id="progressLabel" data-i18n="progress.preparing"></span><button id="cancelButton" type="button" data-i18n="action.cancel"></button></div><progress id="progressBar" max="100" value="0"></progress></div><p id="actionHint" data-i18n="hint.initial"></p></div></section>
-<section class="summary-grid"><article class="metric"><span data-i18n="summary.sessions"></span><strong id="sessionsValue">—</strong><small id="sessionsMeta" data-i18n="summary.loadFirst"></small></article><article class="metric accent"><span data-i18n="summary.duration"></span><strong id="durationValue">—</strong><small id="durationMeta" data-i18n="summary.selected"></small></article><article class="metric"><span data-i18n="summary.maxSpeed"></span><strong id="maxSpeedValue">—</strong><small data-i18n="unit.speed"></small></article><article class="metric"><span data-i18n="summary.frequency"></span><strong id="sampleRateValue">—</strong><small data-i18n="unit.hz"></small></article></section>
-<section class="dashboard"><article class="panel track-panel"><div class="panel-head"><div><p class="eyebrow" data-i18n="track.kicker"></p><h2 id="trackTitle" data-i18n="track.empty"></h2></div></div><canvas id="trackCanvas"></canvas><div class="legend"><span data-i18n="track.slower"></span><i></i><span data-i18n="track.faster"></span></div></article>
-<article class="panel sessions-panel"><div class="panel-head"><div><p class="eyebrow" data-i18n="sessions.kicker"></p><h2 data-i18n="sessions.title"></h2></div></div><div class="session-list" id="sessionList"><p class="empty" data-i18n="sessions.empty"></p></div></article>
-<article class="panel lap-controls-panel"><div class="panel-head"><div><p class="eyebrow" data-i18n="laps.kicker"></p><h2 data-i18n="laps.compareTitle"></h2></div><div class="lap-selectors"><label><span data-i18n="laps.primary"></span><select id="primaryLapSelect" disabled></select></label><label><span data-i18n="laps.compare"></span><select id="comparisonLapSelect" disabled></select></label></div></div><div class="comparison-legend"><span class="primary-line" id="primaryLapLegend">—</span><span class="comparison-line" id="comparisonLapLegend">—</span></div></article>
-<article class="panel chart-panel"><div class="panel-head"><div><p class="eyebrow" data-i18n="telemetry.kicker"></p><h2 data-i18n="telemetry.speed"></h2></div><span class="chart-unit" data-i18n="unit.speed"></span></div><canvas id="speedCanvas"></canvas></article>
-<article class="panel chart-panel"><div class="panel-head"><div><p class="eyebrow" data-i18n="telemetry.gforce"></p><h2 data-i18n="telemetry.longitudinal"></h2></div><span class="chart-unit">g</span></div><canvas id="longitudinalCanvas"></canvas></article>
-<article class="panel chart-panel"><div class="panel-head"><div><p class="eyebrow" data-i18n="telemetry.gforce"></p><h2 data-i18n="telemetry.lateral"></h2></div><span class="chart-unit">g</span></div><canvas id="lateralCanvas"></canvas></article>
-<article class="panel insight-panel"><div class="panel-head"><div><p class="eyebrow" data-i18n="insights.kicker"></p><h2 data-i18n="insights.title"></h2></div><span class="local-badge">LOCAL</span></div><ol class="insights" id="insightsList"><li data-i18n="insights.empty"></li></ol></article></section>
-<section class="ai-panel panel"><div><p class="eyebrow">AI-READY</p><h2 data-i18n="ai.title"></h2><p data-i18n="ai.copy"></p></div><div class="ai-actions"><textarea id="aiQuestion" rows="3" data-i18n-placeholder="ai.placeholder"></textarea><button class="primary" id="copyAiButton" disabled data-i18n="ai.button"></button><small id="copyStatus" data-i18n="ai.first"></small></div></section></main>
-<footer><span>D3 Racing Lab · BLE MVP 0.2</span><span id="sourceLabel" data-i18n="footer.noData"></span></footer><script type="module" src="/src/app.js"></script></body></html>
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+    <meta name="theme-color" content="#0a0d12" />
+    <title>D3 Racing Lab</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="#" aria-label="D3 Racing Lab"
+        ><span class="brand-mark">D3</span
+        ><span
+          ><strong>Racing Lab</strong
+          ><small>Telemetry intelligence</small></span
+        ></a
+      >
+      <div class="header-actions">
+        <button class="account-button" id="accountButton" type="button">
+          <span id="accountAvatar">?</span
+          ><b id="accountLabel" data-i18n="account.signIn"></b>
+        </button>
+        <label class="language-picker"
+          ><span>Language</span
+          ><select id="languageSelect" aria-label="Language">
+            <option value="ru">RU</option>
+            <option value="en">EN</option>
+            <option value="pl">PL</option>
+          </select></label
+        >
+        <div class="device-state">
+          <span class="status-dot" id="statusDot"></span
+          ><span id="deviceStatus" data-i18n="status.disconnected"></span>
+        </div>
+      </div>
+    </header>
+    <main>
+      <section class="hero device-hero">
+        <div>
+          <p class="eyebrow" data-i18n="hero.kicker"></p>
+          <h1>
+            <span class="solid-title" data-i18n="hero.title"></span><br /><span
+              data-i18n="hero.accent"
+            ></span>
+          </h1>
+          <p class="hero-copy" data-i18n="hero.copy"></p>
+        </div>
+        <div class="action-panel device-panel">
+          <button
+            class="primary"
+            id="connectButton"
+            data-i18n="action.connect"
+          ></button>
+          <div class="device-health" id="deviceHealth" hidden>
+            <div>
+              <span data-i18n="device.gps"></span><strong id="gpsFix">—</strong
+              ><small id="satellites">—</small>
+            </div>
+            <div>
+              <span data-i18n="device.battery"></span
+              ><strong id="batteryLevel">—</strong
+              ><small id="batteryMeta" data-i18n="device.waiting"></small>
+            </div>
+            <div>
+              <span data-i18n="device.free"></span
+              ><strong id="memoryFree">—</strong
+              ><small id="memoryFreeMeta" data-i18n="device.memory"></small>
+            </div>
+          </div>
+          <button class="record-button" id="recordButton" disabled>
+            <span></span><b data-i18n="action.start"></b>
+          </button>
+          <div class="storage-state" id="storageState" hidden>
+            <div>
+              <span data-i18n="device.used"></span
+              ><strong id="memoryLevel">—</strong>
+            </div>
+            <div>
+              <span data-i18n="device.records"></span
+              ><strong id="storedMessages">—</strong>
+            </div>
+          </div>
+          <form class="unlock-form" id="unlockForm" hidden>
+            <label for="securityCode" data-i18n="memory.protected"></label>
+            <div>
+              <input
+                id="securityCode"
+                type="password"
+                inputmode="numeric"
+                data-i18n-placeholder="memory.code"
+              /><button
+                class="secondary"
+                type="submit"
+                data-i18n="action.unlock"
+              ></button>
+            </div>
+          </form>
+          <button
+            class="secondary"
+            id="downloadButton"
+            disabled
+            data-i18n="action.download"
+          ></button>
+          <div class="download-progress" id="downloadProgress" hidden>
+            <div>
+              <span id="progressLabel" data-i18n="progress.preparing"></span
+              ><button
+                id="cancelButton"
+                type="button"
+                data-i18n="action.cancel"
+              ></button>
+            </div>
+            <progress id="progressBar" max="100" value="0"></progress>
+          </div>
+          <p id="actionHint" data-i18n="hint.initial"></p>
+        </div>
+      </section>
+      <section class="summary-grid">
+        <article class="metric">
+          <span data-i18n="summary.sessions"></span
+          ><strong id="sessionsValue">—</strong
+          ><small id="sessionsMeta" data-i18n="summary.loadFirst"></small>
+        </article>
+        <article class="metric accent">
+          <span data-i18n="summary.duration"></span
+          ><strong id="durationValue">—</strong
+          ><small id="durationMeta" data-i18n="summary.selected"></small>
+        </article>
+        <article class="metric">
+          <span data-i18n="summary.maxSpeed"></span
+          ><strong id="maxSpeedValue">—</strong
+          ><small data-i18n="unit.speed"></small>
+        </article>
+        <article class="metric">
+          <span data-i18n="summary.frequency"></span
+          ><strong id="sampleRateValue">—</strong
+          ><small data-i18n="unit.hz"></small>
+        </article>
+      </section>
+      <section class="dashboard">
+        <article class="panel track-panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow" data-i18n="track.kicker"></p>
+              <h2 id="trackTitle" data-i18n="track.empty"></h2>
+            </div>
+          </div>
+          <canvas id="trackCanvas"></canvas>
+          <div class="legend">
+            <span data-i18n="track.slower"></span><i></i
+            ><span data-i18n="track.faster"></span>
+          </div>
+        </article>
+        <article class="panel sessions-panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow" data-i18n="sessions.kicker"></p>
+              <h2 data-i18n="sessions.title"></h2>
+            </div>
+          </div>
+          <div class="session-list" id="sessionList">
+            <p class="empty" data-i18n="sessions.empty"></p>
+          </div>
+        </article>
+        <article class="panel lap-controls-panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow" data-i18n="laps.kicker"></p>
+              <h2 data-i18n="laps.compareTitle"></h2>
+            </div>
+            <div class="lap-selectors">
+              <label
+                ><span data-i18n="laps.primary"></span
+                ><select id="primaryLapSelect" disabled></select></label
+              ><label
+                ><span data-i18n="laps.compare"></span
+                ><select id="comparisonLapSelect" disabled></select
+              ></label>
+            </div>
+          </div>
+          <div class="comparison-legend">
+            <span class="primary-line" id="primaryLapLegend">—</span
+            ><span class="comparison-line" id="comparisonLapLegend">—</span>
+          </div>
+        </article>
+        <article class="panel chart-panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow" data-i18n="telemetry.kicker"></p>
+              <h2 data-i18n="telemetry.speed"></h2>
+            </div>
+            <span class="chart-unit" data-i18n="unit.speed"></span>
+          </div>
+          <canvas id="speedCanvas"></canvas>
+        </article>
+        <article class="panel chart-panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow" data-i18n="telemetry.gforce"></p>
+              <h2 data-i18n="telemetry.longitudinal"></h2>
+            </div>
+            <span class="chart-unit">g</span>
+          </div>
+          <canvas id="longitudinalCanvas"></canvas>
+        </article>
+        <article class="panel chart-panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow" data-i18n="telemetry.gforce"></p>
+              <h2 data-i18n="telemetry.lateral"></h2>
+            </div>
+            <span class="chart-unit">g</span>
+          </div>
+          <canvas id="lateralCanvas"></canvas>
+        </article>
+        <article class="panel insight-panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow" data-i18n="insights.kicker"></p>
+              <h2 data-i18n="insights.title"></h2>
+            </div>
+            <span class="local-badge">LOCAL</span>
+          </div>
+          <ol class="insights" id="insightsList">
+            <li data-i18n="insights.empty"></li>
+          </ol>
+        </article>
+      </section>
+      <section class="ai-panel panel">
+        <div>
+          <p class="eyebrow">AI-READY</p>
+          <h2 data-i18n="ai.title"></h2>
+          <p data-i18n="ai.copy"></p>
+        </div>
+        <div class="ai-actions">
+          <textarea
+            id="aiQuestion"
+            rows="3"
+            data-i18n-placeholder="ai.placeholder"
+          ></textarea
+          ><button
+            class="primary"
+            id="copyAiButton"
+            disabled
+            data-i18n="ai.button"
+          ></button
+          ><small id="copyStatus" data-i18n="ai.first"></small>
+        </div>
+      </section>
+    </main>
+    <footer>
+      <span>D3 Racing Lab · BLE MVP 0.2</span
+      ><span id="sourceLabel" data-i18n="footer.noData"></span>
+    </footer>
+    <dialog class="account-dialog" id="accountDialog">
+      <button class="dialog-close" id="accountClose" type="button" aria-label="Close">×</button>
+      <div id="accountGuest">
+        <p class="eyebrow" data-i18n="account.kicker"></p>
+        <h2 data-i18n="account.title"></h2>
+        <p class="dialog-copy" data-i18n="account.copy"></p>
+        <form id="accountForm">
+          <label><span>Email</span><input id="accountEmail" type="email" autocomplete="email" required /></label>
+          <label><span data-i18n="account.password"></span><input id="accountPassword" type="password" autocomplete="current-password" minlength="8" required /></label>
+          <div class="account-actions">
+            <button class="primary" type="submit" data-i18n="account.signIn"></button>
+            <button class="secondary" id="registerButton" type="button" data-i18n="account.register"></button>
+          </div>
+        </form>
+      </div>
+      <div id="accountMember" hidden>
+        <p class="eyebrow" data-i18n="account.kicker"></p>
+        <h2 data-i18n="account.profile"></h2>
+        <p class="account-email" id="accountUserEmail"></p>
+        <p class="dialog-copy" id="cloudLogStatus"></p>
+        <button class="secondary" id="logoutButton" type="button" data-i18n="account.signOut"></button>
+      </div>
+      <p class="account-message" id="accountMessage"></p>
+    </dialog>
+    <script type="module" src="/src/app.js"></script>
+  </body>
+</html>
