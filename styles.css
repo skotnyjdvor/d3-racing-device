@@ -19,17 +19,18 @@ button { cursor: pointer; }
 button:disabled { cursor: not-allowed; opacity: .45; }
 
 .topbar { height: 76px; padding: 0 clamp(20px, 5vw, 72px); border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; background: rgba(8, 11, 16, .82); backdrop-filter: blur(16px); position: sticky; top: 0; z-index: 20; }
-.brand { color: var(--text); display: flex; align-items: center; gap: 12px; text-decoration: none; letter-spacing: -.02em; }
-.brand-mark { display: grid; place-items: center; width: 40px; height: 40px; background: var(--acid); color: #0a0d12; font-weight: 950; font-style: italic; transform: skew(-8deg); }
+.brand { color: var(--text); display: flex; align-items: center; gap: 13px; text-decoration: none; font-family: "Arial Narrow", "Segoe UI", sans-serif; letter-spacing: .015em; }
+.brand-mark { display: grid; place-items: center; width: 40px; height: 40px; background: var(--acid); color: #0a0d12; font-family: "Arial Black", "Segoe UI", sans-serif; font-size: 14px; font-weight: 900; font-style: italic; letter-spacing: -.06em; transform: skew(-8deg); }
 .brand strong, .brand small { display: block; }
-.brand small { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .14em; margin-top: 2px; }
+.brand strong { font-size: 15px; font-weight: 800; line-height: 1.05; text-transform: uppercase; letter-spacing: .045em; }
+.brand small { color: #aab5c0; font-size: 10.5px; font-weight: 600; line-height: 1.15; text-transform: uppercase; letter-spacing: .17em; margin-top: 4px; }
 .device-state { display: flex; align-items: center; gap: 9px; color: var(--muted); font-size: 13px; }
 .header-actions { display: flex; align-items: center; gap: 18px; }
-.account-button { min-height: 38px; padding: 4px 10px 4px 5px; display: flex; align-items: center; gap: 8px; color: var(--text); background: #121820; border: 1px solid var(--line); }
+.account-button { min-height: 40px; padding: 5px 13px 5px 5px; display: flex; align-items: center; gap: 9px; color: var(--text); background: #121820; border: 1px solid #3a4653; font-family: "Arial Narrow", "Segoe UI", sans-serif; letter-spacing: .035em; }
 .account-button span { width: 27px; height: 27px; display: grid; place-items: center; border-radius: 50%; color: #080b10; background: var(--acid); font-size: 12px; font-weight: 900; text-transform: uppercase; }
-.account-button b { max-width: 150px; overflow: hidden; text-overflow: ellipsis; font-size: 11px; white-space: nowrap; }
-.language-picker { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 9px; text-transform: uppercase; letter-spacing: .1em; }
-.language-picker select { color: var(--text); background: #121820; border: 1px solid var(--line); padding: 7px 8px; outline: none; }
+.account-button b { max-width: 150px; overflow: hidden; text-overflow: ellipsis; font-size: 13px; font-weight: 750; text-transform: uppercase; white-space: nowrap; }
+.language-picker { display: flex; align-items: center; gap: 9px; color: #aab5c0; font-family: "Arial Narrow", "Segoe UI", sans-serif; font-size: 10.5px; font-weight: 650; text-transform: uppercase; letter-spacing: .14em; }
+.language-picker select { min-height: 40px; color: var(--text); background: #121820; border: 1px solid #3a4653; padding: 7px 10px; outline: none; font-size: 13px; font-weight: 750; letter-spacing: .06em; }
 .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #56606b; box-shadow: 0 0 0 4px rgba(86, 96, 107, .12); }
 .status-dot.live { background: var(--acid); box-shadow: 0 0 0 4px rgba(201, 255, 55, .12), 0 0 16px var(--acid); }
 
