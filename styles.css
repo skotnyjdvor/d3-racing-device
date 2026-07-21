@@ -99,7 +99,7 @@ tr[data-lap] { cursor: pointer; }
 tr[data-lap]:hover, tr.selected { background: #1d252e; }
 tr.best td:nth-child(2) { color: var(--acid); font-weight: 800; }
 .empty { color: var(--muted); text-align: center !important; padding: 50px 20px; }
-.chart-panel canvas { display: block; width: 100%; height: 240px; }
+.chart-panel canvas { display: block; width: 100%; height: 240px; cursor: crosshair; touch-action: none; }
 .lap-controls-panel { grid-column: 1 / -1; }
 .lap-controls-panel .panel-head { align-items: flex-end; }
 .lap-selectors { display: flex; gap: 12px; }

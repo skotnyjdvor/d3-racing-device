@@ -5,7 +5,7 @@ import { distanceMeters, identifyTrack } from "./domain/tracks.js";
 import { applyTranslations, getLanguage, onLanguageChange, setLanguage, t } from "./i18n.js";
 
 const elements = Object.fromEntries([...document.querySelectorAll("[id]")].map((element) => [element.id, element]));
-const state = { client: null, connected: false, deviceName: "", deviceModel: "", latestTelemetry: null, storage: null, sessions: [], selectedSession: null, analysis: null, selectedLapNumber: null, comparisonLapNumber: null, track: null, pollTimer: null };
+const state = { client: null, connected: false, deviceName: "", deviceModel: "", latestTelemetry: null, storage: null, sessions: [], selectedSession: null, analysis: null, selectedLapNumber: null, comparisonLapNumber: null, cursorProgress: null, track: null, pollTimer: null };
 const testMode = new URLSearchParams(location.search).has("mock");
 
 const formatDuration = (milliseconds) => {
@@ -65,11 +65,36 @@ function lapPoints(number) {
   return number ? state.selectedSession.points.filter((point) => point.lap === number) : state.selectedSession.points;
 }
 
+function distancePoints(points, max = 2400) {
+  const sampled = downsample(points, max);
+  if (sampled.length < 2) return [];
+  let distance = 0;
+  const series = sampled.map((point, index) => {
+    if (index) distance += distanceMeters(sampled[index - 1], point);
+    return { distance, point };
+  });
+  const total = Math.max(distance, 1);
+  return series.map((item) => ({ progress: item.distance / total, point: item.point }));
+}
+
+function pointAtProgress(series, progress) {
+  if (!series.length || progress === null) return null;
+  let low = 0; let high = series.length - 1;
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (series[middle].progress < progress) low = middle + 1;
+    else high = middle;
+  }
+  if (low > 0 && Math.abs(series[low - 1].progress - progress) < Math.abs(series[low].progress - progress)) return series[low - 1];
+  return series[low];
+}
+
 function drawTrack() {
   const { context, width, height } = canvasContext(elements.trackCanvas);
   context.fillStyle = "#0c1117";
   context.fillRect(0, 0, width, height);
-  const points = downsample(lapPoints(state.selectedLapNumber));
+  const trackSeries = distancePoints(lapPoints(state.selectedLapNumber), 1800);
+  const points = trackSeries.map((item) => item.point);
   if (points.length < 2) {
     context.fillStyle = "#657180";
     context.font = "13px system-ui";
@@ -99,18 +124,18 @@ function drawTrack() {
     context.strokeStyle = `hsl(${195 - ratio * 180} 92% 58%)`;
     context.beginPath(); context.moveTo(x1, y1); context.lineTo(x2, y2); context.stroke();
   }
+  const cursorPoint = pointAtProgress(trackSeries, state.cursorProgress)?.point;
+  if (cursorPoint) {
+    const [x, y] = project(cursorPoint);
+    context.shadowColor = "rgba(201,255,55,.8)"; context.shadowBlur = 15;
+    context.fillStyle = "#c9ff37"; context.beginPath(); context.arc(x, y, 6, 0, Math.PI * 2); context.fill();
+    context.shadowBlur = 0; context.strokeStyle = "#ffffff"; context.lineWidth = 2;
+    context.beginPath(); context.arc(x, y, 9, 0, Math.PI * 2); context.stroke();
+  }
 }
 
 function distanceSeries(points, key) {
-  const sampled = downsample(points, 2400);
-  if (sampled.length < 2) return [];
-  let distance = 0;
-  const series = sampled.map((point, index) => {
-    if (index) distance += distanceMeters(sampled[index - 1], point);
-    return { distance, value: point[key] };
-  });
-  const total = Math.max(distance, 1);
-  return series.map((point) => ({ progress: point.distance / total, value: point.value }));
+  return distancePoints(points).map((item) => ({ progress: item.progress, value: item.point[key] }));
 }
 
 function drawComparisonChart(canvas, key, { speed = false } = {}) {
@@ -158,6 +183,27 @@ function drawComparisonChart(canvas, key, { speed = false } = {}) {
   };
   draw(comparison, "#37d7ff", 1.6);
   draw(primary, "#c9ff37", 2.2);
+
+  if (state.cursorProgress !== null) {
+    const xPosition = padding.left + state.cursorProgress * plotWidth;
+    context.strokeStyle = "rgba(255,255,255,.55)"; context.lineWidth = 1;
+    context.beginPath(); context.moveTo(xPosition, padding.top); context.lineTo(xPosition, height - padding.bottom); context.stroke();
+    const markers = [
+      { item: pointAtProgress(primary, state.cursorProgress), color: "#c9ff37", side: -1 },
+      { item: pointAtProgress(comparison, state.cursorProgress), color: "#37d7ff", side: 1 },
+    ];
+    markers.forEach(({ item, color, side }) => {
+      if (!item || !Number.isFinite(item.value)) return;
+      const yPosition = y(item.value);
+      context.fillStyle = color; context.beginPath(); context.arc(xPosition, yPosition, 4.5, 0, Math.PI * 2); context.fill();
+      const label = speed ? `${item.value.toFixed(1)}` : `${item.value.toFixed(2)} g`;
+      context.font = "bold 11px ui-monospace, monospace";
+      const labelWidth = context.measureText(label).width + 10;
+      const labelX = Math.max(padding.left, Math.min(width - padding.right - labelWidth, xPosition + side * 8 - (side < 0 ? labelWidth : 0)));
+      context.fillStyle = "rgba(12,17,23,.92)"; context.fillRect(labelX, yPosition - 20, labelWidth, 17);
+      context.fillStyle = color; context.fillText(label, labelX + 5, yPosition - 8);
+    });
+  }
 }
 
 function drawCharts() {
@@ -165,6 +211,33 @@ function drawCharts() {
   drawComparisonChart(elements.longitudinalCanvas, "gForceX");
   drawComparisonChart(elements.lateralCanvas, "gForceY");
 }
+
+let cursorFrame = 0;
+function setCursorProgress(progress) {
+  state.cursorProgress = progress;
+  if (cursorFrame) return;
+  cursorFrame = requestAnimationFrame(() => {
+    cursorFrame = 0;
+    drawTrack(); drawCharts();
+  });
+}
+
+function updateCursorFromEvent(event) {
+  const rect = event.currentTarget.getBoundingClientRect();
+  const paddingLeft = 48; const paddingRight = 18;
+  const progress = (event.clientX - rect.left - paddingLeft) / Math.max(rect.width - paddingLeft - paddingRight, 1);
+  setCursorProgress(Math.max(0, Math.min(1, progress)));
+}
+
+[elements.speedCanvas, elements.longitudinalCanvas, elements.lateralCanvas].forEach((canvas) => {
+  canvas.addEventListener("pointerdown", (event) => { canvas.setPointerCapture?.(event.pointerId); updateCursorFromEvent(event); });
+  canvas.addEventListener("pointermove", (event) => {
+    if (event.pointerType === "mouse" || canvas.hasPointerCapture?.(event.pointerId)) updateCursorFromEvent(event);
+  });
+  canvas.addEventListener("pointerleave", (event) => {
+    if (event.pointerType === "mouse" && !event.buttons) setCursorProgress(null);
+  });
+});
 
 function renderStorage(storage) {
   state.storage = storage;
