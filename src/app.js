@@ -3,7 +3,7 @@ import { analyzeSession, generateLocalInsights } from "./domain/analysis.js";
 import { buildAiPrompt } from "./domain/ai-context.js";
 import { distanceMeters, identifyTrack } from "./domain/tracks.js";
 import { applyTranslations, getLanguage, onLanguageChange, setLanguage, t } from "./i18n.js";
-import { cloudConfigured, currentUser, deleteLog, loadLogs, onAuthChange, renameLog, saveLog, signIn, signOut, signUp } from "./cloud/api.js";
+import { cloudConfigured, currentUser, deleteLog, loadLogs, renameLog, saveLog, signIn, signOut, signUp } from "./cloud/api.js";
 
 const elements = Object.fromEntries([...document.querySelectorAll("[id]")].map((element) => [element.id, element]));
 const state = { client: null, connected: false, deviceName: "", deviceModel: "", latestTelemetry: null, storage: null, sessions: [], selectedSession: null, analysis: null, selectedLapNumber: null, comparisonLapNumber: null, cursorProgress: null, track: null, user: null, cloudLogs: [], pollTimer: null };
@@ -380,6 +380,17 @@ function setAccountMessage(message = "", error = false) {
   elements.accountMessage.classList.toggle("error", error);
 }
 
+function updateAccess() {
+  const unlocked = Boolean(state.user) || testMode;
+  document.body.classList.toggle("auth-locked", !unlocked);
+  elements.authGate.hidden = unlocked;
+}
+
+function openAccountDialog() {
+  renderAccount();
+  elements.accountDialog.showModal();
+}
+
 function renderAccount() {
   const email = state.user?.email ?? "";
   elements.accountGuest.hidden = Boolean(state.user);
@@ -392,6 +403,7 @@ function renderAccount() {
     setAccountMessage(t("account.notConfigured"), true);
     elements.accountForm.querySelectorAll("input, button").forEach((element) => { element.disabled = true; });
   }
+  updateAccess();
 }
 
 async function syncCloudLogs() {
@@ -409,6 +421,7 @@ async function syncCloudLogs() {
 async function applyUser(user) {
   state.user = user;
   if (!user) {
+    if (!testMode && state.client) await state.client.disconnect();
     state.cloudLogs = [];
     state.sessions = state.sessions.filter((session) => session.source !== "cloud");
     if (state.selectedSession?.source === "cloud") state.selectedSession = null;
@@ -458,6 +471,7 @@ async function createClient() {
 }
 
 async function connect() {
+  if (!state.user && !testMode) { openAccountDialog(); return; }
   if (state.client) { state.client.disconnect(); return; }
   try {
     setStatus(t("status.searching")); setHint(t("error.notSelected"));
@@ -472,6 +486,7 @@ async function connect() {
 }
 
 async function toggleRecording() {
+  if (!state.user && !testMode) { openAccountDialog(); return; }
   if (!state.client || !state.storage) return;
   const wasRecording = state.storage.recording;
   elements.recordButton.disabled = true;
@@ -490,6 +505,7 @@ async function toggleRecording() {
 }
 
 async function downloadHistory() {
+  if (!state.user && !testMode) { openAccountDialog(); return; }
   try {
     elements.downloadButton.disabled = true; elements.downloadProgress.hidden = false; elements.cancelButton.hidden = false;
     setStatus(t("state.downloading", { name: state.deviceName }), true);
@@ -512,7 +528,8 @@ elements.connectButton.addEventListener("click", connect);
 elements.recordButton.addEventListener("click", toggleRecording);
 elements.downloadButton.addEventListener("click", downloadHistory);
 elements.cancelButton.addEventListener("click", () => state.client?.cancelDownload());
-elements.accountButton.addEventListener("click", () => { renderAccount(); elements.accountDialog.showModal(); });
+elements.accountButton.addEventListener("click", openAccountDialog);
+elements.gateAccountButton.addEventListener("click", openAccountDialog);
 elements.accountClose.addEventListener("click", () => elements.accountDialog.close());
 elements.accountDialog.addEventListener("click", (event) => { if (event.target === elements.accountDialog) elements.accountDialog.close(); });
 elements.accountForm.addEventListener("submit", async (event) => { event.preventDefault(); await submitAccount(signIn); });
@@ -562,7 +579,6 @@ renderAccount();
 drawTrack(); drawCharts();
 
 if (cloudConfigured) {
-  onAuthChange((user) => { if (user?.id !== state.user?.id) applyUser(user); });
   currentUser().then(applyUser);
 }
 

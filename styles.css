@@ -34,6 +34,14 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .status-dot.live { background: var(--acid); box-shadow: 0 0 0 4px rgba(201, 255, 55, .12), 0 0 16px var(--acid); }
 
 main { width: min(1480px, calc(100% - 40px)); margin: 0 auto; }
+.auth-gate { min-height: calc(100vh - 150px); padding: 50px 20px; display: none; place-items: center; }
+.auth-locked .auth-gate { display: grid; }
+.auth-locked .app-main { display: none; }
+.auth-gate-card { width: min(760px, 100%); padding: clamp(32px, 7vw, 80px); text-align: center; background: radial-gradient(circle at 50% 0, #1d2932, #0d1218 60%); border: 1px solid var(--line); box-shadow: 0 32px 100px rgba(0,0,0,.45); }
+.auth-gate-card .brand-mark { margin: 0 auto 28px; width: 54px; height: 54px; }
+.auth-gate-card h1 { font-size: clamp(48px, 8vw, 94px); line-height: .9; }
+.auth-gate-card > p:not(.eyebrow) { max-width: 570px; margin: 28px auto; color: #b5bec8; font-size: 18px; line-height: 1.55; }
+.auth-gate-card .primary { min-width: 230px; padding: 0 24px; }
 .hero { min-height: 430px; padding: 74px 0 56px; display: grid; grid-template-columns: 1.35fr .65fr; align-items: end; gap: 70px; }
 .eyebrow { margin: 0 0 10px; color: var(--acid); font: 750 11px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .18em; }
 h1 { margin: 0; font-size: clamp(62px, 8vw, 124px); line-height: .82; letter-spacing: -.075em; text-transform: uppercase; font-weight: 930; }

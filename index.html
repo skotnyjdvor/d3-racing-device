@@ -7,7 +7,7 @@
     <title>D3 Racing Lab</title>
     <link rel="stylesheet" href="/styles.css" />
   </head>
-  <body>
+  <body class="auth-locked">
     <header class="topbar">
       <a class="brand" href="#" aria-label="D3 Racing Lab"
         ><span class="brand-mark">D3</span
@@ -35,7 +35,16 @@
         </div>
       </div>
     </header>
-    <main>
+    <section class="auth-gate" id="authGate">
+      <div class="auth-gate-card">
+        <span class="brand-mark">D3</span>
+        <p class="eyebrow" data-i18n="gate.kicker"></p>
+        <h1 data-i18n="gate.title"></h1>
+        <p data-i18n="gate.copy"></p>
+        <button class="primary" id="gateAccountButton" type="button" data-i18n="gate.button"></button>
+      </div>
+    </section>
+    <main class="app-main" id="appMain">
       <section class="hero device-hero">
         <div>
           <p class="eyebrow" data-i18n="hero.kicker"></p>
