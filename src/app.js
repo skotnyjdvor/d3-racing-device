@@ -1,11 +1,11 @@
 import { RaceBoxBleClient } from "./ble/racebox.js";
 import { analyzeSession, generateLocalInsights } from "./domain/analysis.js";
 import { buildAiPrompt } from "./domain/ai-context.js";
-import { identifyTrack } from "./domain/tracks.js";
+import { distanceMeters, identifyTrack } from "./domain/tracks.js";
 import { applyTranslations, getLanguage, onLanguageChange, setLanguage, t } from "./i18n.js";
 
 const elements = Object.fromEntries([...document.querySelectorAll("[id]")].map((element) => [element.id, element]));
-const state = { client: null, connected: false, deviceName: "", deviceModel: "", latestTelemetry: null, storage: null, sessions: [], selectedSession: null, analysis: null, pollTimer: null };
+const state = { client: null, connected: false, deviceName: "", deviceModel: "", latestTelemetry: null, storage: null, sessions: [], selectedSession: null, analysis: null, selectedLapNumber: null, comparisonLapNumber: null, track: null, pollTimer: null };
 const testMode = new URLSearchParams(location.search).has("mock");
 
 const formatDuration = (milliseconds) => {
@@ -13,6 +13,14 @@ const formatDuration = (milliseconds) => {
   const minutes = Math.floor(milliseconds / 60_000);
   const seconds = Math.round((milliseconds % 60_000) / 1000);
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
+};
+
+const formatLapTime = (milliseconds) => {
+  if (!Number.isFinite(milliseconds)) return "—";
+  const minutes = Math.floor(milliseconds / 60_000);
+  const seconds = Math.floor(milliseconds % 60_000 / 1000);
+  const millis = Math.round(milliseconds % 1000);
+  return `${minutes}:${String(seconds).padStart(2, "0")}.${String(millis).padStart(3, "0")}`;
 };
 
 const formatDate = (iso) => new Intl.DateTimeFormat(getLanguage(), {
@@ -52,11 +60,16 @@ function downsample(points, max = 1800) {
   return Array.from({ length: max }, (_, index) => points[Math.floor(index * step)]);
 }
 
+function lapPoints(number) {
+  if (!state.selectedSession) return [];
+  return number ? state.selectedSession.points.filter((point) => point.lap === number) : state.selectedSession.points;
+}
+
 function drawTrack() {
   const { context, width, height } = canvasContext(elements.trackCanvas);
   context.fillStyle = "#0c1117";
   context.fillRect(0, 0, width, height);
-  const points = downsample(state.selectedSession?.points ?? []);
+  const points = downsample(lapPoints(state.selectedLapNumber));
   if (points.length < 2) {
     context.fillStyle = "#657180";
     context.font = "13px system-ui";
@@ -88,26 +101,69 @@ function drawTrack() {
   }
 }
 
-function drawSpeed() {
-  const { context, width, height } = canvasContext(elements.speedCanvas);
+function distanceSeries(points, key) {
+  const sampled = downsample(points, 2400);
+  if (sampled.length < 2) return [];
+  let distance = 0;
+  const series = sampled.map((point, index) => {
+    if (index) distance += distanceMeters(sampled[index - 1], point);
+    return { distance, value: point[key] };
+  });
+  const total = Math.max(distance, 1);
+  return series.map((point) => ({ progress: point.distance / total, value: point.value }));
+}
+
+function drawComparisonChart(canvas, key, { speed = false } = {}) {
+  const { context, width, height } = canvasContext(canvas);
   context.fillStyle = "#0c1117"; context.fillRect(0, 0, width, height);
-  const points = downsample(state.selectedSession?.points ?? [], 2400);
-  if (points.length < 2) return;
-  const padding = { left: 48, right: 18, top: 18, bottom: 28 };
-  const max = Math.ceil(Math.max(...points.map((point) => point.speed)) / 20) * 20 || 20;
-  context.font = "10px ui-monospace, monospace"; context.fillStyle = "#73808e"; context.strokeStyle = "#202a34";
-  for (let value = 0; value <= max; value += 20) {
-    const y = height - padding.bottom - value / max * (height - padding.top - padding.bottom);
-    context.beginPath(); context.moveTo(padding.left, y); context.lineTo(width - padding.right, y); context.stroke(); context.fillText(String(value), 16, y + 3);
+  const primary = distanceSeries(lapPoints(state.selectedLapNumber), key);
+  const comparison = distanceSeries(lapPoints(state.comparisonLapNumber), key);
+  if (primary.length < 2) return;
+
+  const padding = { left: 48, right: 18, top: 18, bottom: 30 };
+  const values = [...primary, ...comparison].map((point) => point.value).filter(Number.isFinite);
+  let minimum; let maximum; let step;
+  if (speed) {
+    minimum = 0;
+    maximum = Math.ceil(Math.max(...values, 20) / 20) * 20;
+    step = 20;
+  } else {
+    const range = Math.max(.5, Math.ceil(Math.max(...values.map(Math.abs), .5) * 2) / 2);
+    minimum = -range; maximum = range; step = range / 2;
   }
-  const firstTime = points[0].timeMs; const duration = Math.max(1, points.at(-1).timeMs - firstTime);
-  const x = (point) => padding.left + (point.timeMs - firstTime) / duration * (width - padding.left - padding.right);
-  const y = (point) => height - padding.bottom - point.speed / max * (height - padding.top - padding.bottom);
-  const gradient = context.createLinearGradient(0, 0, width, 0);
-  gradient.addColorStop(0, "#37d7ff"); gradient.addColorStop(.58, "#c9ff37"); gradient.addColorStop(1, "#ff5f35");
-  context.strokeStyle = gradient; context.lineWidth = 2; context.beginPath();
-  points.forEach((point, index) => index ? context.lineTo(x(point), y(point)) : context.moveTo(x(point), y(point)));
-  context.stroke();
+
+  const plotWidth = width - padding.left - padding.right;
+  const plotHeight = height - padding.top - padding.bottom;
+  const y = (value) => padding.top + (maximum - value) / Math.max(maximum - minimum, .001) * plotHeight;
+  context.font = "10px ui-monospace, monospace"; context.fillStyle = "#73808e"; context.strokeStyle = "#202a34"; context.lineWidth = 1;
+  for (let value = minimum; value <= maximum + step / 10; value += step) {
+    const yPosition = y(value);
+    context.beginPath(); context.moveTo(padding.left, yPosition); context.lineTo(width - padding.right, yPosition); context.stroke();
+    context.fillText(speed ? String(Math.round(value)) : value.toFixed(1), 12, yPosition + 3);
+  }
+  for (let percent = 0; percent <= 100; percent += 25) {
+    const xPosition = padding.left + percent / 100 * plotWidth;
+    context.fillText(`${percent}%`, xPosition - (percent === 100 ? 24 : 8), height - 9);
+  }
+
+  const draw = (series, color, widthPx) => {
+    if (series.length < 2) return;
+    context.strokeStyle = color; context.lineWidth = widthPx; context.beginPath();
+    series.forEach((point, index) => {
+      const xPosition = padding.left + point.progress * plotWidth;
+      const yPosition = y(point.value);
+      index ? context.lineTo(xPosition, yPosition) : context.moveTo(xPosition, yPosition);
+    });
+    context.stroke();
+  };
+  draw(comparison, "#37d7ff", 1.6);
+  draw(primary, "#c9ff37", 2.2);
+}
+
+function drawCharts() {
+  drawComparisonChart(elements.speedCanvas, "speed", { speed: true });
+  drawComparisonChart(elements.longitudinalCanvas, "gForceX");
+  drawComparisonChart(elements.lateralCanvas, "gForceY");
 }
 
 function renderStorage(storage) {
@@ -161,21 +217,46 @@ function renderSessions() {
   elements.sessionList.querySelectorAll("[data-session]").forEach((button) => button.addEventListener("click", () => selectSession(Number(button.dataset.session))));
 }
 
+function renderLapControls() {
+  const laps = state.analysis?.laps ?? [];
+  const options = laps.map((lap) => `<option value="${lap.number}">${t("laps.option", { lap: lap.number, time: formatLapTime(lap.durationMs) })}</option>`).join("");
+  elements.primaryLapSelect.innerHTML = options;
+  elements.comparisonLapSelect.innerHTML = `<option value="">${t("laps.none")}</option>${options}`;
+  elements.primaryLapSelect.disabled = !laps.length;
+  elements.comparisonLapSelect.disabled = laps.length < 2;
+  elements.primaryLapSelect.value = state.selectedLapNumber ? String(state.selectedLapNumber) : "";
+  elements.comparisonLapSelect.value = state.comparisonLapNumber ? String(state.comparisonLapNumber) : "";
+  elements.primaryLapLegend.textContent = state.selectedLapNumber ? t("laps.legend", { lap: state.selectedLapNumber }) : "—";
+  elements.comparisonLapLegend.textContent = state.comparisonLapNumber ? t("laps.legend", { lap: state.comparisonLapNumber }) : t("laps.none");
+}
+
+function updateLapView() {
+  if (!state.analysis || !state.selectedSession) return;
+  const lap = state.analysis.laps.find((item) => item.number === state.selectedLapNumber);
+  elements.durationValue.textContent = lap ? formatLapTime(lap.durationMs) : formatDuration(state.analysis.session.durationMs);
+  elements.durationMeta.textContent = lap ? t("laps.legend", { lap: lap.number }) : formatDate(state.selectedSession.startedAt);
+  elements.maxSpeedValue.textContent = (lap?.maxSpeed ?? state.analysis.session.maxSpeed).toFixed(1);
+  elements.sampleRateValue.textContent = state.analysis.sampleRateHz.toFixed(0);
+  elements.trackTitle.textContent = `${state.track ? `${state.track.name} · ` : ""}${t("sessions.item", { id: state.selectedSession.id })}${lap ? ` · ${t("laps.legend", { lap: lap.number })}` : ""}`;
+  renderLapControls(); drawTrack(); drawCharts();
+}
+
 function selectSession(id) {
+  const isNewSession = state.selectedSession?.id !== id;
   state.selectedSession = state.sessions.find((session) => session.id === id);
   if (!state.selectedSession?.points.length) return;
   state.analysis = analyzeSession(state.selectedSession.points);
-  const track = identifyTrack(state.selectedSession.points);
-  elements.durationValue.textContent = formatDuration(state.analysis.session.durationMs);
-  elements.durationMeta.textContent = formatDate(state.selectedSession.startedAt);
-  elements.maxSpeedValue.textContent = state.analysis.session.maxSpeed.toFixed(1);
-  elements.sampleRateValue.textContent = state.analysis.sampleRateHz.toFixed(0);
-  elements.trackTitle.textContent = `${track ? `${track.name} · ` : ""}${t("sessions.item", { id })} · ${formatDate(state.selectedSession.startedAt)}`;
+  state.track = identifyTrack(state.selectedSession.points);
+  if (isNewSession || !state.analysis.laps.some((lap) => lap.number === state.selectedLapNumber)) {
+    const ordered = [...state.analysis.laps].sort((a, b) => a.durationMs - b.durationMs);
+    state.selectedLapNumber = ordered[0]?.number ?? null;
+    state.comparisonLapNumber = ordered[1]?.number ?? null;
+  }
   elements.sourceLabel.textContent = `${state.deviceName} · память устройства`;
   elements.copyAiButton.disabled = false;
   elements.copyStatus.textContent = "Контекст строится только по выбранной сессии.";
   elements.insightsList.innerHTML = generateLocalInsights(state.analysis, t).map((insight) => `<li>${insight}</li>`).join("");
-  renderSessions(); drawTrack(); drawSpeed();
+  renderSessions(); updateLapView();
 }
 
 async function createClient() {
@@ -262,14 +343,24 @@ elements.copyAiButton.addEventListener("click", async () => {
   await navigator.clipboard.writeText(buildAiPrompt(state.analysis, elements.aiQuestion.value));
   elements.copyStatus.textContent = "AI-контекст выбранной BLE-сессии скопирован.";
 });
-window.addEventListener("resize", () => { drawTrack(); drawSpeed(); });
+elements.primaryLapSelect.addEventListener("change", () => {
+  state.selectedLapNumber = Number(elements.primaryLapSelect.value) || null;
+  if (state.comparisonLapNumber === state.selectedLapNumber) state.comparisonLapNumber = null;
+  updateLapView();
+});
+elements.comparisonLapSelect.addEventListener("change", () => {
+  state.comparisonLapNumber = Number(elements.comparisonLapSelect.value) || null;
+  if (state.comparisonLapNumber === state.selectedLapNumber) state.comparisonLapNumber = null;
+  updateLapView();
+});
+window.addEventListener("resize", () => { drawTrack(); drawCharts(); });
 elements.languageSelect.addEventListener("change", () => setLanguage(elements.languageSelect.value));
 onLanguageChange(() => {
   if (state.storage) renderStorage(state.storage);
   if (state.latestTelemetry) renderTelemetry(state.latestTelemetry);
   if (state.sessions.length) renderSessions();
   if (state.selectedSession) selectSession(state.selectedSession.id);
-  else { drawTrack(); drawSpeed(); }
+  else { drawTrack(); drawCharts(); }
   if (state.connected) {
     setStatus(t(state.storage?.recording ? "state.recording" : "state.ready", { name: state.deviceName }), true);
     elements.connectButton.textContent = t("action.disconnect");
@@ -279,6 +370,6 @@ onLanguageChange(() => {
   }
 });
 applyTranslations();
-drawTrack(); drawSpeed();
+drawTrack(); drawCharts();
 
 if (testMode) elements.actionHint.textContent = t("hint.mock");
