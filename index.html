@@ -328,15 +328,17 @@
       <button class="dialog-close" id="accountClose" type="button" aria-label="Close">×</button>
       <div id="accountGuest">
         <p class="eyebrow" data-i18n="account.kicker"></p>
-        <h2 data-i18n="account.title"></h2>
-        <p class="dialog-copy" data-i18n="account.copy"></p>
+        <h2 id="accountDialogTitle" data-i18n="account.title"></h2>
+        <p class="dialog-copy" id="accountDialogCopy" data-i18n="account.copy"></p>
+        <div class="account-tabs" role="tablist">
+          <button class="active" id="accountSignInTab" type="button" role="tab" aria-selected="true" data-i18n="account.signIn"></button>
+          <button id="accountRegisterTab" type="button" role="tab" aria-selected="false" data-i18n="account.register"></button>
+        </div>
         <form id="accountForm">
           <label><span>Email</span><input id="accountEmail" type="email" autocomplete="email" required /></label>
           <label><span data-i18n="account.password"></span><input id="accountPassword" type="password" autocomplete="current-password" minlength="8" required /></label>
-          <div class="account-actions">
-            <button class="primary" type="submit" data-i18n="account.signIn"></button>
-            <button class="secondary" id="registerButton" type="button" data-i18n="account.register"></button>
-          </div>
+          <label id="accountConfirmLabel" hidden><span data-i18n="account.confirmPassword"></span><input id="accountPasswordConfirm" type="password" autocomplete="new-password" minlength="8" /></label>
+          <button class="primary" id="accountSubmitButton" type="submit" data-i18n="account.signIn"></button>
         </form>
       </div>
       <div id="accountMember" hidden>

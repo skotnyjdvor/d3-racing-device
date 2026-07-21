@@ -9,6 +9,7 @@ import "./demo.js";
 const elements = Object.fromEntries([...document.querySelectorAll("[id]")].map((element) => [element.id, element]));
 const state = { client: null, connected: false, deviceName: "", deviceModel: "", latestTelemetry: null, storage: null, sessions: [], selectedSession: null, analysis: null, selectedLapNumber: null, comparisonLapNumber: null, cursorProgress: null, track: null, user: null, cloudLogs: [], pollTimer: null };
 const testMode = new URLSearchParams(location.search).has("mock");
+let accountMode = "signin";
 
 const formatDuration = (milliseconds) => {
   if (!Number.isFinite(milliseconds)) return "—";
@@ -387,8 +388,28 @@ function updateAccess() {
   elements.authGate.hidden = unlocked;
 }
 
-function openAccountDialog() {
+function setAccountMode(mode) {
+  accountMode = mode === "register" ? "register" : "signin";
+  const registering = accountMode === "register";
+  elements.accountSignInTab.classList.toggle("active", !registering);
+  elements.accountRegisterTab.classList.toggle("active", registering);
+  elements.accountSignInTab.setAttribute("aria-selected", String(!registering));
+  elements.accountRegisterTab.setAttribute("aria-selected", String(registering));
+  elements.accountConfirmLabel.hidden = !registering;
+  elements.accountPasswordConfirm.required = registering;
+  elements.accountPassword.autocomplete = registering ? "new-password" : "current-password";
+  elements.accountDialogTitle.textContent = t(registering ? "account.registerTitle" : "account.title");
+  elements.accountDialogCopy.textContent = t(registering ? "account.registerCopy" : "account.copy");
+  elements.accountSubmitButton.textContent = t(registering ? "account.create" : "account.signIn");
+  elements.accountPassword.classList.remove("invalid");
+  elements.accountPasswordConfirm.classList.remove("invalid");
+  elements.accountPasswordConfirm.setCustomValidity("");
+  setAccountMessage("");
+}
+
+function openAccountDialog(mode = "signin") {
   renderAccount();
+  if (!state.user) setAccountMode(mode);
   elements.accountDialog.showModal();
 }
 
@@ -436,12 +457,30 @@ async function applyUser(user) {
 async function submitAccount(action) {
   const email = elements.accountEmail.value.trim();
   const password = elements.accountPassword.value;
+  if (accountMode === "register" && password !== elements.accountPasswordConfirm.value) {
+    elements.accountPassword.classList.add("invalid");
+    elements.accountPasswordConfirm.classList.add("invalid");
+    elements.accountPasswordConfirm.setCustomValidity(t("account.passwordMismatch"));
+    elements.accountPasswordConfirm.reportValidity();
+    setAccountMessage(t("account.passwordMismatch"), true);
+    return;
+  }
   setAccountMessage("");
+  elements.accountSubmitButton.disabled = true;
+  elements.accountSubmitButton.textContent = t("account.working");
   try {
     const user = await action(email, password);
-    if (user) await applyUser(user);
+    if (user) {
+      await applyUser(user);
+      elements.accountForm.reset();
+      elements.accountDialog.close();
+    }
     else setAccountMessage(t("account.confirm"));
   } catch (error) { setAccountMessage(error.message, true); }
+  finally {
+    elements.accountSubmitButton.disabled = false;
+    elements.accountSubmitButton.textContent = t(accountMode === "register" ? "account.create" : "account.signIn");
+  }
 }
 
 async function saveDownloadedLogs(sessions) {
@@ -529,13 +568,22 @@ elements.connectButton.addEventListener("click", connect);
 elements.recordButton.addEventListener("click", toggleRecording);
 elements.downloadButton.addEventListener("click", downloadHistory);
 elements.cancelButton.addEventListener("click", () => state.client?.cancelDownload());
-elements.accountButton.addEventListener("click", openAccountDialog);
-elements.gateAccountButton.addEventListener("click", openAccountDialog);
-elements.demoAccountButton.addEventListener("click", openAccountDialog);
+elements.accountButton.addEventListener("click", () => openAccountDialog("signin"));
+elements.gateAccountButton.addEventListener("click", () => openAccountDialog("register"));
+elements.demoAccountButton.addEventListener("click", () => openAccountDialog("register"));
+elements.accountSignInTab.addEventListener("click", () => setAccountMode("signin"));
+elements.accountRegisterTab.addEventListener("click", () => setAccountMode("register"));
+elements.accountPasswordConfirm.addEventListener("input", () => {
+  elements.accountPassword.classList.remove("invalid");
+  elements.accountPasswordConfirm.classList.remove("invalid");
+  elements.accountPasswordConfirm.setCustomValidity("");
+});
 elements.accountClose.addEventListener("click", () => elements.accountDialog.close());
 elements.accountDialog.addEventListener("click", (event) => { if (event.target === elements.accountDialog) elements.accountDialog.close(); });
-elements.accountForm.addEventListener("submit", async (event) => { event.preventDefault(); await submitAccount(signIn); });
-elements.registerButton.addEventListener("click", () => submitAccount(signUp));
+elements.accountForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  await submitAccount(accountMode === "register" ? signUp : signIn);
+});
 elements.logoutButton.addEventListener("click", async () => { try { await signOut(); await applyUser(null); } catch (error) { setAccountMessage(error.message, true); } });
 elements.unlockForm.addEventListener("submit", async (event) => {
   event.preventDefault();

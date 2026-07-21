@@ -129,9 +129,16 @@ h1 .solid-title { color: var(--text); -webkit-text-stroke: 0; }
 .dialog-close { position: absolute; top: 12px; right: 14px; color: var(--muted); background: transparent; border: 0; font-size: 25px; }
 .dialog-copy, .account-message { color: var(--muted); font-size: 13px; line-height: 1.5; }
 .account-dialog form { display: grid; gap: 14px; margin-top: 24px; }
+.account-tabs { margin-top: 22px; display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line); }
+.account-tabs button { min-height: 40px; color: var(--muted); background: #0a0f14; border: 0; font-weight: 750; }
+.account-tabs button + button { border-left: 1px solid var(--line); }
+.account-tabs button.active { color: #080b10; background: var(--acid); }
 .account-dialog form label { display: grid; gap: 7px; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+.account-dialog form label[hidden] { display: none; }
 .account-dialog input { width: 100%; color: var(--text); background: #090e13; border: 1px solid var(--line); padding: 13px; outline: none; }
 .account-dialog input:focus { border-color: var(--acid); }
+.account-dialog input.invalid { border-color: #ff5f35; }
+.account-dialog #accountSubmitButton { width: 100%; margin-top: 4px; }
 .account-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .account-dialog #logoutButton { width: 100%; }
 .account-email { padding: 13px; color: var(--acid); background: #0a0f14; border: 1px solid var(--line); font-family: ui-monospace, monospace; }
