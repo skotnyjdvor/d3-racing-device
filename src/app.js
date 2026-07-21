@@ -4,6 +4,7 @@ import { buildAiPrompt } from "./domain/ai-context.js";
 import { distanceMeters, identifyTrack } from "./domain/tracks.js";
 import { applyTranslations, getLanguage, onLanguageChange, setLanguage, t } from "./i18n.js";
 import { cloudConfigured, currentUser, deleteLog, loadLogs, renameLog, saveLog, signIn, signOut, signUp } from "./cloud/api.js";
+import "./demo.js";
 
 const elements = Object.fromEntries([...document.querySelectorAll("[id]")].map((element) => [element.id, element]));
 const state = { client: null, connected: false, deviceName: "", deviceModel: "", latestTelemetry: null, storage: null, sessions: [], selectedSession: null, analysis: null, selectedLapNumber: null, comparisonLapNumber: null, cursorProgress: null, track: null, user: null, cloudLogs: [], pollTimer: null };
