@@ -1,6 +1,7 @@
 import { RaceBoxBleClient } from "./ble/racebox.js";
 import { analyzeSession, generateLocalInsights } from "./domain/analysis.js";
 import { buildAiPrompt } from "./domain/ai-context.js";
+import { identifyTrack } from "./domain/tracks.js";
 import { applyTranslations, getLanguage, onLanguageChange, setLanguage, t } from "./i18n.js";
 
 const elements = Object.fromEntries([...document.querySelectorAll("[id]")].map((element) => [element.id, element]));
@@ -164,11 +165,12 @@ function selectSession(id) {
   state.selectedSession = state.sessions.find((session) => session.id === id);
   if (!state.selectedSession?.points.length) return;
   state.analysis = analyzeSession(state.selectedSession.points);
+  const track = identifyTrack(state.selectedSession.points);
   elements.durationValue.textContent = formatDuration(state.analysis.session.durationMs);
   elements.durationMeta.textContent = formatDate(state.selectedSession.startedAt);
   elements.maxSpeedValue.textContent = state.analysis.session.maxSpeed.toFixed(1);
   elements.sampleRateValue.textContent = state.analysis.sampleRateHz.toFixed(0);
-  elements.trackTitle.textContent = `${t("sessions.item", { id })} · ${formatDate(state.selectedSession.startedAt)}`;
+  elements.trackTitle.textContent = `${track ? `${track.name} · ` : ""}${t("sessions.item", { id })} · ${formatDate(state.selectedSession.startedAt)}`;
   elements.sourceLabel.textContent = `${state.deviceName} · память устройства`;
   elements.copyAiButton.disabled = false;
   elements.copyStatus.textContent = "Контекст строится только по выбранной сессии.";
