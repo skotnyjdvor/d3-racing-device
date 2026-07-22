@@ -106,16 +106,19 @@ function drawTrack() {
   const { context, width, height } = canvasContext(elements.trackCanvas);
   context.fillStyle = "#0c1117";
   context.fillRect(0, 0, width, height);
-  const trackSeries = distancePoints(lapPoints(state.selectedLapNumber), 1800);
-  const points = trackSeries.map((item) => item.point);
-  if (points.length < 2) {
+  const primarySeries = distancePoints(lapPoints(state.selectedLapNumber), 1800);
+  const comparisonSeries = state.comparisonLapNumber ? distancePoints(lapPoints(state.comparisonLapNumber), 1800) : [];
+  const primaryPoints = primarySeries.map((item) => item.point);
+  const comparisonPoints = comparisonSeries.map((item) => item.point);
+  const boundsPoints = [...primaryPoints, ...comparisonPoints];
+  if (primaryPoints.length < 2) {
     context.fillStyle = "#657180";
     context.font = "13px system-ui";
     context.fillText(t("track.canvasEmpty"), 24, 38);
     return;
   }
-  const lats = points.map((point) => point.latitude);
-  const lons = points.map((point) => point.longitude);
+  const lats = boundsPoints.map((point) => point.latitude);
+  const lons = boundsPoints.map((point) => point.longitude);
   const minLat = Math.min(...lats); const maxLat = Math.max(...lats);
   const minLon = Math.min(...lons); const maxLon = Math.max(...lons);
   const padding = 38;
@@ -126,25 +129,30 @@ function drawTrack() {
   const offsetX = (width - (maxLon - minLon) * scale) / 2;
   const offsetY = (height - (maxLat - minLat) * scale) / 2;
   const project = (point) => [offsetX + (point.longitude - minLon) * scale, offsetY + (maxLat - point.latitude) * scale];
-  const maxSpeed = Math.max(...points.map((point) => point.speed), 1);
   context.lineCap = "round"; context.lineJoin = "round";
-  context.strokeStyle = "rgba(255,255,255,.08)"; context.lineWidth = 9; context.beginPath();
-  points.forEach((point, index) => { const [x, y] = project(point); index ? context.lineTo(x, y) : context.moveTo(x, y); });
-  context.stroke(); context.lineWidth = 3.2;
-  for (let index = 1; index < points.length; index += 1) {
-    const [x1, y1] = project(points[index - 1]); const [x2, y2] = project(points[index]);
-    const ratio = Math.max(0, Math.min(1, points[index].speed / maxSpeed));
-    context.strokeStyle = `hsl(${195 - ratio * 180} 92% 58%)`;
-    context.beginPath(); context.moveTo(x1, y1); context.lineTo(x2, y2); context.stroke();
-  }
-  const cursorPoint = pointAtProgress(trackSeries, state.cursorProgress)?.point;
-  if (cursorPoint) {
+  const drawTrajectory = (points, color, lineWidth) => {
+    if (points.length < 2) return;
+    context.strokeStyle = "rgba(255,255,255,.08)"; context.lineWidth = lineWidth + 6; context.beginPath();
+    points.forEach((point, index) => { const [x, y] = project(point); index ? context.lineTo(x, y) : context.moveTo(x, y); });
+    context.stroke();
+    context.strokeStyle = color; context.lineWidth = lineWidth; context.beginPath();
+    points.forEach((point, index) => { const [x, y] = project(point); index ? context.lineTo(x, y) : context.moveTo(x, y); });
+    context.stroke();
+  };
+  drawTrajectory(comparisonPoints, "#37d7ff", 2.4);
+  drawTrajectory(primaryPoints, "#c9ff37", 3.2);
+
+  const drawCursorPoint = (series, color, shadow) => {
+    const cursorPoint = pointAtProgress(series, state.cursorProgress)?.point;
+    if (!cursorPoint) return;
     const [x, y] = project(cursorPoint);
-    context.shadowColor = "rgba(201,255,55,.8)"; context.shadowBlur = 15;
-    context.fillStyle = "#c9ff37"; context.beginPath(); context.arc(x, y, 6, 0, Math.PI * 2); context.fill();
-    context.shadowBlur = 0; context.strokeStyle = "#ffffff"; context.lineWidth = 2;
-    context.beginPath(); context.arc(x, y, 9, 0, Math.PI * 2); context.stroke();
-  }
+    context.shadowColor = shadow; context.shadowBlur = 14;
+    context.fillStyle = color; context.beginPath(); context.arc(x, y, 5.5, 0, Math.PI * 2); context.fill();
+    context.shadowBlur = 0; context.strokeStyle = "#ffffff"; context.lineWidth = 1.5;
+    context.beginPath(); context.arc(x, y, 8, 0, Math.PI * 2); context.stroke();
+  };
+  drawCursorPoint(comparisonSeries, "#37d7ff", "rgba(55,215,255,.8)");
+  drawCursorPoint(primarySeries, "#c9ff37", "rgba(201,255,55,.8)");
 }
 
 function distanceSeries(points, key) {
@@ -155,7 +163,7 @@ function drawComparisonChart(canvas, key, { speed = false } = {}) {
   const { context, width, height } = canvasContext(canvas);
   context.fillStyle = "#0c1117"; context.fillRect(0, 0, width, height);
   const primary = distanceSeries(lapPoints(state.selectedLapNumber), key);
-  const comparison = distanceSeries(lapPoints(state.comparisonLapNumber), key);
+  const comparison = state.comparisonLapNumber ? distanceSeries(lapPoints(state.comparisonLapNumber), key) : [];
   if (primary.length < 2) return;
 
   const padding = { left: 48, right: 18, top: 18, bottom: 30 };
