@@ -132,7 +132,11 @@
             <p class="eyebrow" data-i18n="sessions.kicker"></p>
             <h2 data-i18n="sessions.title"></h2>
           </div>
-          <button class="secondary" id="logsBackButton" type="button" data-i18n="logsPage.back"></button>
+          <div class="logs-page-actions">
+            <button class="primary" id="importLogButton" type="button" data-i18n="logsPage.import"></button>
+            <button class="secondary" id="logsBackButton" type="button" data-i18n="logsPage.back"></button>
+            <input id="importLogInput" type="file" accept=".csv,text/csv" hidden />
+          </div>
         </div>
         <div class="session-list" id="sessionList">
           <p class="empty" data-i18n="sessions.empty"></p>

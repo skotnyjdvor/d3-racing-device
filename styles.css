@@ -53,6 +53,8 @@ main { width: min(1480px, calc(100% - 40px)); margin: 0 auto; }
 .logs-total span, .logs-total small { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
 .logs-total strong { margin: 12px 0 8px; color: var(--acid); font-size: 54px; line-height: .9; }
 .logs-library-panel .session-list { max-height: none; min-height: 360px; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; padding: 16px; }
+.logs-page-actions { display: flex; align-items: center; gap: 10px; }
+.logs-page-actions button { min-height: 42px; padding: 0 16px; }
 .auth-locked .device-state { display: none; }
 .landing-hero { min-height: calc(100vh - 76px); padding: 90px 0 76px; display: grid; grid-template-columns: 1.08fr .92fr; align-items: center; gap: 40px; }
 .landing-copy h1 { max-width: 850px; font-size: clamp(62px, 7.2vw, 116px); }
@@ -246,6 +248,7 @@ footer { width: min(1480px, calc(100% - 40px)); min-height: 74px; margin: 0 auto
   .header-actions { gap: 7px; }
   .account-button b { display: none; }
   .logs-page { width: min(100% - 24px, 1480px); padding: 48px 0 60px; }
+  .logs-page-actions { width: 100%; display: grid; grid-template-columns: 1fr; }
   main, footer, .landing { width: min(100% - 24px, 1480px); }
   .landing-hero { padding: 48px 0 60px; }
   .landing-copy h1 { font-size: 54px; }

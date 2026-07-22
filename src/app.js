@@ -1,6 +1,7 @@
 import { RaceBoxBleClient } from "./ble/racebox.js";
 import { analyzeSession, generateLocalInsights } from "./domain/analysis.js";
 import { buildAiPrompt } from "./domain/ai-context.js";
+import { parseRaceBoxCsv } from "./domain/csv.js";
 import { distanceMeters, identifyTrack } from "./domain/tracks.js";
 import { applyTranslations, getLanguage, onLanguageChange, setLanguage, t } from "./i18n.js";
 import { cloudConfigured, currentUser, deleteLog, loadLog, loadLogs, renameLog, saveLog, signIn, signOut, signUp } from "./cloud/api.js";
@@ -520,6 +521,28 @@ async function saveDownloadedLogs(sessions) {
   } catch (error) { setAccountMessage(error.message, true); }
 }
 
+async function importLogFile(file) {
+  if (!file || !state.user) return;
+  elements.importLogButton.disabled = true;
+  try {
+    const points = parseRaceBoxCsv(await file.text());
+    const session = {
+      startedAt: points[0].time,
+      endedAt: points.at(-1).time,
+      points,
+    };
+    const id = await saveLog(session, "LapTrace");
+    if (id) await renameLog(id, file.name.replace(/\.csv$/i, "").slice(0, 100));
+    await syncCloudLogs();
+    setAccountMessage(t("logsPage.imported"));
+  } catch (error) {
+    setAccountMessage(error.message, true);
+  } finally {
+    elements.importLogInput.value = "";
+    elements.importLogButton.disabled = false;
+  }
+}
+
 async function createClient() {
   let Client = RaceBoxBleClient;
   if (testMode) Client = (await import("./ble/mock-racebox.js")).MockRaceBoxClient;
@@ -599,6 +622,8 @@ elements.cancelButton.addEventListener("click", () => state.client?.cancelDownlo
 elements.analysisNavButton.addEventListener("click", () => showView("analysis"));
 elements.logsNavButton.addEventListener("click", () => state.user || testMode ? showView("logs") : openAccountDialog("signin"));
 elements.logsBackButton.addEventListener("click", () => showView("analysis"));
+elements.importLogButton.addEventListener("click", () => elements.importLogInput.click());
+elements.importLogInput.addEventListener("change", () => importLogFile(elements.importLogInput.files?.[0]));
 elements.accountButton.addEventListener("click", () => openAccountDialog("signin"));
 elements.gateAccountButton.addEventListener("click", () => openAccountDialog("register"));
 elements.demoAccountButton.addEventListener("click", () => openAccountDialog("register"));
