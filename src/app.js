@@ -227,8 +227,77 @@ function drawComparisonChart(canvas, key, { speed = false } = {}) {
   }
 }
 
+function drawDeltaChart() {
+  const { context, width, height } = canvasContext(elements.deltaCanvas);
+  context.fillStyle = "#0c1117"; context.fillRect(0, 0, width, height);
+  if (!state.selectedLapNumber || !state.comparisonLapNumber) {
+    context.fillStyle = "#657180";
+    context.font = "13px system-ui";
+    context.fillText(t("telemetry.deltaEmpty"), 24, 38);
+    return;
+  }
+  const primary = distancePoints(lapPoints(state.selectedLapNumber));
+  const comparison = distancePoints(lapPoints(state.comparisonLapNumber));
+  if (primary.length < 2 || comparison.length < 2) return;
+  const primaryStart = primary[0].point.timeMs;
+  const comparisonStart = comparison[0].point.timeMs;
+  const delta = primary.map((item) => {
+    const other = pointAtProgress(comparison, item.progress);
+    return {
+      progress: item.progress,
+      value: ((item.point.timeMs - primaryStart) - (other.point.timeMs - comparisonStart)) / 1000,
+    };
+  }).filter((item) => Number.isFinite(item.value));
+  if (delta.length < 2) return;
+
+  const padding = { left: 52, right: 18, top: 18, bottom: 30 };
+  const plotWidth = width - padding.left - padding.right;
+  const plotHeight = height - padding.top - padding.bottom;
+  const range = Math.max(.1, Math.ceil(Math.max(...delta.map((item) => Math.abs(item.value))) * 10) / 10);
+  const y = (value) => padding.top + (range - value) / (range * 2) * plotHeight;
+  context.font = "10px ui-monospace, monospace"; context.fillStyle = "#73808e"; context.lineWidth = 1;
+  [-range, 0, range].forEach((value) => {
+    const yPosition = y(value);
+    context.strokeStyle = value === 0 ? "rgba(255,255,255,.28)" : "#202a34";
+    context.beginPath(); context.moveTo(padding.left, yPosition); context.lineTo(width - padding.right, yPosition); context.stroke();
+    context.fillText(`${value > 0 ? "+" : ""}${value.toFixed(1)}`, 10, yPosition + 3);
+  });
+  for (let percent = 0; percent <= 100; percent += 25) {
+    const xPosition = padding.left + percent / 100 * plotWidth;
+    context.fillText(`${percent}%`, xPosition - (percent === 100 ? 24 : 8), height - 9);
+  }
+
+  const zeroY = y(0);
+  context.beginPath(); context.moveTo(padding.left, zeroY);
+  delta.forEach((item) => context.lineTo(padding.left + item.progress * plotWidth, y(item.value)));
+  context.lineTo(width - padding.right, zeroY); context.closePath();
+  context.fillStyle = "rgba(201,255,55,.08)"; context.fill();
+  context.strokeStyle = "#c9ff37"; context.lineWidth = 2.2; context.beginPath();
+  delta.forEach((item, index) => {
+    const xPosition = padding.left + item.progress * plotWidth;
+    const yPosition = y(item.value);
+    index ? context.lineTo(xPosition, yPosition) : context.moveTo(xPosition, yPosition);
+  });
+  context.stroke();
+
+  if (state.cursorProgress !== null) {
+    const item = pointAtProgress(delta, state.cursorProgress);
+    const xPosition = padding.left + state.cursorProgress * plotWidth;
+    context.strokeStyle = "rgba(255,255,255,.55)"; context.lineWidth = 1;
+    context.beginPath(); context.moveTo(xPosition, padding.top); context.lineTo(xPosition, height - padding.bottom); context.stroke();
+    context.fillStyle = "#c9ff37"; context.beginPath(); context.arc(xPosition, y(item.value), 4.5, 0, Math.PI * 2); context.fill();
+    const label = `${item.value >= 0 ? "+" : ""}${item.value.toFixed(3)} s`;
+    context.font = "bold 11px ui-monospace, monospace";
+    const labelWidth = context.measureText(label).width + 10;
+    const labelX = Math.min(width - padding.right - labelWidth, Math.max(padding.left, xPosition + 8));
+    context.fillStyle = "rgba(12,17,23,.92)"; context.fillRect(labelX, y(item.value) - 21, labelWidth, 17);
+    context.fillStyle = "#c9ff37"; context.fillText(label, labelX + 5, y(item.value) - 9);
+  }
+}
+
 function drawCharts() {
   drawComparisonChart(elements.telemetryCanvas, state.telemetryMetric, { speed: state.telemetryMetric === "speed" });
+  drawDeltaChart();
 }
 
 let cursorFrame = 0;
@@ -248,12 +317,14 @@ function updateCursorFromEvent(event) {
   setCursorProgress(Math.max(0, Math.min(1, progress)));
 }
 
-elements.telemetryCanvas.addEventListener("pointerdown", (event) => { elements.telemetryCanvas.setPointerCapture?.(event.pointerId); updateCursorFromEvent(event); });
-elements.telemetryCanvas.addEventListener("pointermove", (event) => {
-  if (event.pointerType === "mouse" || elements.telemetryCanvas.hasPointerCapture?.(event.pointerId)) updateCursorFromEvent(event);
-});
-elements.telemetryCanvas.addEventListener("pointerleave", (event) => {
-  if (event.pointerType === "mouse" && !event.buttons) setCursorProgress(null);
+[elements.telemetryCanvas, elements.deltaCanvas].forEach((canvas) => {
+  canvas.addEventListener("pointerdown", (event) => { canvas.setPointerCapture?.(event.pointerId); updateCursorFromEvent(event); });
+  canvas.addEventListener("pointermove", (event) => {
+    if (event.pointerType === "mouse" || canvas.hasPointerCapture?.(event.pointerId)) updateCursorFromEvent(event);
+  });
+  canvas.addEventListener("pointerleave", (event) => {
+    if (event.pointerType === "mouse" && !event.buttons) setCursorProgress(null);
+  });
 });
 
 function selectTelemetryMetric(metric) {
