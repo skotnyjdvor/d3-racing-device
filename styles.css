@@ -169,7 +169,7 @@ h1 .solid-title { color: var(--text); -webkit-text-stroke: 0; }
 .metric strong { margin: auto 0 2px; font-size: clamp(36px, 4vw, 62px); letter-spacing: -.055em; line-height: .9; }
 .metric.accent strong { color: var(--acid); }
 
-.dashboard { display: grid; grid-template-columns: 1fr; gap: 16px; margin-top: 16px; }
+.dashboard { width: min(1040px, 100%); display: grid; grid-template-columns: 1fr; gap: 12px; margin: 16px auto 0; }
 .panel { background: linear-gradient(145deg, rgba(18, 23, 30, .96), rgba(12, 16, 22, .96)); border: 1px solid var(--line); }
 .panel-head { min-height: 75px; padding: 20px 22px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .panel-head h2, .ai-panel h2 { margin: 0; font-size: 20px; letter-spacing: -.025em; }
@@ -205,12 +205,19 @@ tr.best td:nth-child(2) { color: var(--acid); font-weight: 800; }
 .telemetry-selector { min-width: min(330px, 46vw); margin-left: auto; display: grid; gap: 6px; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
 .telemetry-selector select { width: 100%; color: var(--text); background: #0c1016; border: 1px solid var(--line); padding: 10px 36px 10px 12px; outline: none; font-weight: 700; }
 .telemetry-selector select:focus { border-color: var(--acid); }
+.telemetry-tabs { display: none; padding: 10px 14px 14px; gap: 8px; overflow-x: auto; scrollbar-width: none; }
+.telemetry-tabs::-webkit-scrollbar { display: none; }
+.telemetry-tabs button { min-height: 38px; padding: 0 15px; flex: 0 0 auto; color: var(--muted); background: #171d24; border: 1px solid transparent; border-radius: 20px; font-size: 12px; white-space: nowrap; }
+.telemetry-tabs button.active { color: #080b10; background: var(--acid); font-weight: 800; }
 .delta-panel canvas { height: 210px; }
 .lap-controls-panel { grid-column: 1 / -1; }
 .lap-controls-panel .panel-head { align-items: flex-end; }
-.lap-selectors { display: flex; gap: 12px; }
+.lap-selectors { width: min(620px, 65%); display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr); align-items: end; gap: 12px; }
 .lap-selectors label { display: grid; gap: 6px; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
-.lap-selectors select { min-width: 180px; color: var(--text); background: #0c1016; border: 1px solid var(--line); padding: 10px 12px; outline: none; }
+.lap-selectors select { min-width: 0; width: 100%; color: var(--text); background: #0c1016; border: 1px solid var(--line); padding: 11px 12px; outline: none; font-size: 17px; font-weight: 800; }
+.primary-lap-control select { color: var(--acid); }
+.comparison-lap-control select { color: var(--cyan); }
+.lap-vs { width: 36px; height: 36px; margin-bottom: 2px; display: grid; place-items: center; color: var(--muted); border: 1px solid var(--line); border-radius: 50%; font-size: 10px; font-weight: 800; }
 .lap-selectors select:focus { border-color: var(--acid); }
 .comparison-legend { min-height: 46px; padding: 12px 22px; display: flex; align-items: center; gap: 22px; color: var(--muted); font-size: 11px; }
 .comparison-legend span::before { content: ""; display: inline-block; width: 24px; height: 3px; margin-right: 8px; vertical-align: middle; }
@@ -282,14 +289,19 @@ footer { width: min(1480px, calc(100% - 40px)); min-height: 74px; margin: 0 auto
   h1 { font-size: 55px; }
   .metric { min-height: 120px; padding: 17px; }
   .metric strong { font-size: 34px; }
+  .summary-grid { display: none; }
   .ai-actions { grid-template-columns: 1fr; }
   .ai-actions textarea { grid-column: auto; }
   .lap-controls-panel .panel-head { align-items: stretch; flex-direction: column; }
   .telemetry-panel .panel-head { align-items: stretch; flex-direction: column; }
-  .telemetry-selector { width: 100%; min-width: 0; margin-left: 0; }
+  .telemetry-selector { display: none; }
+  .telemetry-tabs { display: flex; }
   .telemetry-panel .chart-unit { display: none; }
   .chart-panel canvas { height: 255px; }
   .delta-panel canvas { height: 190px; }
-  .lap-selectors { display: grid; grid-template-columns: 1fr; }
+  .lap-panel-heading { display: none; }
+  .lap-selectors { width: 100%; display: grid; grid-template-columns: minmax(0,1fr) 32px minmax(0,1fr); gap: 7px; }
+  .lap-vs { width: 32px; height: 32px; margin-bottom: 4px; }
+  .lap-selectors select { padding: 9px 6px; font-size: 14px; }
   .lap-selectors select { width: 100%; min-width: 0; }
 }

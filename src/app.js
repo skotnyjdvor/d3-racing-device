@@ -122,6 +122,14 @@ function drawTrack() {
   const { context, width, height } = canvasContext(elements.trackCanvas);
   context.fillStyle = "#0c1117";
   context.fillRect(0, 0, width, height);
+  context.strokeStyle = "rgba(151,166,181,.09)"; context.lineWidth = 1;
+  const gridSize = width < 560 ? 38 : 52;
+  for (let x = gridSize; x < width; x += gridSize) {
+    context.beginPath(); context.moveTo(x, 0); context.lineTo(x, height); context.stroke();
+  }
+  for (let y = gridSize; y < height; y += gridSize) {
+    context.beginPath(); context.moveTo(0, y); context.lineTo(width, y); context.stroke();
+  }
   const primarySeries = distancePoints(lapPoints(state.selectedLapNumber), 1800);
   const comparisonSeries = state.comparisonLapNumber ? distancePoints(lapPoints(state.comparisonLapNumber), 1800) : [];
   const primaryPoints = primarySeries.map((item) => item.point);
@@ -351,6 +359,7 @@ function selectTelemetryMetric(metric) {
   elements.telemetryMetricSelect.value = state.telemetryMetric;
   elements.telemetryChartTitle.textContent = t(translationKey);
   elements.telemetryChartUnit.textContent = state.telemetryMetric === "speed" ? t("unit.speed") : "g";
+  document.querySelectorAll("[data-metric]").forEach((button) => button.classList.toggle("active", button.dataset.metric === state.telemetryMetric));
   drawCharts();
 }
 
@@ -766,6 +775,7 @@ elements.comparisonLapSelect.addEventListener("change", () => {
   updateLapView();
 });
 elements.telemetryMetricSelect.addEventListener("change", () => selectTelemetryMetric(elements.telemetryMetricSelect.value));
+document.querySelectorAll("[data-metric]").forEach((button) => button.addEventListener("click", () => selectTelemetryMetric(button.dataset.metric)));
 window.addEventListener("resize", () => { drawTrack(); drawCharts(); });
 window.addEventListener("hashchange", () => {
   if (location.hash === "#logs" && (state.user || testMode)) showView("logs", false);

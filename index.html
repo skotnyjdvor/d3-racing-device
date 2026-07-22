@@ -247,6 +247,28 @@
         </article>
       </section>
       <section class="dashboard">
+        <article class="panel lap-controls-panel">
+          <div class="panel-head">
+            <div class="lap-panel-heading">
+              <p class="eyebrow" data-i18n="laps.kicker"></p>
+              <h2 data-i18n="laps.compareTitle"></h2>
+            </div>
+            <div class="lap-selectors">
+              <label class="primary-lap-control"
+                ><span data-i18n="laps.primary"></span
+                ><select id="primaryLapSelect" disabled></select></label
+              ><span class="lap-vs">VS</span
+              ><label class="comparison-lap-control"
+                ><span data-i18n="laps.compare"></span
+                ><select id="comparisonLapSelect" disabled></select
+              ></label>
+            </div>
+          </div>
+          <div class="comparison-legend">
+            <span class="primary-line" id="primaryLapLegend">—</span
+            ><span class="comparison-line" id="comparisonLapLegend">—</span>
+          </div>
+        </article>
         <article class="panel track-panel">
           <div class="panel-head">
             <div>
@@ -258,27 +280,6 @@
           <div class="legend trajectory-legend">
             <span class="trajectory-primary" data-i18n="laps.primary"></span>
             <span class="trajectory-comparison" data-i18n="laps.compare"></span>
-          </div>
-        </article>
-        <article class="panel lap-controls-panel">
-          <div class="panel-head">
-            <div>
-              <p class="eyebrow" data-i18n="laps.kicker"></p>
-              <h2 data-i18n="laps.compareTitle"></h2>
-            </div>
-            <div class="lap-selectors">
-              <label
-                ><span data-i18n="laps.primary"></span
-                ><select id="primaryLapSelect" disabled></select></label
-              ><label
-                ><span data-i18n="laps.compare"></span
-                ><select id="comparisonLapSelect" disabled></select
-              ></label>
-            </div>
-          </div>
-          <div class="comparison-legend">
-            <span class="primary-line" id="primaryLapLegend">—</span
-            ><span class="comparison-line" id="comparisonLapLegend">—</span>
           </div>
         </article>
         <article class="panel chart-panel telemetry-panel">
@@ -298,6 +299,11 @@
             <span class="chart-unit" id="telemetryChartUnit" data-i18n="unit.speed"></span>
           </div>
           <canvas id="telemetryCanvas"></canvas>
+          <div class="telemetry-tabs" role="group" aria-label="Telemetry chart">
+            <button class="active" type="button" data-metric="speed" data-i18n="telemetry.speed"></button>
+            <button type="button" data-metric="gForceX" data-i18n="telemetry.longitudinal"></button>
+            <button type="button" data-metric="gForceY" data-i18n="telemetry.lateral"></button>
+          </div>
         </article>
         <article class="panel chart-panel delta-panel">
           <div class="panel-head">
