@@ -3,7 +3,7 @@ import { analyzeSession, generateLocalInsights } from "./domain/analysis.js";
 import { buildAiPrompt } from "./domain/ai-context.js";
 import { distanceMeters, identifyTrack } from "./domain/tracks.js";
 import { applyTranslations, getLanguage, onLanguageChange, setLanguage, t } from "./i18n.js";
-import { cloudConfigured, currentUser, deleteLog, loadLogs, renameLog, saveLog, signIn, signOut, signUp } from "./cloud/api.js";
+import { cloudConfigured, currentUser, deleteLog, loadLog, loadLogs, renameLog, saveLog, signIn, signOut, signUp } from "./cloud/api.js";
 import "./demo.js";
 
 const elements = Object.fromEntries([...document.querySelectorAll("[id]")].map((element) => [element.id, element]));
@@ -285,7 +285,8 @@ async function refreshStorage() {
 
 function renderSessions() {
   elements.sessionsValue.textContent = String(state.sessions.length);
-  elements.sessionsMeta.textContent = t("progress.records", { received: state.sessions.reduce((sum, session) => sum + session.points.length, 0).toLocaleString(getLanguage()), expected: state.sessions.reduce((sum, session) => sum + session.points.length, 0).toLocaleString(getLanguage()) });
+  const totalPoints = state.sessions.reduce((sum, session) => sum + (session.points?.length ?? session.pointCount ?? 0), 0);
+  elements.sessionsMeta.textContent = t("progress.records", { received: totalPoints.toLocaleString(getLanguage()), expected: totalPoints.toLocaleString(getLanguage()) });
   if (!state.sessions.length) {
     elements.sessionList.innerHTML = `<p class="empty">${t("sessions.empty")}</p>`;
     return;
@@ -293,7 +294,7 @@ function renderSessions() {
   elements.sessionList.innerHTML = state.sessions.map((session) => `
     <div class="session-item ${session === state.selectedSession ? "selected" : ""}">
       <button class="session-open" data-session="${session.id}">
-        <strong>${session.title || t("sessions.item", { id: session.displayId ?? session.id })}${session.source === "cloud" ? " ☁" : ""}</strong><span>${formatDate(session.startedAt)}</span><small>${formatDuration(new Date(session.endedAt) - new Date(session.startedAt))} · ${t("sessions.points", { count: session.points.length.toLocaleString(getLanguage()) })}</small>
+        <strong>${session.title || t("sessions.item", { id: session.displayId ?? session.id })}${session.source === "cloud" ? " ☁" : ""}</strong><span>${formatDate(session.startedAt)}</span><small>${formatDuration(new Date(session.endedAt) - new Date(session.startedAt))} · ${t("sessions.points", { count: (session.points?.length ?? session.pointCount ?? 0).toLocaleString(getLanguage()) })}</small>
       </button>
       ${session.source === "cloud" ? `<div class="session-actions"><button data-rename="${session.cloudId}" title="${t("sessions.rename")}">✎</button><button data-delete="${session.cloudId}" title="${t("sessions.delete")}">×</button></div>` : ""}
     </div>`).join("");
@@ -359,9 +360,21 @@ function updateLapView() {
   renderLapControls(); drawTrack(); drawCharts();
 }
 
-function selectSession(id) {
+async function selectSession(id) {
   const isNewSession = String(state.selectedSession?.id) !== String(id);
-  state.selectedSession = state.sessions.find((session) => String(session.id) === String(id));
+  const session = state.sessions.find((item) => String(item.id) === String(id));
+  state.selectedSession = session;
+  if (session?.source === "cloud" && !session.points) {
+    try {
+      const record = await loadLog(session.cloudId);
+      session.points = record?.points ?? [];
+      session.pointCount = session.points.length;
+      if (state.selectedSession !== session) return;
+    } catch (error) {
+      setAccountMessage(error.message, true);
+      return;
+    }
+  }
   if (!state.selectedSession?.points.length) return;
   state.analysis = analyzeSession(state.selectedSession.points);
   state.track = identifyTrack(state.selectedSession.points);
@@ -436,7 +449,7 @@ async function syncCloudLogs() {
     const localDates = new Set(localLogs.map((session) => session.startedAt));
     state.sessions = [...localLogs, ...state.cloudLogs.filter((session) => !localDates.has(session.startedAt))];
     renderAccount(); renderSessions();
-    if (!state.selectedSession && state.sessions.length) selectSession(state.sessions[0].id);
+    if (!state.selectedSession && state.sessions.length) await selectSession(state.sessions[0].id);
   } catch (error) { setAccountMessage(error.message, true); }
 }
 

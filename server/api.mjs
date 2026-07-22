@@ -73,12 +73,25 @@ app.get("/api/auth/me", authenticate, async (request, response, next) => {
 
 app.get("/api/logs", authenticate, async (request, response, next) => {
   try {
-    const result = await requireDatabase().query(`select id, title, device_name, started_at, ended_at, point_count, payload
+    const result = await requireDatabase().query(`select id, title, device_name, started_at, ended_at, point_count, created_at, updated_at
       from telemetry_logs where user_id = $1 order by started_at desc limit 20`, [request.auth.sub]);
     response.json({ logs: result.rows.map((row) => ({
       id: row.id, title: row.title, deviceName: row.device_name, startedAt: row.started_at, endedAt: row.ended_at,
-      pointCount: row.point_count, points: row.payload.points,
+      pointCount: row.point_count, createdAt: row.created_at, updatedAt: row.updated_at,
     })) });
+  } catch (error) { next(error); }
+});
+
+app.get("/api/logs/:id", authenticate, async (request, response, next) => {
+  try {
+    const result = await requireDatabase().query(`select id, title, device_name, started_at, ended_at, point_count, payload, created_at, updated_at
+      from telemetry_logs where id = $1 and user_id = $2`, [request.params.id, request.auth.sub]);
+    const row = result.rows[0];
+    if (!row) return response.status(404).json({ error: "Log not found" });
+    response.json({ log: {
+      id: row.id, title: row.title, deviceName: row.device_name, startedAt: row.started_at, endedAt: row.ended_at,
+      pointCount: row.point_count, points: row.payload.points, createdAt: row.created_at, updatedAt: row.updated_at,
+    } });
   } catch (error) { next(error); }
 });
 

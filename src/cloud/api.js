@@ -77,8 +77,15 @@ export async function loadLogs() {
     deviceName: record.deviceName,
     startedAt: record.startedAt,
     endedAt: record.endedAt,
-    points: record.points ?? [],
+    pointCount: record.pointCount ?? 0,
+    points: null,
   }));
+}
+
+export async function loadLog(id) {
+  if (!getToken()) return null;
+  const { log } = await request(`/api/logs/${id}`);
+  return log;
 }
 
 export async function renameLog(id, title) {
