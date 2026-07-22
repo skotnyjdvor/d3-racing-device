@@ -26,6 +26,11 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .brand small { color: #aab5c0; font-size: 10.5px; font-weight: 600; line-height: 1.15; text-transform: uppercase; letter-spacing: .17em; margin-top: 4px; }
 .device-state { display: flex; align-items: center; gap: 9px; color: var(--muted); font-size: 13px; }
 .header-actions { display: flex; align-items: center; gap: 18px; }
+.app-nav { display: flex; align-items: center; gap: 4px; margin-left: auto; margin-right: 24px; padding: 4px; background: #0d1218; border: 1px solid var(--line); }
+.app-nav button { min-height: 32px; padding: 0 14px; color: var(--muted); background: transparent; border: 0; font-size: 11px; font-weight: 750; text-transform: uppercase; letter-spacing: .08em; }
+.app-nav button:hover { color: var(--text); }
+.app-nav button.active { color: #080b10; background: var(--acid); }
+.auth-locked .app-nav { display: none; }
 .account-button { min-height: 40px; padding: 5px 13px 5px 5px; display: flex; align-items: center; gap: 9px; color: var(--text); background: #121820; border: 1px solid #3a4653; font-family: "Arial Narrow", "Segoe UI", sans-serif; letter-spacing: .035em; }
 .account-button span { width: 27px; height: 27px; display: grid; place-items: center; border-radius: 50%; color: #080b10; background: var(--acid); font-size: 12px; font-weight: 900; text-transform: uppercase; }
 .account-button b { max-width: 150px; overflow: hidden; text-overflow: ellipsis; font-size: 13px; font-weight: 750; text-transform: uppercase; white-space: nowrap; }
@@ -38,6 +43,16 @@ main { width: min(1480px, calc(100% - 40px)); margin: 0 auto; }
 .landing { display: none; width: min(1480px, calc(100% - 40px)); margin: 0 auto; }
 .auth-locked .landing { display: block; }
 .auth-locked .app-main { display: none; }
+.logs-page { display: none; width: min(1480px, calc(100% - 40px)); min-height: calc(100vh - 150px); margin: 0 auto; padding: 70px 0 80px; }
+.view-logs .logs-page { display: block; }
+.view-logs .app-main { display: none; }
+.logs-page-head { margin-bottom: 28px; display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 32px; }
+.logs-page-head h1 { max-width: 900px; margin: 8px 0 14px; font-size: clamp(50px, 7vw, 100px); }
+.logs-page-head > div > p:last-child { max-width: 680px; margin: 0; color: var(--muted); font-size: 17px; line-height: 1.55; }
+.logs-total { min-width: 220px; padding: 22px; display: grid; background: rgba(16,21,28,.82); border: 1px solid var(--line); }
+.logs-total span, .logs-total small { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+.logs-total strong { margin: 12px 0 8px; color: var(--acid); font-size: 54px; line-height: .9; }
+.logs-library-panel .session-list { max-height: none; min-height: 360px; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; padding: 16px; }
 .auth-locked .device-state { display: none; }
 .landing-hero { min-height: calc(100vh - 76px); padding: 90px 0 76px; display: grid; grid-template-columns: 1.08fr .92fr; align-items: center; gap: 40px; }
 .landing-copy h1 { max-width: 850px; font-size: clamp(62px, 7.2vw, 116px); }
@@ -216,13 +231,21 @@ footer { width: min(1480px, calc(100% - 40px)); min-height: 74px; margin: 0 auto
   .metric:nth-child(2) { border-right: 0; }
   .metric:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
   .dashboard { grid-template-columns: 1fr; }
+  .logs-page-head { grid-template-columns: 1fr; align-items: stretch; }
+  .logs-total { min-width: 0; }
+  .logs-library-panel .session-list { grid-template-columns: 1fr; }
   .track-panel canvas { height: 390px; }
 }
 
 @media (max-width: 560px) {
   .topbar { padding: 0 16px; }
   .device-state { max-width: 120px; text-align: right; }
-  .language-picker span, .device-state { display: none; }
+  .language-picker, .device-state { display: none; }
+  .app-nav { margin: 0 6px 0 auto; }
+  .app-nav button { padding: 0 9px; font-size: 9px; }
+  .header-actions { gap: 7px; }
+  .account-button b { display: none; }
+  .logs-page { width: min(100% - 24px, 1480px); padding: 48px 0 60px; }
   main, footer, .landing { width: min(100% - 24px, 1480px); }
   .landing-hero { padding: 48px 0 60px; }
   .landing-copy h1 { font-size: 54px; }

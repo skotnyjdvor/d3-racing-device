@@ -40,6 +40,15 @@ function setHint(text, isError = false) {
   elements.actionHint.classList.toggle("error", isError);
 }
 
+function showView(view, updateHash = true) {
+  const logs = view === "logs";
+  document.body.classList.toggle("view-logs", logs);
+  elements.analysisNavButton.classList.toggle("active", !logs);
+  elements.logsNavButton.classList.toggle("active", logs);
+  if (updateHash) history.pushState(null, "", logs ? "#logs" : "#analysis");
+  if (!logs) requestAnimationFrame(() => { drawTrack(); drawCharts(); });
+}
+
 function connectionErrorMessage(error) {
   if (error?.name === "NotFoundError" || /cancelled.*chooser/i.test(error?.message || "")) return t("error.notSelected");
   if (error?.name === "NetworkError") return t("error.network");
@@ -287,6 +296,8 @@ function renderSessions() {
   elements.sessionsValue.textContent = String(state.sessions.length);
   const totalPoints = state.sessions.reduce((sum, session) => sum + (session.points?.length ?? session.pointCount ?? 0), 0);
   elements.sessionsMeta.textContent = t("progress.records", { received: totalPoints.toLocaleString(getLanguage()), expected: totalPoints.toLocaleString(getLanguage()) });
+  elements.logsPageCount.textContent = String(state.sessions.length);
+  elements.logsPagePoints.textContent = t("sessions.points", { count: totalPoints.toLocaleString(getLanguage()) });
   if (!state.sessions.length) {
     elements.sessionList.innerHTML = `<p class="empty">${t("sessions.empty")}</p>`;
     return;
@@ -298,7 +309,9 @@ function renderSessions() {
       </button>
       ${session.source === "cloud" ? `<div class="session-actions"><button data-rename="${session.cloudId}" title="${t("sessions.rename")}">✎</button><button data-delete="${session.cloudId}" title="${t("sessions.delete")}">×</button></div>` : ""}
     </div>`).join("");
-  elements.sessionList.querySelectorAll("[data-session]").forEach((button) => button.addEventListener("click", () => selectSession(button.dataset.session)));
+  elements.sessionList.querySelectorAll("[data-session]").forEach((button) => button.addEventListener("click", async () => {
+    if (await selectSession(button.dataset.session)) showView("analysis");
+  }));
   elements.sessionList.querySelectorAll("[data-rename]").forEach((button) => button.addEventListener("click", () => renameCloudSession(button.dataset.rename)));
   elements.sessionList.querySelectorAll("[data-delete]").forEach((button) => button.addEventListener("click", () => deleteCloudSession(button.dataset.delete)));
 }
@@ -369,13 +382,13 @@ async function selectSession(id) {
       const record = await loadLog(session.cloudId);
       session.points = record?.points ?? [];
       session.pointCount = session.points.length;
-      if (state.selectedSession !== session) return;
+      if (state.selectedSession !== session) return false;
     } catch (error) {
       setAccountMessage(error.message, true);
-      return;
+      return false;
     }
   }
-  if (!state.selectedSession?.points.length) return;
+  if (!state.selectedSession?.points.length) return false;
   state.analysis = analyzeSession(state.selectedSession.points);
   state.track = identifyTrack(state.selectedSession.points);
   if (isNewSession || !state.analysis.laps.some((lap) => lap.number === state.selectedLapNumber)) {
@@ -388,6 +401,7 @@ async function selectSession(id) {
   elements.copyStatus.textContent = "Контекст строится только по выбранной сессии.";
   elements.insightsList.innerHTML = generateLocalInsights(state.analysis, t).map((insight) => `<li>${insight}</li>`).join("");
   renderSessions(); updateLapView();
+  return true;
 }
 
 function setAccountMessage(message = "", error = false) {
@@ -460,11 +474,12 @@ async function applyUser(user) {
     state.cloudLogs = [];
     state.sessions = state.sessions.filter((session) => session.source !== "cloud");
     if (state.selectedSession?.source === "cloud") state.selectedSession = null;
-    renderAccount(); renderSessions();
+    showView("analysis", false); renderAccount(); renderSessions();
     return;
   }
   renderAccount();
   await syncCloudLogs();
+  showView(location.hash === "#logs" ? "logs" : "analysis", false);
 }
 
 async function submitAccount(action) {
@@ -581,6 +596,9 @@ elements.connectButton.addEventListener("click", connect);
 elements.recordButton.addEventListener("click", toggleRecording);
 elements.downloadButton.addEventListener("click", downloadHistory);
 elements.cancelButton.addEventListener("click", () => state.client?.cancelDownload());
+elements.analysisNavButton.addEventListener("click", () => showView("analysis"));
+elements.logsNavButton.addEventListener("click", () => state.user || testMode ? showView("logs") : openAccountDialog("signin"));
+elements.logsBackButton.addEventListener("click", () => showView("analysis"));
 elements.accountButton.addEventListener("click", () => openAccountDialog("signin"));
 elements.gateAccountButton.addEventListener("click", () => openAccountDialog("register"));
 elements.demoAccountButton.addEventListener("click", () => openAccountDialog("register"));
@@ -621,6 +639,10 @@ elements.comparisonLapSelect.addEventListener("change", () => {
   updateLapView();
 });
 window.addEventListener("resize", () => { drawTrack(); drawCharts(); });
+window.addEventListener("hashchange", () => {
+  if (location.hash === "#logs" && (state.user || testMode)) showView("logs", false);
+  else showView("analysis", false);
+});
 elements.languageSelect.addEventListener("change", () => setLanguage(elements.languageSelect.value));
 onLanguageChange(() => {
   renderAccount();
@@ -639,6 +661,7 @@ onLanguageChange(() => {
 });
 applyTranslations();
 renderAccount();
+showView(location.hash === "#logs" && testMode ? "logs" : "analysis", false);
 drawTrack(); drawCharts();
 
 if (cloudConfigured) {

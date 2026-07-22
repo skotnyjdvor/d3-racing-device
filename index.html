@@ -9,13 +9,17 @@
   </head>
   <body class="auth-locked">
     <header class="topbar">
-      <a class="brand" href="#" aria-label="D3 Racing Lab"
+      <a class="brand" href="#analysis" aria-label="D3 Racing Lab"
         ><span class="brand-mark">D3</span
         ><span
           ><strong>Racing Lab</strong
           ><small>Telemetry intelligence</small></span
         ></a
       >
+      <nav class="app-nav" id="appNav" aria-label="Application">
+        <button class="active" id="analysisNavButton" type="button" data-i18n="nav.analysis"></button>
+        <button id="logsNavButton" type="button" data-i18n="nav.logs"></button>
+      </nav>
       <div class="header-actions">
         <button class="account-button" id="accountButton" type="button">
           <span id="accountAvatar">?</span
@@ -108,6 +112,32 @@
           </article>
         </div>
       </div>
+    </section>
+    <section class="logs-page" id="logsPage">
+      <div class="logs-page-head">
+        <div>
+          <p class="eyebrow" data-i18n="logsPage.kicker"></p>
+          <h1 data-i18n="logsPage.title"></h1>
+          <p data-i18n="logsPage.copy"></p>
+        </div>
+        <div class="logs-total">
+          <span data-i18n="summary.sessions"></span>
+          <strong id="logsPageCount">0</strong>
+          <small id="logsPagePoints">0</small>
+        </div>
+      </div>
+      <article class="panel logs-library-panel">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow" data-i18n="sessions.kicker"></p>
+            <h2 data-i18n="sessions.title"></h2>
+          </div>
+          <button class="secondary" id="logsBackButton" type="button" data-i18n="logsPage.back"></button>
+        </div>
+        <div class="session-list" id="sessionList">
+          <p class="empty" data-i18n="sessions.empty"></p>
+        </div>
+      </article>
     </section>
     <main class="app-main" id="appMain">
       <section class="hero device-hero">
@@ -224,17 +254,6 @@
           <div class="legend">
             <span data-i18n="track.slower"></span><i></i
             ><span data-i18n="track.faster"></span>
-          </div>
-        </article>
-        <article class="panel sessions-panel">
-          <div class="panel-head">
-            <div>
-              <p class="eyebrow" data-i18n="sessions.kicker"></p>
-              <h2 data-i18n="sessions.title"></h2>
-            </div>
-          </div>
-          <div class="session-list" id="sessionList">
-            <p class="empty" data-i18n="sessions.empty"></p>
           </div>
         </article>
         <article class="panel lap-controls-panel">
