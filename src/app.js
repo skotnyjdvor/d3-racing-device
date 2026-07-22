@@ -102,6 +102,22 @@ function pointAtProgress(series, progress) {
   return series[low];
 }
 
+function interpolatedTimeAtProgress(series, progress) {
+  if (!series.length) return null;
+  if (progress <= series[0].progress) return series[0].point.timeMs;
+  if (progress >= series.at(-1).progress) return series.at(-1).point.timeMs;
+  let low = 0; let high = series.length - 1;
+  while (low + 1 < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (series[middle].progress <= progress) low = middle;
+    else high = middle;
+  }
+  const before = series[low]; const after = series[high];
+  const span = Math.max(after.progress - before.progress, 1e-9);
+  const ratio = Math.max(0, Math.min(1, (progress - before.progress) / span));
+  return before.point.timeMs + (after.point.timeMs - before.point.timeMs) * ratio;
+}
+
 function drawTrack() {
   const { context, width, height } = canvasContext(elements.trackCanvas);
   context.fillStyle = "#0c1117";
@@ -241,11 +257,13 @@ function drawDeltaChart() {
   if (primary.length < 2 || comparison.length < 2) return;
   const primaryStart = primary[0].point.timeMs;
   const comparisonStart = comparison[0].point.timeMs;
-  const delta = primary.map((item) => {
-    const other = pointAtProgress(comparison, item.progress);
+  const delta = Array.from({ length: 801 }, (_, index) => {
+    const progress = index / 800;
+    const primaryTime = interpolatedTimeAtProgress(primary, progress);
+    const comparisonTime = interpolatedTimeAtProgress(comparison, progress);
     return {
-      progress: item.progress,
-      value: ((item.point.timeMs - primaryStart) - (other.point.timeMs - comparisonStart)) / 1000,
+      progress,
+      value: ((primaryTime - primaryStart) - (comparisonTime - comparisonStart)) / 1000,
     };
   }).filter((item) => Number.isFinite(item.value));
   if (delta.length < 2) return;
