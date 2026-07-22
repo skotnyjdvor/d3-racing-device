@@ -8,7 +8,7 @@ import { cloudConfigured, currentUser, deleteLog, loadLog, loadLogs, renameLog, 
 import "./demo.js";
 
 const elements = Object.fromEntries([...document.querySelectorAll("[id]")].map((element) => [element.id, element]));
-const state = { client: null, connected: false, deviceName: "", deviceModel: "", latestTelemetry: null, storage: null, sessions: [], selectedSession: null, analysis: null, selectedLapNumber: null, comparisonLapNumber: null, cursorProgress: null, track: null, user: null, cloudLogs: [], pollTimer: null };
+const state = { client: null, connected: false, deviceName: "", deviceModel: "", latestTelemetry: null, storage: null, sessions: [], selectedSession: null, analysis: null, selectedLapNumber: null, comparisonLapNumber: null, cursorProgress: null, telemetryMetric: "speed", track: null, user: null, cloudLogs: [], pollTimer: null };
 const testMode = new URLSearchParams(location.search).has("mock");
 let accountMode = "signin";
 
@@ -220,9 +220,7 @@ function drawComparisonChart(canvas, key, { speed = false } = {}) {
 }
 
 function drawCharts() {
-  drawComparisonChart(elements.speedCanvas, "speed", { speed: true });
-  drawComparisonChart(elements.longitudinalCanvas, "gForceX");
-  drawComparisonChart(elements.lateralCanvas, "gForceY");
+  drawComparisonChart(elements.telemetryCanvas, state.telemetryMetric, { speed: state.telemetryMetric === "speed" });
 }
 
 let cursorFrame = 0;
@@ -242,15 +240,22 @@ function updateCursorFromEvent(event) {
   setCursorProgress(Math.max(0, Math.min(1, progress)));
 }
 
-[elements.speedCanvas, elements.longitudinalCanvas, elements.lateralCanvas].forEach((canvas) => {
-  canvas.addEventListener("pointerdown", (event) => { canvas.setPointerCapture?.(event.pointerId); updateCursorFromEvent(event); });
-  canvas.addEventListener("pointermove", (event) => {
-    if (event.pointerType === "mouse" || canvas.hasPointerCapture?.(event.pointerId)) updateCursorFromEvent(event);
-  });
-  canvas.addEventListener("pointerleave", (event) => {
-    if (event.pointerType === "mouse" && !event.buttons) setCursorProgress(null);
-  });
+elements.telemetryCanvas.addEventListener("pointerdown", (event) => { elements.telemetryCanvas.setPointerCapture?.(event.pointerId); updateCursorFromEvent(event); });
+elements.telemetryCanvas.addEventListener("pointermove", (event) => {
+  if (event.pointerType === "mouse" || elements.telemetryCanvas.hasPointerCapture?.(event.pointerId)) updateCursorFromEvent(event);
 });
+elements.telemetryCanvas.addEventListener("pointerleave", (event) => {
+  if (event.pointerType === "mouse" && !event.buttons) setCursorProgress(null);
+});
+
+function selectTelemetryMetric(metric) {
+  state.telemetryMetric = ["speed", "gForceX", "gForceY"].includes(metric) ? metric : "speed";
+  const translationKey = state.telemetryMetric === "speed" ? "telemetry.speed" : state.telemetryMetric === "gForceX" ? "telemetry.longitudinal" : "telemetry.lateral";
+  elements.telemetryMetricSelect.value = state.telemetryMetric;
+  elements.telemetryChartTitle.textContent = t(translationKey);
+  elements.telemetryChartUnit.textContent = state.telemetryMetric === "speed" ? t("unit.speed") : "g";
+  drawCharts();
+}
 
 function renderStorage(storage) {
   state.storage = storage;
@@ -663,6 +668,7 @@ elements.comparisonLapSelect.addEventListener("change", () => {
   if (state.comparisonLapNumber === state.selectedLapNumber) state.comparisonLapNumber = null;
   updateLapView();
 });
+elements.telemetryMetricSelect.addEventListener("change", () => selectTelemetryMetric(elements.telemetryMetricSelect.value));
 window.addEventListener("resize", () => { drawTrack(); drawCharts(); });
 window.addEventListener("hashchange", () => {
   if (location.hash === "#logs" && (state.user || testMode)) showView("logs", false);
@@ -673,6 +679,7 @@ onLanguageChange(() => {
   renderAccount();
   if (state.storage) renderStorage(state.storage);
   if (state.latestTelemetry) renderTelemetry(state.latestTelemetry);
+  selectTelemetryMetric(state.telemetryMetric);
   if (state.sessions.length) renderSessions();
   if (state.selectedSession) selectSession(state.selectedSession.id);
   else { drawTrack(); drawCharts(); }

@@ -281,35 +281,23 @@
             ><span class="comparison-line" id="comparisonLapLegend">—</span>
           </div>
         </article>
-        <article class="panel chart-panel">
+        <article class="panel chart-panel telemetry-panel">
           <div class="panel-head">
             <div>
               <p class="eyebrow" data-i18n="telemetry.kicker"></p>
-              <h2 data-i18n="telemetry.speed"></h2>
+              <h2 id="telemetryChartTitle" data-i18n="telemetry.speed"></h2>
             </div>
-            <span class="chart-unit" data-i18n="unit.speed"></span>
+            <label class="telemetry-selector">
+              <span data-i18n="telemetry.choose"></span>
+              <select id="telemetryMetricSelect">
+                <option value="speed" data-i18n="telemetry.speed"></option>
+                <option value="gForceX" data-i18n="telemetry.longitudinal"></option>
+                <option value="gForceY" data-i18n="telemetry.lateral"></option>
+              </select>
+            </label>
+            <span class="chart-unit" id="telemetryChartUnit" data-i18n="unit.speed"></span>
           </div>
-          <canvas id="speedCanvas"></canvas>
-        </article>
-        <article class="panel chart-panel">
-          <div class="panel-head">
-            <div>
-              <p class="eyebrow" data-i18n="telemetry.gforce"></p>
-              <h2 data-i18n="telemetry.longitudinal"></h2>
-            </div>
-            <span class="chart-unit">g</span>
-          </div>
-          <canvas id="longitudinalCanvas"></canvas>
-        </article>
-        <article class="panel chart-panel">
-          <div class="panel-head">
-            <div>
-              <p class="eyebrow" data-i18n="telemetry.gforce"></p>
-              <h2 data-i18n="telemetry.lateral"></h2>
-            </div>
-            <span class="chart-unit">g</span>
-          </div>
-          <canvas id="lateralCanvas"></canvas>
+          <canvas id="telemetryCanvas"></canvas>
         </article>
         <article class="panel insight-panel">
           <div class="panel-head">
