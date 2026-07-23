@@ -1,7 +1,7 @@
 import { parseRaceBoxCsv } from "../domain/csv.js";
 
 export class MockRaceBoxClient {
-  constructor({ onStatus, onTelemetry }) { this.onStatus = onStatus; this.onTelemetry = onTelemetry; this.recording = false; this.cancelled = false; }
+  constructor({ onStatus, onTelemetry }) { this.onStatus = onStatus; this.onTelemetry = onTelemetry; this.recording = false; this.cancelled = false; this.storedMessages = 12256; }
   async connect() {
     this.model = "LapTrace";
     this.supportsStandaloneRecording = true;
@@ -11,12 +11,20 @@ export class MockRaceBoxClient {
   }
   disconnect() { this.onStatus?.("disconnected", "LapTrace Mock"); }
   async readStorageStatus() {
-    return { recording: this.recording, memoryLevel: 6, securityEnabled: false, unlocked: true, storedMessages: 12256, capacityMessages: 196608 };
+    return { recording: this.recording, memoryLevel: Math.ceil(this.storedMessages / 196608 * 100), securityEnabled: false, unlocked: true, storedMessages: this.storedMessages, capacityMessages: 196608 };
   }
   async startRecording() { this.recording = true; return true; }
   async stopRecording() { this.recording = false; return true; }
   async unlockMemory() { return true; }
   async cancelDownload() { this.cancelled = true; }
+  async eraseHistory(onProgress = () => {}) {
+    for (const percent of [12, 48, 76, 100]) {
+      await new Promise((resolve) => setTimeout(resolve, 80));
+      onProgress(percent);
+    }
+    this.storedMessages = 0;
+    return true;
+  }
   async downloadHistory(onProgress) {
     this.cancelled = false;
     const source = new URL("../fixtures/viterbo-session-2026-07-10.csv", import.meta.url);

@@ -139,6 +139,10 @@ h1 .solid-title { color: var(--text); -webkit-text-stroke: 0; }
 .primary:hover { background: #ddff78; }
 .secondary { color: var(--text); background: #202832; border: 1px solid #333e49; }
 .secondary:hover { background: #2a3540; }
+.danger-button { color: #ff8262; border-color: rgba(255,130,98,.45); }
+.danger-button:hover { color: #fff; background: #8f2f21; }
+.erase-progress { color: #ffad98; font-size: 11px; }
+.erase-progress progress { width: 100%; height: 7px; margin-top: 8px; accent-color: #ff6b48; }
 .ghost { padding: 0 14px; min-height: 34px; color: #bcc6d0; background: transparent; border: 1px solid var(--line); font-size: 12px; }
 
 .account-dialog { width: min(480px, calc(100% - 32px)); color: var(--text); background: #11171e; border: 1px solid #394551; padding: 34px; box-shadow: 0 24px 90px rgba(0,0,0,.7); }

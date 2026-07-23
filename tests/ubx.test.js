@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { decodeRaceBoxData, decodeRecordingStatus, encodeRecordingConfiguration, HistoryDownloadCollector } from "../src/ble/racebox.js";
-import { UbxStreamParser } from "../src/ble/ubx.js";
+import { decodeRaceBoxData, decodeRecordingStatus, encodeRecordingConfiguration, HistoryDownloadCollector, RACEBOX_CLASS, RACEBOX_MESSAGE } from "../src/ble/racebox.js";
+import { encodePacket, UbxStreamParser } from "../src/ble/ubx.js";
 
 const exampleHex = "B5 62 FF 01 50 00 A0 E7 0C 07 E6 07 01 0A 08 33 08 37 19 00 00 00 2A AD 4D 0E 03 01 EA 0B C6 93 E1 0D 3B 37 6F 19 61 8C 09 00 0F 01 09 00 9C 03 00 00 2C 07 00 00 23 00 00 00 00 00 00 00 D0 00 00 00 88 A9 DD 00 2C 01 00 59 FD FF 71 00 CE 03 2F FF 56 00 FC FF 06 DB";
 const packet = Uint8Array.from(exampleHex.split(" ").map((value) => Number.parseInt(value, 16)));
@@ -70,4 +70,9 @@ test("builds a safe 25 Hz racing recording configuration", () => {
   assert.equal(view.getUint16(8, true), 30);
   assert.equal(view.getUint16(10, true), 300);
   assert.deepEqual([...encodeRecordingConfiguration(false)], Array(12).fill(0));
+});
+
+test("builds the documented recorded-data erase command", () => {
+  assert.equal(RACEBOX_MESSAGE.ERASE, 0x24);
+  assert.deepEqual([...encodePacket(RACEBOX_CLASS, RACEBOX_MESSAGE.ERASE)], [0xb5, 0x62, 0xff, 0x24, 0x00, 0x00, 0x23, 0x68]);
 });

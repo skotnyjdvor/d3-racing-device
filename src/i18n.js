@@ -2,6 +2,7 @@ export const SUPPORTED_LANGUAGES = ["ru", "en", "pl"];
 
 const translations = {
   ru: {
+    "action.erase": "Очистить память устройства", "erase.confirm": "Удалить все записи из памяти LapTrace? Сохранённые в облаке логи останутся.", "erase.progress": "Очистка памяти: {percent}%", "erase.done": "Память устройства очищена.",
     "telemetry.choose": "Выберите график",
     "telemetry.delta": "Накопленная дельта", "telemetry.alwaysVisible": "ВСЕГДА НА ЭКРАНЕ", "telemetry.deltaEmpty": "Выберите второй круг для расчёта дельты",
     "spec.gpsTitle": "GPS · 25 Гц", "spec.gpsCopy": "GPS, GLONASS, Galileo, BeiDou", "spec.bleCopy": "iOS и Android", "spec.batteryCopy": "до 20 часов работы", "spec.usbCopy": "зарядка около 3 часов", "spec.accelTitle": "Акселерометр", "spec.gyroTitle": "Гироскоп", "spec.storageTitle": "Встроенная память", "spec.storageCopy": ">2 ч при 25 Гц", "spec.splashTitle": "Защита от брызг", "spec.splashCopy": "дождь и водный спорт",
@@ -36,6 +37,7 @@ const translations = {
     "insight.fastest": "Лучший круг — №{lap}; разброс до самого медленного круга составляет {delta} с.", "insight.braking": "Самое сильное продольное замедление на круге №{lap}: {value} g. Знак зависит от ориентации устройства.", "insight.lateral": "Пиковая боковая нагрузка — {value} g на круге №{lap}.", "insight.qualityGood": "Поток ровный: {hz} Гц, разрывов длиннее {gap} мс не обнаружено.", "insight.qualityBad": "Обнаружено {count} разрывов потока; проверьте качество записи.",
   },
   en: {
+    "action.erase": "Erase device memory", "erase.confirm": "Delete every recording from LapTrace memory? Logs already saved to the cloud will remain.", "erase.progress": "Erasing memory: {percent}%", "erase.done": "Device memory erased.",
     "telemetry.choose": "Choose chart",
     "telemetry.delta": "Cumulative delta", "telemetry.alwaysVisible": "ALWAYS VISIBLE", "telemetry.deltaEmpty": "Select a comparison lap to calculate the delta",
     "spec.gpsTitle": "GPS · 25 Hz", "spec.gpsCopy": "GPS, GLONASS, Galileo, BeiDou", "spec.bleCopy": "iOS and Android", "spec.batteryCopy": "up to 20 hours use", "spec.usbCopy": "about 3 hours charging", "spec.accelTitle": "Accelerometer", "spec.gyroTitle": "Gyroscope", "spec.storageTitle": "Internal storage", "spec.storageCopy": ">2 h at 25 Hz", "spec.splashTitle": "Splash resistant", "spec.splashCopy": "rain and water sports",
@@ -61,6 +63,7 @@ const translations = {
     "insight.fastest": "Fastest lap: #{lap}; spread to the slowest lap is {delta} s.", "insight.braking": "Strongest longitudinal deceleration on lap #{lap}: {value} g. The sign depends on device orientation.", "insight.lateral": "Peak lateral load: {value} g on lap #{lap}.", "insight.qualityGood": "Stable stream: {hz} Hz with no gaps longer than {gap} ms.", "insight.qualityBad": "Detected {count} stream gaps; check recording quality.",
   },
   pl: {
+    "action.erase": "Wyczyść pamięć urządzenia", "erase.confirm": "Usunąć wszystkie nagrania z pamięci LapTrace? Logi zapisane w chmurze pozostaną.", "erase.progress": "Czyszczenie pamięci: {percent}%", "erase.done": "Pamięć urządzenia została wyczyszczona.",
     "telemetry.choose": "Wybierz wykres",
     "telemetry.delta": "Skumulowana delta", "telemetry.alwaysVisible": "ZAWSZE WIDOCZNA", "telemetry.deltaEmpty": "Wybierz drugie okrążenie, aby obliczyć deltę",
     "spec.gpsTitle": "GPS · 25 Hz", "spec.gpsCopy": "GPS, GLONASS, Galileo, BeiDou", "spec.bleCopy": "iOS i Android", "spec.batteryCopy": "do 20 godzin pracy", "spec.usbCopy": "około 3 godz. ładowania", "spec.accelTitle": "Akcelerometr", "spec.gyroTitle": "Żyroskop", "spec.storageTitle": "Pamięć wewnętrzna", "spec.storageCopy": ">2 godz. przy 25 Hz", "spec.splashTitle": "Odporność na zachlapanie", "spec.splashCopy": "deszcz i sporty wodne",

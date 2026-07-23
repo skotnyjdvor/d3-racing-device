@@ -26,6 +26,7 @@ export class CapacitorRaceBoxClient {
     this.parser = new UbxStreamParser();
     this.pending = [];
     this.download = null;
+    this.erase = null;
     this.device = null;
   }
 
@@ -100,6 +101,26 @@ export class CapacitorRaceBoxClient {
     if (this.download) await this.#write(encodePacket(CLASS, MESSAGE.DOWNLOAD, Uint8Array.of(1)));
   }
 
+  async eraseHistory(onProgress = () => {}) {
+    if (this.erase || this.download) throw new Error("Другая операция с памятью уже выполняется");
+    const promise = new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        if (!this.erase) return;
+        this.erase = null;
+        reject(new Error("Очистка памяти не завершилась вовремя"));
+      }, 180_000);
+      this.erase = { resolve, reject, onProgress, timer };
+    });
+    try {
+      await this.#write(encodePacket(CLASS, MESSAGE.ERASE));
+    } catch (error) {
+      clearTimeout(this.erase?.timer);
+      this.erase = null;
+      throw error;
+    }
+    return promise;
+  }
+
   async #request(messageId, payload, match, timeoutMs = 10_000) {
     const response = new Promise((resolve, reject) => {
       const pending = { match, resolve, reject };
@@ -156,6 +177,15 @@ export class CapacitorRaceBoxClient {
           reject(new Error("LapTrace отклонил выгрузку памяти"));
         }
       }
+      if (this.erase && packet.messageClass === CLASS && packet.messageId === MESSAGE.ERASE && packet.payload.length === 1) {
+        this.erase.onProgress(Math.max(0, Math.min(100, packet.payload[0])));
+      } else if (this.erase && isReplyFor(packet, MESSAGE.ACK, MESSAGE.ERASE)) {
+        const { resolve, timer } = this.erase;
+        clearTimeout(timer); this.erase = null; resolve(true);
+      } else if (this.erase && isReplyFor(packet, MESSAGE.NACK, MESSAGE.ERASE)) {
+        const { reject, timer } = this.erase;
+        clearTimeout(timer); this.erase = null; reject(new Error("Устройство отклонило очистку памяти"));
+      }
       const pending = this.pending.find((item) => item.match(packet));
       if (pending) {
         clearTimeout(pending.timer);
@@ -173,6 +203,7 @@ export class CapacitorRaceBoxClient {
     this.pending.forEach((pending) => { clearTimeout(pending.timer); pending.reject(error); });
     this.pending = [];
     if (this.download) { this.download.reject(error); this.download = null; }
+    if (this.erase) { clearTimeout(this.erase.timer); this.erase.reject(error); this.erase = null; }
     this.onStatus?.("disconnected", name);
   }
 }

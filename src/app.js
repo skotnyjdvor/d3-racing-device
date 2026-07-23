@@ -9,7 +9,7 @@ import { cloudConfigured, currentUser, deleteLog, loadLog, loadLogs, renameLog, 
 import "./demo.js";
 
 const elements = Object.fromEntries([...document.querySelectorAll("[id]")].map((element) => [element.id, element]));
-const state = { client: null, connected: false, deviceName: "", deviceModel: "", latestTelemetry: null, storage: null, sessions: [], selectedSession: null, analysis: null, selectedLapNumber: null, comparisonLapNumber: null, cursorProgress: null, chartView: { start: 0, end: 1 }, trackView: { scale: 1, offsetX: 0, offsetY: 0 }, telemetryMetric: "speed", track: null, user: null, cloudLogs: [], pollTimer: null };
+const state = { client: null, connected: false, deviceName: "", deviceModel: "", latestTelemetry: null, storage: null, sessions: [], selectedSession: null, analysis: null, selectedLapNumber: null, comparisonLapNumber: null, cursorProgress: null, chartView: { start: 0, end: 1 }, trackView: { scale: 1, offsetX: 0, offsetY: 0 }, telemetryMetric: "speed", track: null, user: null, cloudLogs: [], pollTimer: null, memoryBusy: false };
 const testMode = new URLSearchParams(location.search).has("mock");
 let accountMode = "signin";
 
@@ -516,8 +516,9 @@ function renderStorage(storage) {
   elements.memoryFree.textContent = `${freePercent}%`;
   elements.memoryFreeMeta.textContent = t("memory.remaining", { records: freeMessages.toLocaleString(getLanguage()), time: formatDuration(freeMessages / 25 * 1000) });
   elements.unlockForm.hidden = !(storage.securityEnabled && !storage.unlocked);
-  elements.downloadButton.disabled = storage.recording || storage.securityEnabled && !storage.unlocked || storage.storedMessages === 0;
-  elements.recordButton.disabled = !state.client?.supportsStandaloneRecording || storage.securityEnabled && !storage.unlocked;
+  elements.downloadButton.disabled = state.memoryBusy || storage.recording || storage.securityEnabled && !storage.unlocked || storage.storedMessages === 0;
+  elements.eraseButton.disabled = state.memoryBusy || storage.recording || storage.securityEnabled && !storage.unlocked || storage.storedMessages === 0;
+  elements.recordButton.disabled = state.memoryBusy || !state.client?.supportsStandaloneRecording || storage.securityEnabled && !storage.unlocked;
   elements.recordButton.classList.toggle("recording", storage.recording);
   elements.recordButton.innerHTML = `<span></span><b>${t(storage.recording ? "action.stop" : "action.start")}</b>`;
   setHint(storage.recording ? t("hint.recording") : t("hint.ready", { model: state.deviceModel || "—" }));
@@ -812,6 +813,7 @@ async function createClient() {
     if (!connected) {
       clearInterval(state.pollTimer); state.pollTimer = null; state.client = null;
       elements.downloadButton.disabled = true; elements.recordButton.disabled = true;
+      elements.eraseButton.disabled = true;
     }
   }});
 }
@@ -870,9 +872,38 @@ async function downloadHistory() {
   finally { elements.downloadButton.disabled = false; }
 }
 
+async function eraseDeviceMemory() {
+  if (!state.user && !testMode) { openAccountDialog(); return; }
+  if (!state.client || !state.storage || state.storage.recording || state.storage.storedMessages === 0) return;
+  if (!confirm(t("erase.confirm"))) return;
+  elements.eraseButton.disabled = true;
+  elements.downloadButton.disabled = true;
+  elements.recordButton.disabled = true;
+  state.memoryBusy = true;
+  elements.eraseProgress.hidden = false;
+  elements.eraseProgressBar.value = 0;
+  elements.eraseProgressLabel.textContent = t("erase.progress", { percent: 0 });
+  try {
+    await state.client.eraseHistory((percent) => {
+      elements.eraseProgressBar.value = percent;
+      elements.eraseProgressLabel.textContent = t("erase.progress", { percent });
+    });
+    elements.eraseProgressBar.value = 100;
+    elements.eraseProgressLabel.textContent = t("erase.done");
+    await refreshStorage();
+    setHint(t("erase.done"));
+  } catch (error) {
+    setHint(error.message, true);
+  } finally {
+    state.memoryBusy = false;
+    if (state.storage) renderStorage(state.storage);
+  }
+}
+
 elements.connectButton.addEventListener("click", connect);
 elements.recordButton.addEventListener("click", toggleRecording);
 elements.downloadButton.addEventListener("click", downloadHistory);
+elements.eraseButton.addEventListener("click", eraseDeviceMemory);
 elements.cancelButton.addEventListener("click", () => state.client?.cancelDownload());
 elements.analysisNavButton.addEventListener("click", () => showView("analysis"));
 elements.logsNavButton.addEventListener("click", () => state.user || testMode ? showView("logs") : openAccountDialog("signin"));

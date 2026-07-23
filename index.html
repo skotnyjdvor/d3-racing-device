@@ -210,6 +210,16 @@
             disabled
             data-i18n="action.download"
           ></button>
+          <button
+            class="secondary danger-button"
+            id="eraseButton"
+            disabled
+            data-i18n="action.erase"
+          ></button>
+          <div class="erase-progress" id="eraseProgress" hidden>
+            <span id="eraseProgressLabel"></span>
+            <progress id="eraseProgressBar" max="100" value="0"></progress>
+          </div>
           <div class="download-progress" id="downloadProgress" hidden>
             <div>
               <span id="progressLabel" data-i18n="progress.preparing"></span
