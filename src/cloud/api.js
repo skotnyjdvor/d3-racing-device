@@ -1,4 +1,6 @@
-const apiBase = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+const nativeApp = ["capacitor:", "ionic:"].includes(globalThis.location?.protocol)
+  || globalThis.Capacitor?.isNativePlatform?.();
+const apiBase = (import.meta.env.VITE_API_URL || (nativeApp ? "https://d3racinglab.com" : "")).replace(/\/$/, "");
 const tokenKey = "laptrace-access-token";
 const listeners = new Set();
 

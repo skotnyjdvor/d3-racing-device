@@ -920,6 +920,12 @@ elements.accountPasswordConfirm.addEventListener("input", () => {
   elements.accountPasswordConfirm.classList.remove("invalid");
   elements.accountPasswordConfirm.setCustomValidity("");
 });
+document.querySelectorAll("input:not([type='range']):not([type='file']), textarea").forEach((field) => {
+  field.addEventListener("focus", () => {
+    if (!globalThis.Capacitor?.isNativePlatform?.()) return;
+    setTimeout(() => field.scrollIntoView({ block: "center", behavior: "smooth" }), 250);
+  });
+});
 elements.accountClose.addEventListener("click", () => elements.accountDialog.close());
 elements.accountDialog.addEventListener("click", (event) => { if (event.target === elements.accountDialog) elements.accountDialog.close(); });
 elements.accountForm.addEventListener("submit", async (event) => {

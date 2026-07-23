@@ -157,7 +157,7 @@ h1 .solid-title { color: var(--text); -webkit-text-stroke: 0; }
 .account-tabs button.active { color: #080b10; background: var(--acid); }
 .account-dialog form label { display: grid; gap: 7px; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
 .account-dialog form label[hidden] { display: none; }
-.account-dialog input { width: 100%; color: var(--text); background: #090e13; border: 1px solid var(--line); padding: 13px; outline: none; }
+.account-dialog input { width: 100%; color: var(--text); background: #090e13; border: 1px solid var(--line); padding: 13px; outline: none; font-size: 16px; -webkit-user-select: text; user-select: text; }
 .account-dialog input:focus { border-color: var(--acid); }
 .account-dialog input.invalid { border-color: #ff5f35; }
 .account-dialog #accountSubmitButton { width: 100%; margin-top: 4px; }
