@@ -3,6 +3,7 @@ import { analyzeSession, generateLocalInsights } from "./domain/analysis.js";
 import { buildAiPrompt } from "./domain/ai-context.js";
 import { parseRaceBoxCsv } from "./domain/csv.js";
 import { distanceMeters, identifyTrack } from "./domain/tracks.js";
+import { splitSessionIntoLaps } from "./domain/laps.js";
 import { applyTranslations, getLanguage, onLanguageChange, setLanguage, t } from "./i18n.js";
 import { cloudConfigured, currentUser, deleteLog, loadLog, loadLogs, renameLog, saveLog, signIn, signOut, signUp } from "./cloud/api.js";
 import "./demo.js";
@@ -501,8 +502,9 @@ async function selectSession(id) {
     }
   }
   if (!state.selectedSession?.points.length) return false;
-  state.analysis = analyzeSession(state.selectedSession.points);
   state.track = identifyTrack(state.selectedSession.points);
+  state.selectedSession.points = splitSessionIntoLaps(state.selectedSession.points, state.track);
+  state.analysis = analyzeSession(state.selectedSession.points);
   if (isNewSession || !state.analysis.laps.some((lap) => lap.number === state.selectedLapNumber)) {
     const ordered = [...state.analysis.laps].sort((a, b) => a.durationMs - b.durationMs);
     state.selectedLapNumber = ordered[0]?.number ?? null;

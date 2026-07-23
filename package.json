@@ -9,6 +9,7 @@
     "start:render": "node server/api.mjs",
     "test": "node --test",
     "build": "vite build",
+    "tracks:import": "node scripts/convert-ztracks.mjs",
     "ios:add": "npm run build && cap add ios && node scripts/configure-ios.mjs",
     "ios:sync": "npm run build && cap sync ios && node scripts/configure-ios.mjs",
     "ios:open": "cap open ios"

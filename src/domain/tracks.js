@@ -1,12 +1,32 @@
+import GENERATED_TRACKS from "./track-catalog.generated.js";
+
 const EARTH_RADIUS_M = 6_371_000;
 
-export const TRACKS = [{
+const BUILTIN_TRACKS = [{
   id: "circuito-internazionale-viterbo",
   name: "Circuito Internazionale di Viterbo",
   country: "Italy",
   center: { latitude: 42.48475, longitude: 12.07012 },
   detectionRadiusM: 1200,
+  start: {
+    point: { latitude: 42.4848479, longitude: 12.069661 },
+    next: { latitude: 42.4848686, longitude: 12.0697683 },
+  },
 }];
+
+export const TRACKS = [
+  ...BUILTIN_TRACKS,
+  ...GENERATED_TRACKS.map((track) => ({
+    id: /circuito internazionale viterbo/i.test(track.name) ? "circuito-internazionale-viterbo" : track.id,
+    name: track.name,
+    center: { latitude: track.center[0], longitude: track.center[1] },
+    detectionRadiusM: track.radius,
+    start: {
+      point: { latitude: track.start[0], longitude: track.start[1] },
+      next: { latitude: track.start[2], longitude: track.start[3] },
+    },
+  })),
+];
 
 export function distanceMeters(a, b) {
   const radians = (degrees) => degrees * Math.PI / 180;
