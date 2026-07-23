@@ -9,7 +9,7 @@ import { cloudConfigured, currentUser, deleteLog, loadLog, loadLogs, renameLog, 
 import "./demo.js";
 
 const elements = Object.fromEntries([...document.querySelectorAll("[id]")].map((element) => [element.id, element]));
-const state = { client: null, connected: false, deviceName: "", deviceModel: "", latestTelemetry: null, storage: null, sessions: [], selectedSession: null, analysis: null, selectedLapNumber: null, comparisonLapNumber: null, cursorProgress: null, chartView: { start: 0, end: 1 }, telemetryMetric: "speed", track: null, user: null, cloudLogs: [], pollTimer: null };
+const state = { client: null, connected: false, deviceName: "", deviceModel: "", latestTelemetry: null, storage: null, sessions: [], selectedSession: null, analysis: null, selectedLapNumber: null, comparisonLapNumber: null, cursorProgress: null, chartView: { start: 0, end: 1 }, trackView: { scale: 1, offsetX: 0, offsetY: 0 }, telemetryMetric: "speed", track: null, user: null, cloudLogs: [], pollTimer: null };
 const testMode = new URLSearchParams(location.search).has("mock");
 let accountMode = "signin";
 
@@ -147,6 +147,25 @@ function resetChartZoom() {
   drawCharts();
 }
 
+function updateTrackZoom(nextScale, anchorX, anchorY) {
+  const previous = state.trackView;
+  const scale = Math.max(1, Math.min(12, nextScale));
+  const factor = scale / previous.scale;
+  state.trackView = {
+    scale,
+    offsetX: anchorX - (anchorX - previous.offsetX) * factor,
+    offsetY: anchorY - (anchorY - previous.offsetY) * factor,
+  };
+  elements.trackZoomReset.textContent = `${Math.round(scale * 100)}%`;
+  drawTrack();
+}
+
+function resetTrackZoom() {
+  state.trackView = { scale: 1, offsetX: 0, offsetY: 0 };
+  elements.trackZoomReset.textContent = "100%";
+  drawTrack();
+}
+
 function drawTrack() {
   const { context, width, height } = canvasContext(elements.trackCanvas);
   context.fillStyle = "#0c1117";
@@ -181,7 +200,14 @@ function drawTrack() {
   );
   const offsetX = (width - (maxLon - minLon) * scale) / 2;
   const offsetY = (height - (maxLat - minLat) * scale) / 2;
-  const project = (point) => [offsetX + (point.longitude - minLon) * scale, offsetY + (maxLat - point.latitude) * scale];
+  const project = (point) => {
+    const baseX = offsetX + (point.longitude - minLon) * scale;
+    const baseY = offsetY + (maxLat - point.latitude) * scale;
+    return [
+      width / 2 + (baseX - width / 2) * state.trackView.scale + state.trackView.offsetX,
+      height / 2 + (baseY - height / 2) * state.trackView.scale + state.trackView.offsetY,
+    ];
+  };
   context.lineCap = "round"; context.lineJoin = "round";
   const drawTrajectory = (points, color, lineWidth) => {
     if (points.length < 2) return;
@@ -421,6 +447,54 @@ function updateCursorFromEvent(event) {
 
 elements.chartZoomReset.addEventListener("click", resetChartZoom);
 
+{
+  const canvas = elements.trackCanvas;
+  const pointers = new Map();
+  let gesture = null;
+  canvas.addEventListener("pointerdown", (event) => {
+    canvas.setPointerCapture?.(event.pointerId);
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    const rect = canvas.getBoundingClientRect();
+    if (pointers.size === 1) {
+      gesture = { mode: "pan", x: event.clientX, y: event.clientY, offsetX: state.trackView.offsetX, offsetY: state.trackView.offsetY };
+    } else if (pointers.size === 2) {
+      const [a, b] = [...pointers.values()];
+      gesture = {
+        mode: "pinch",
+        distance: Math.hypot(b.x - a.x, b.y - a.y),
+        scale: state.trackView.scale,
+        anchorX: (a.x + b.x) / 2 - rect.left - rect.width / 2,
+        anchorY: (a.y + b.y) / 2 - rect.top - rect.height / 2,
+      };
+    }
+  });
+  canvas.addEventListener("pointermove", (event) => {
+    if (!pointers.has(event.pointerId)) return;
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (pointers.size === 2 && gesture?.mode === "pinch") {
+      const [a, b] = [...pointers.values()];
+      const distance = Math.max(8, Math.hypot(b.x - a.x, b.y - a.y));
+      updateTrackZoom(gesture.scale * distance / Math.max(gesture.distance, 8), gesture.anchorX, gesture.anchorY);
+    } else if (pointers.size === 1 && gesture?.mode === "pan" && state.trackView.scale > 1) {
+      state.trackView.offsetX = gesture.offsetX + event.clientX - gesture.x;
+      state.trackView.offsetY = gesture.offsetY + event.clientY - gesture.y;
+      drawTrack();
+    }
+  });
+  const release = (event) => { pointers.delete(event.pointerId); gesture = null; };
+  canvas.addEventListener("pointerup", release);
+  canvas.addEventListener("pointercancel", release);
+  canvas.addEventListener("wheel", (event) => {
+    event.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const anchorX = event.clientX - rect.left - rect.width / 2;
+    const anchorY = event.clientY - rect.top - rect.height / 2;
+    updateTrackZoom(state.trackView.scale * Math.exp(-event.deltaY * 0.0015), anchorX, anchorY);
+  }, { passive: false });
+  canvas.addEventListener("dblclick", resetTrackZoom);
+  elements.trackZoomReset.addEventListener("click", resetTrackZoom);
+}
+
 function selectTelemetryMetric(metric) {
   state.telemetryMetric = ["speed", "gForceX", "gForceY"].includes(metric) ? metric : "speed";
   const translationKey = state.telemetryMetric === "speed" ? "telemetry.speed" : state.telemetryMetric === "gForceX" ? "telemetry.longitudinal" : "telemetry.lateral";
@@ -555,7 +629,7 @@ function updateLapView() {
 
 async function selectSession(id) {
   const isNewSession = String(state.selectedSession?.id) !== String(id);
-  if (isNewSession) resetChartZoom();
+  if (isNewSession) { resetChartZoom(); resetTrackZoom(); }
   const session = state.sessions.find((item) => String(item.id) === String(id));
   state.selectedSession = session;
   if (session?.source === "cloud" && !session.points) {
