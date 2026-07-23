@@ -14,15 +14,15 @@ function cross(a, b) {
   return a.x * b.y - a.y * b.x;
 }
 
-function segmentsIntersect(a, b, c, d) {
+function segmentIntersectionRatio(a, b, c, d) {
   const path = { x: b.x - a.x, y: b.y - a.y };
   const line = { x: d.x - c.x, y: d.y - c.y };
   const denominator = cross(path, line);
-  if (Math.abs(denominator) < 1e-9) return false;
+  if (Math.abs(denominator) < 1e-9) return null;
   const offset = { x: c.x - a.x, y: c.y - a.y };
   const pathRatio = cross(offset, line) / denominator;
   const lineRatio = cross(offset, path) / denominator;
-  return pathRatio >= 0 && pathRatio <= 1 && lineRatio >= 0 && lineRatio <= 1;
+  return pathRatio >= 0 && pathRatio <= 1 && lineRatio >= 0 && lineRatio <= 1 ? pathRatio : null;
 }
 
 export function startFinishLine(track, halfWidthM = 20) {
@@ -59,8 +59,16 @@ export function splitSessionIntoLaps(points, track, options = {}) {
     const previous = points[index - 1];
     const current = points[index];
     if (!Number.isFinite(previous.latitude) || !Number.isFinite(current.latitude)) continue;
-    if (!segmentsIntersect(localPoint(previous, lineOrigin), localPoint(current, lineOrigin), localLineA, localLineB)) continue;
-    const timeMs = Number(current.timeMs);
+    const ratio = segmentIntersectionRatio(
+      localPoint(previous, lineOrigin),
+      localPoint(current, lineOrigin),
+      localLineA,
+      localLineB,
+    );
+    if (ratio === null) continue;
+    const previousTimeMs = Number(previous.timeMs);
+    const currentTimeMs = Number(current.timeMs);
+    const timeMs = previousTimeMs + (currentTimeMs - previousTimeMs) * ratio;
     const last = crossings.at(-1);
     if (!last || !Number.isFinite(timeMs) || timeMs - last.timeMs >= minCrossingGapMs) crossings.push({ index, timeMs });
   }
@@ -79,7 +87,11 @@ export function splitSessionIntoLaps(points, track, options = {}) {
       distanceM += distanceMeters(points[index - 1], points[index]);
     }
     if (durationMs < minLapTimeMs || distanceM < minLapDistanceM) continue;
-    for (let index = from.index; index < to.index; index += 1) result[index].lap = lap;
+    for (let index = from.index; index < to.index; index += 1) {
+      result[index].lap = lap;
+      result[index].lapStartTimeMs = from.timeMs;
+      result[index].lapEndTimeMs = to.timeMs;
+    }
     lap += 1;
   }
   return lap > 1 ? result : points;

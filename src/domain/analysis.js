@@ -42,7 +42,13 @@ export function analyzeSession(points) {
   const lapNumbers = [...new Set(points.map((point) => point.lap).filter((lap) => lap > 0))].sort((a, b) => a - b);
   const laps = lapNumbers.map((number) => {
     const lapPoints = points.filter((point) => point.lap === number);
-    return { number, ...summarizePoints(lapPoints, samplePeriodMs) };
+    const summary = summarizePoints(lapPoints, samplePeriodMs);
+    const interpolatedStart = Number(lapPoints[0]?.lapStartTimeMs);
+    const interpolatedEnd = Number(lapPoints[0]?.lapEndTimeMs);
+    if (Number.isFinite(interpolatedStart) && Number.isFinite(interpolatedEnd)) {
+      summary.durationMs = interpolatedEnd - interpolatedStart;
+    }
+    return { number, ...summary };
   });
   const fastestLap = laps.reduce((best, lap) => !best || lap.durationMs < best.durationMs ? lap : best, null);
   laps.forEach((lap) => { lap.deltaMs = fastestLap ? lap.durationMs - fastestLap.durationMs : 0; });

@@ -32,6 +32,28 @@ test("splits telemetry between consecutive start-line crossings into completed l
   assert.equal(result.at(-1).lap, 0);
 });
 
+test("interpolates the finish crossing between GPS samples", () => {
+  const track = {
+    startFinish: {
+      a: { latitude: -0.001, longitude: 0 },
+      b: { latitude: 0.001, longitude: 0 },
+    },
+  };
+  const points = [
+    point(0, -0.0003, 0),
+    point(0, 0.0001, 0.04),
+    point(0.001, 0.001, 5),
+    point(-0.001, 0.001, 10),
+    point(0, 0.0001, 20),
+    point(0, -0.0003, 20.04),
+  ];
+  const result = splitSessionIntoLaps(points, track, { minLapTimeMs: 10_000, minLapDistanceM: 100 });
+  const lapPoint = result.find((item) => item.lap === 1);
+  assert.equal(Math.round(lapPoint.lapStartTimeMs), 30);
+  assert.equal(Math.round(lapPoint.lapEndTimeMs), 20_010);
+  assert.equal(Math.round(analyzeSession(result).laps[0].durationMs), 19_980);
+});
+
 test("preserves laps supplied by the logger", () => {
   const points = [{ latitude: 0, longitude: 0, timeMs: 0, lap: 7 }];
   assert.equal(splitSessionIntoLaps(points, {})[0].lap, 7);

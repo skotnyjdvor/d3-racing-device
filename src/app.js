@@ -22,9 +22,10 @@ const formatDuration = (milliseconds) => {
 
 const formatLapTime = (milliseconds) => {
   if (!Number.isFinite(milliseconds)) return "—";
-  const minutes = Math.floor(milliseconds / 60_000);
-  const seconds = Math.floor(milliseconds % 60_000 / 1000);
-  const millis = Math.round(milliseconds % 1000);
+  const rounded = Math.round(milliseconds);
+  const minutes = Math.floor(rounded / 60_000);
+  const seconds = Math.floor((rounded % 60_000) / 1000);
+  const millis = rounded % 1000;
   return `${minutes}:${String(seconds).padStart(2, "0")}.${String(millis).padStart(3, "0")}`;
 };
 
