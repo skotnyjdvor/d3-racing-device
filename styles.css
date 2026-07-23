@@ -201,6 +201,7 @@ tr[data-lap]:hover, tr.selected { background: #1d252e; }
 tr.best td:nth-child(2) { color: var(--acid); font-weight: 800; }
 .empty { color: var(--muted); text-align: center !important; padding: 50px 20px; }
 .chart-panel canvas { display: block; width: 100%; height: 300px; cursor: crosshair; touch-action: none; }
+.chart-zoom-reset { min-width: 54px; padding: 7px 10px; border: 1px solid #34414e; background: #111820; color: var(--acid); font: 700 11px ui-monospace, monospace; }
 .telemetry-panel .panel-head { justify-content: flex-start; }
 .telemetry-selector { min-width: min(330px, 46vw); margin-left: auto; display: grid; gap: 6px; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
 .telemetry-selector select { width: 100%; color: var(--text); background: #0c1016; border: 1px solid var(--line); padding: 10px 36px 10px 12px; outline: none; font-weight: 700; }

@@ -9,7 +9,7 @@ import { cloudConfigured, currentUser, deleteLog, loadLog, loadLogs, renameLog, 
 import "./demo.js";
 
 const elements = Object.fromEntries([...document.querySelectorAll("[id]")].map((element) => [element.id, element]));
-const state = { client: null, connected: false, deviceName: "", deviceModel: "", latestTelemetry: null, storage: null, sessions: [], selectedSession: null, analysis: null, selectedLapNumber: null, comparisonLapNumber: null, cursorProgress: null, telemetryMetric: "speed", track: null, user: null, cloudLogs: [], pollTimer: null };
+const state = { client: null, connected: false, deviceName: "", deviceModel: "", latestTelemetry: null, storage: null, sessions: [], selectedSession: null, analysis: null, selectedLapNumber: null, comparisonLapNumber: null, cursorProgress: null, chartView: { start: 0, end: 1 }, telemetryMetric: "speed", track: null, user: null, cloudLogs: [], pollTimer: null };
 const testMode = new URLSearchParams(location.search).has("mock");
 let accountMode = "signin";
 
@@ -120,6 +120,33 @@ function interpolatedTimeAtProgress(series, progress) {
   return before.point.timeMs + (after.point.timeMs - before.point.timeMs) * ratio;
 }
 
+function chartX(progress, padding, plotWidth) {
+  const span = Math.max(state.chartView.end - state.chartView.start, 1e-6);
+  return padding.left + (progress - state.chartView.start) / span * plotWidth;
+}
+
+function chartProgress(clientX, canvas, paddingLeft = 48, paddingRight = 18) {
+  const rect = canvas.getBoundingClientRect();
+  const ratio = (clientX - rect.left - paddingLeft) / Math.max(rect.width - paddingLeft - paddingRight, 1);
+  return state.chartView.start + Math.max(0, Math.min(1, ratio)) * (state.chartView.end - state.chartView.start);
+}
+
+function setChartZoom(center, nextSpan) {
+  const span = Math.max(0.05, Math.min(1, nextSpan));
+  const centerRatio = (center - state.chartView.start) / Math.max(state.chartView.end - state.chartView.start, 1e-6);
+  let start = center - centerRatio * span;
+  start = Math.max(0, Math.min(1 - span, start));
+  state.chartView = { start, end: start + span };
+  elements.chartZoomReset.textContent = `${Math.round(100 / span)}%`;
+  drawCharts();
+}
+
+function resetChartZoom() {
+  state.chartView = { start: 0, end: 1 };
+  elements.chartZoomReset.textContent = "100%";
+  drawCharts();
+}
+
 function drawTrack() {
   const { context, width, height } = canvasContext(elements.trackCanvas);
   context.fillStyle = "#0c1117";
@@ -213,26 +240,30 @@ function drawComparisonChart(canvas, key, { speed = false } = {}) {
     context.beginPath(); context.moveTo(padding.left, yPosition); context.lineTo(width - padding.right, yPosition); context.stroke();
     context.fillText(speed ? String(Math.round(value)) : value.toFixed(1), 12, yPosition + 3);
   }
-  for (let percent = 0; percent <= 100; percent += 25) {
-    const xPosition = padding.left + percent / 100 * plotWidth;
-    context.fillText(`${percent}%`, xPosition - (percent === 100 ? 24 : 8), height - 9);
+  for (let tick = 0; tick <= 4; tick += 1) {
+    const progress = state.chartView.start + (state.chartView.end - state.chartView.start) * tick / 4;
+    const xPosition = padding.left + tick / 4 * plotWidth;
+    context.fillText(`${Math.round(progress * 100)}%`, xPosition - (tick === 4 ? 24 : 8), height - 9);
   }
 
   const draw = (series, color, widthPx) => {
     if (series.length < 2) return;
+    context.save();
+    context.beginPath(); context.rect(padding.left, padding.top, plotWidth, plotHeight); context.clip();
     context.strokeStyle = color; context.lineWidth = widthPx; context.beginPath();
     series.forEach((point, index) => {
-      const xPosition = padding.left + point.progress * plotWidth;
+      const xPosition = chartX(point.progress, padding, plotWidth);
       const yPosition = y(point.value);
       index ? context.lineTo(xPosition, yPosition) : context.moveTo(xPosition, yPosition);
     });
     context.stroke();
+    context.restore();
   };
   draw(comparison, "#37d7ff", 1.6);
   draw(primary, "#c9ff37", 2.2);
 
-  if (state.cursorProgress !== null) {
-    const xPosition = padding.left + state.cursorProgress * plotWidth;
+  if (state.cursorProgress !== null && state.cursorProgress >= state.chartView.start && state.cursorProgress <= state.chartView.end) {
+    const xPosition = chartX(state.cursorProgress, padding, plotWidth);
     context.strokeStyle = "rgba(255,255,255,.55)"; context.lineWidth = 1;
     context.beginPath(); context.moveTo(xPosition, padding.top); context.lineTo(xPosition, height - padding.bottom); context.stroke();
     const markers = [
@@ -290,27 +321,31 @@ function drawDeltaChart() {
     context.beginPath(); context.moveTo(padding.left, yPosition); context.lineTo(width - padding.right, yPosition); context.stroke();
     context.fillText(`${value > 0 ? "+" : ""}${value.toFixed(1)}`, 10, yPosition + 3);
   });
-  for (let percent = 0; percent <= 100; percent += 25) {
-    const xPosition = padding.left + percent / 100 * plotWidth;
-    context.fillText(`${percent}%`, xPosition - (percent === 100 ? 24 : 8), height - 9);
+  for (let tick = 0; tick <= 4; tick += 1) {
+    const progress = state.chartView.start + (state.chartView.end - state.chartView.start) * tick / 4;
+    const xPosition = padding.left + tick / 4 * plotWidth;
+    context.fillText(`${Math.round(progress * 100)}%`, xPosition - (tick === 4 ? 24 : 8), height - 9);
   }
 
   const zeroY = y(0);
-  context.beginPath(); context.moveTo(padding.left, zeroY);
-  delta.forEach((item) => context.lineTo(padding.left + item.progress * plotWidth, y(item.value)));
-  context.lineTo(width - padding.right, zeroY); context.closePath();
+  context.save();
+  context.beginPath(); context.rect(padding.left, padding.top, plotWidth, plotHeight); context.clip();
+  context.beginPath(); context.moveTo(chartX(delta[0].progress, padding, plotWidth), zeroY);
+  delta.forEach((item) => context.lineTo(chartX(item.progress, padding, plotWidth), y(item.value)));
+  context.lineTo(chartX(delta.at(-1).progress, padding, plotWidth), zeroY); context.closePath();
   context.fillStyle = "rgba(201,255,55,.08)"; context.fill();
   context.strokeStyle = "#c9ff37"; context.lineWidth = 2.2; context.beginPath();
   delta.forEach((item, index) => {
-    const xPosition = padding.left + item.progress * plotWidth;
+    const xPosition = chartX(item.progress, padding, plotWidth);
     const yPosition = y(item.value);
     index ? context.lineTo(xPosition, yPosition) : context.moveTo(xPosition, yPosition);
   });
   context.stroke();
+  context.restore();
 
-  if (state.cursorProgress !== null) {
+  if (state.cursorProgress !== null && state.cursorProgress >= state.chartView.start && state.cursorProgress <= state.chartView.end) {
     const item = pointAtProgress(delta, state.cursorProgress);
-    const xPosition = padding.left + state.cursorProgress * plotWidth;
+    const xPosition = chartX(state.cursorProgress, padding, plotWidth);
     context.strokeStyle = "rgba(255,255,255,.55)"; context.lineWidth = 1;
     context.beginPath(); context.moveTo(xPosition, padding.top); context.lineTo(xPosition, height - padding.bottom); context.stroke();
     context.fillStyle = "#c9ff37"; context.beginPath(); context.arc(xPosition, y(item.value), 4.5, 0, Math.PI * 2); context.fill();
@@ -339,21 +374,52 @@ function setCursorProgress(progress) {
 }
 
 function updateCursorFromEvent(event) {
-  const rect = event.currentTarget.getBoundingClientRect();
-  const paddingLeft = 48; const paddingRight = 18;
-  const progress = (event.clientX - rect.left - paddingLeft) / Math.max(rect.width - paddingLeft - paddingRight, 1);
-  setCursorProgress(Math.max(0, Math.min(1, progress)));
+  const paddingLeft = event.currentTarget === elements.deltaCanvas ? 52 : 48;
+  setCursorProgress(chartProgress(event.clientX, event.currentTarget, paddingLeft));
 }
 
 [elements.telemetryCanvas, elements.deltaCanvas].forEach((canvas) => {
-  canvas.addEventListener("pointerdown", (event) => { canvas.setPointerCapture?.(event.pointerId); updateCursorFromEvent(event); });
-  canvas.addEventListener("pointermove", (event) => {
-    if (event.pointerType === "mouse" || canvas.hasPointerCapture?.(event.pointerId)) updateCursorFromEvent(event);
+  const pointers = new Map();
+  let pinch = null;
+  canvas.addEventListener("pointerdown", (event) => {
+    canvas.setPointerCapture?.(event.pointerId);
+    pointers.set(event.pointerId, event.clientX);
+    if (pointers.size === 1) updateCursorFromEvent(event);
+    if (pointers.size === 2) {
+      const positions = [...pointers.values()];
+      pinch = {
+        distance: Math.abs(positions[1] - positions[0]),
+        span: state.chartView.end - state.chartView.start,
+        center: chartProgress((positions[0] + positions[1]) / 2, canvas, canvas === elements.deltaCanvas ? 52 : 48),
+      };
+    }
   });
+  canvas.addEventListener("pointermove", (event) => {
+    if (pointers.has(event.pointerId)) pointers.set(event.pointerId, event.clientX);
+    if (pointers.size === 2 && pinch) {
+      const positions = [...pointers.values()];
+      const distance = Math.max(8, Math.abs(positions[1] - positions[0]));
+      setChartZoom(pinch.center, pinch.span * pinch.distance / distance);
+    } else if (event.pointerType === "mouse" || canvas.hasPointerCapture?.(event.pointerId)) {
+      updateCursorFromEvent(event);
+    }
+  });
+  const releasePointer = (event) => { pointers.delete(event.pointerId); if (pointers.size < 2) pinch = null; };
+  canvas.addEventListener("pointerup", releasePointer);
+  canvas.addEventListener("pointercancel", releasePointer);
   canvas.addEventListener("pointerleave", (event) => {
     if (event.pointerType === "mouse" && !event.buttons) setCursorProgress(null);
   });
+  canvas.addEventListener("wheel", (event) => {
+    event.preventDefault();
+    const center = chartProgress(event.clientX, canvas, canvas === elements.deltaCanvas ? 52 : 48);
+    const factor = Math.exp(event.deltaY * 0.0015);
+    setChartZoom(center, (state.chartView.end - state.chartView.start) * factor);
+  }, { passive: false });
+  canvas.addEventListener("dblclick", resetChartZoom);
 });
+
+elements.chartZoomReset.addEventListener("click", resetChartZoom);
 
 function selectTelemetryMetric(metric) {
   state.telemetryMetric = ["speed", "gForceX", "gForceY"].includes(metric) ? metric : "speed";
@@ -489,6 +555,7 @@ function updateLapView() {
 
 async function selectSession(id) {
   const isNewSession = String(state.selectedSession?.id) !== String(id);
+  if (isNewSession) resetChartZoom();
   const session = state.sessions.find((item) => String(item.id) === String(id));
   state.selectedSession = session;
   if (session?.source === "cloud" && !session.points) {
