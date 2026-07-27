@@ -18,6 +18,10 @@ services:
         generateValue: true
       - key: APP_ORIGIN
         sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-5.6-sol
 
 databases:
   - name: laptrace-db

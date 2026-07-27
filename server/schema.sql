@@ -24,3 +24,23 @@ create index if not exists telemetry_logs_user_started_idx
 on telemetry_logs (user_id, started_at desc);
 
 alter table telemetry_logs add column if not exists title text;
+
+create table if not exists ai_analyses (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references users(id) on delete cascade,
+  log_id uuid not null references telemetry_logs(id) on delete cascade,
+  cache_key text not null,
+  model text not null,
+  primary_lap integer,
+  comparison_lap integer,
+  question text not null default '',
+  snapshot jsonb not null,
+  report jsonb not null,
+  usage jsonb,
+  provider_response_id text,
+  created_at timestamptz not null default now(),
+  unique (user_id, cache_key)
+);
+
+create index if not exists ai_analyses_log_created_idx
+on ai_analyses (log_id, created_at desc);

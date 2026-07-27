@@ -8,6 +8,7 @@ import express from "express";
 import { rateLimit } from "express-rate-limit";
 import jwt from "jsonwebtoken";
 import { migrate, requireDatabase } from "./db.mjs";
+import { AI_MODEL, buildTelemetrySnapshot, generateAiReport, snapshotCacheKey } from "./ai.mjs";
 
 const app = express();
 app.disable("x-powered-by");
@@ -21,6 +22,7 @@ app.use(cors({ origin: (origin, callback) => callback(null, !origin || allowedOr
 app.use(express.json({ limit: "30mb" }));
 
 const authLimiter = rateLimit({ windowMs: 15 * 60_000, limit: 30, standardHeaders: true, legacyHeaders: false });
+const aiLimiter = rateLimit({ windowMs: 60 * 60_000, limit: 10, standardHeaders: true, legacyHeaders: false });
 const normalizeEmail = (email) => String(email || "").trim().toLowerCase();
 const validEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 const publicUser = (row) => ({ id: row.id, email: row.email });
@@ -132,6 +134,53 @@ app.delete("/api/logs/:id", authenticate, async (request, response, next) => {
     );
     if (!result.rows[0]) return response.status(404).json({ error: "Log not found" });
     response.status(204).end();
+  } catch (error) { next(error); }
+});
+
+app.post("/api/logs/:id/ai-analysis", authenticate, aiLimiter, async (request, response, next) => {
+  try {
+    const database = requireDatabase();
+    const logResult = await database.query(
+      "select id, payload from telemetry_logs where id = $1 and user_id = $2",
+      [request.params.id, request.auth.sub],
+    );
+    const log = logResult.rows[0];
+    if (!log) return response.status(404).json({ error: "Log not found" });
+    const snapshot = buildTelemetrySnapshot(log.payload.points, {
+      primaryLap: request.body.primaryLap,
+      comparisonLap: request.body.comparisonLap,
+      question: request.body.question,
+      language: request.body.language,
+    });
+    if (!snapshot.comparison.primaryLap) return response.status(422).json({ error: "No completed laps available for AI analysis" });
+    const cacheKey = snapshotCacheKey(log.id, snapshot);
+    if (!request.body.force) {
+      const cached = await database.query(
+        "select id, model, report, usage, created_at from ai_analyses where user_id = $1 and cache_key = $2",
+        [request.auth.sub, cacheKey],
+      );
+      if (cached.rows[0]) return response.json({ analysis: cached.rows[0], cached: true });
+    }
+    const generated = await generateAiReport(snapshot);
+    const saved = await database.query(`insert into ai_analyses
+      (id, user_id, log_id, cache_key, model, primary_lap, comparison_lap, question, snapshot, report, usage, provider_response_id)
+      values ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::jsonb, $11::jsonb, $12)
+      on conflict (user_id, cache_key) do update set report = excluded.report, usage = excluded.usage,
+        provider_response_id = excluded.provider_response_id, created_at = now()
+      returning id, model, report, usage, created_at`,
+    [randomUUID(), request.auth.sub, log.id, cacheKey, generated.model || AI_MODEL,
+      snapshot.comparison.primaryLap, snapshot.comparison.comparisonLap, snapshot.question,
+      JSON.stringify(snapshot), JSON.stringify(generated.report), JSON.stringify(generated.usage), generated.responseId]);
+    response.status(201).json({ analysis: saved.rows[0], cached: false });
+  } catch (error) { next(error); }
+});
+
+app.get("/api/logs/:id/ai-analyses", authenticate, async (request, response, next) => {
+  try {
+    const result = await requireDatabase().query(`select id, model, primary_lap, comparison_lap, question, report, usage, created_at
+      from ai_analyses where log_id = $1 and user_id = $2 order by created_at desc limit 20`,
+    [request.params.id, request.auth.sub]);
+    response.json({ analyses: result.rows });
   } catch (error) { next(error); }
 });
 
