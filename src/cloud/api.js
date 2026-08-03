@@ -97,3 +97,14 @@ export async function renameLog(id, title) {
 export async function deleteLog(id) {
   await request(`/api/logs/${id}`, { method: "DELETE" });
 }
+
+export async function analyzeLog(id, options = {}) {
+  return request(`/api/logs/${id}/ai-analysis`, {
+    method: "POST",
+    body: JSON.stringify(options),
+  });
+}
+
+export async function loadAiAnalyses(id) {
+  return request(`/api/logs/${id}/ai-analyses`);
+}

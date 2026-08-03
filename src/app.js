@@ -5,11 +5,11 @@ import { parseRaceBoxCsv } from "./domain/csv.js";
 import { distanceMeters, identifyTrack } from "./domain/tracks.js";
 import { splitSessionIntoLaps } from "./domain/laps.js";
 import { applyTranslations, getLanguage, onLanguageChange, setLanguage, t } from "./i18n.js";
-import { cloudConfigured, currentUser, deleteLog, loadLog, loadLogs, renameLog, saveLog, signIn, signOut, signUp } from "./cloud/api.js";
+import { analyzeLog, cloudConfigured, currentUser, deleteLog, loadLog, loadLogs, renameLog, saveLog, signIn, signOut, signUp } from "./cloud/api.js";
 import "./demo.js";
 
 const elements = Object.fromEntries([...document.querySelectorAll("[id]")].map((element) => [element.id, element]));
-const state = { client: null, connected: false, deviceName: "", deviceModel: "", latestTelemetry: null, storage: null, sessions: [], selectedSession: null, analysis: null, selectedLapNumber: null, comparisonLapNumber: null, cursorProgress: null, chartView: { start: 0, end: 1 }, trackView: { scale: 1, offsetX: 0, offsetY: 0 }, telemetryMetric: "speed", track: null, user: null, cloudLogs: [], pollTimer: null, memoryBusy: false };
+const state = { client: null, connected: false, deviceName: "", deviceModel: "", latestTelemetry: null, storage: null, sessions: [], selectedSession: null, analysis: null, selectedLapNumber: null, comparisonLapNumber: null, cursorProgress: null, chartView: { start: 0, end: 1 }, trackView: { scale: 1, offsetX: 0, offsetY: 0 }, telemetryMetric: "speed", track: null, user: null, cloudLogs: [], pollTimer: null, memoryBusy: false, aiReport: null };
 const testMode = new URLSearchParams(location.search).has("mock");
 let accountMode = "signin";
 
@@ -32,6 +32,10 @@ const formatLapTime = (milliseconds) => {
 const formatDate = (iso) => new Intl.DateTimeFormat(getLanguage(), {
   day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit",
 }).format(new Date(iso));
+
+const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
+  "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;",
+}[character]));
 
 function setStatus(text, active = false) {
   elements.deviceStatus.textContent = text;
@@ -628,9 +632,71 @@ function updateLapView() {
   renderLapControls(); drawTrack(); drawCharts();
 }
 
+function clearAiReport() {
+  state.aiReport = null;
+  elements.aiReport.hidden = true;
+  elements.aiReport.innerHTML = "";
+}
+
+function renderAiReport(report) {
+  state.aiReport = report;
+  const strengths = (report.strengths || []).map((item) => `
+    <article class="ai-report-card"><strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(item.evidence)}</span></article>`).join("");
+  const losses = (report.timeLosses || []).map((item) => `
+    <button class="ai-report-card" type="button" data-ai-progress="${Number(item.distancePercent) / 100}">
+      <strong>${Number(item.distancePercent).toFixed(1)}% · ${Number(item.deltaSeconds) >= 0 ? "+" : ""}${Number(item.deltaSeconds).toFixed(3)} s</strong>
+      <span>${escapeHtml(item.observation)}</span>
+      <small><b>${escapeHtml(t("ai.hypothesis"))}:</b> ${escapeHtml(item.hypothesis)}</small>
+      <small><b>${escapeHtml(t("ai.recommendation"))}:</b> ${escapeHtml(item.recommendation)}</small>
+      <small class="ai-confidence">${escapeHtml(t("ai.confidence", { value: item.confidence }))}</small>
+    </button>`).join("");
+  const warnings = (report.dataWarnings || []).length
+    ? `<ul class="ai-warnings">${report.dataWarnings.map((warning) => `<li>${escapeHtml(warning)}</li>`).join("")}</ul>` : "";
+  elements.aiReport.innerHTML = `
+    <div><p class="eyebrow">${escapeHtml(t("ai.summary"))}</p><div class="ai-report-summary">${escapeHtml(report.summary)}</div></div>
+    ${strengths ? `<div><p class="eyebrow">${escapeHtml(t("ai.strengths"))}</p><div class="ai-report-grid">${strengths}</div></div>` : ""}
+    ${losses ? `<div><p class="eyebrow">${escapeHtml(t("ai.losses"))}</p><div class="ai-report-grid">${losses}</div></div>` : ""}
+    <article class="ai-report-card"><strong>${escapeHtml(t("ai.consistency"))}</strong><span>${escapeHtml(report.consistency?.assessment)}</span><small>${Number(report.consistency?.lapTimeSpreadSeconds || 0).toFixed(3)} s</small></article>
+    ${warnings ? `<div><p class="eyebrow">${escapeHtml(t("ai.warnings"))}</p>${warnings}</div>` : ""}`;
+  elements.aiReport.hidden = false;
+  elements.aiReport.querySelectorAll("[data-ai-progress]").forEach((card) => card.addEventListener("click", () => {
+    const progress = Math.max(0, Math.min(1, Number(card.dataset.aiProgress)));
+    state.cursorProgress = progress;
+    const span = 0.2;
+    const start = Math.max(0, Math.min(1 - span, progress - span / 2));
+    state.chartView = { start, end: start + span };
+    elements.chartZoomReset.textContent = "500%";
+    drawTrack(); drawCharts();
+    elements.trackCanvas.scrollIntoView({ behavior: "smooth", block: "center" });
+  }));
+}
+
+async function runAiAnalysis() {
+  const cloudId = state.selectedSession?.cloudId;
+  if (!cloudId) { elements.copyStatus.textContent = t("ai.cloudRequired"); return; }
+  elements.analyzeAiButton.disabled = true;
+  elements.analyzeAiButton.textContent = t("ai.analyzing");
+  elements.copyStatus.textContent = t("ai.analyzing");
+  try {
+    const result = await analyzeLog(cloudId, {
+      primaryLap: state.selectedLapNumber,
+      comparisonLap: state.comparisonLapNumber,
+      question: elements.aiQuestion.value.trim(),
+      language: getLanguage(),
+    });
+    renderAiReport(result.analysis.report);
+    elements.copyStatus.textContent = `${t("ai.reportReady")}${result.cached ? " · cache" : ""}`;
+  } catch (error) {
+    elements.copyStatus.textContent = error.message;
+  } finally {
+    elements.analyzeAiButton.disabled = !state.selectedSession?.cloudId || !state.analysis?.laps.length;
+    elements.analyzeAiButton.textContent = t("ai.analyze");
+  }
+}
+
 async function selectSession(id) {
   const isNewSession = String(state.selectedSession?.id) !== String(id);
-  if (isNewSession) { resetChartZoom(); resetTrackZoom(); }
+  if (isNewSession) { resetChartZoom(); resetTrackZoom(); clearAiReport(); }
   const session = state.sessions.find((item) => String(item.id) === String(id));
   state.selectedSession = session;
   if (session?.source === "cloud" && !session.points) {
@@ -655,7 +721,8 @@ async function selectSession(id) {
   }
   elements.sourceLabel.textContent = `${state.deviceName} · память устройства`;
   elements.copyAiButton.disabled = false;
-  elements.copyStatus.textContent = "Контекст строится только по выбранной сессии.";
+  elements.analyzeAiButton.disabled = !state.selectedSession.cloudId || !state.analysis.laps.length;
+  elements.copyStatus.textContent = state.selectedSession.cloudId ? t("ai.ready") : t("ai.cloudRequired");
   elements.insightsList.innerHTML = generateLocalInsights(state.analysis, t).map((insight) => `<li>${insight}</li>`).join("");
   renderSessions(); updateLapView();
   return true;
@@ -771,7 +838,12 @@ async function submitAccount(action) {
 async function saveDownloadedLogs(sessions) {
   if (!state.user) return;
   try {
-    await Promise.all(sessions.map((session) => saveLog(session, state.deviceName)));
+    const ids = await Promise.all(sessions.map((session) => saveLog(session, state.deviceName)));
+    sessions.forEach((session, index) => { session.cloudId = ids[index]; });
+    if (sessions.includes(state.selectedSession)) {
+      elements.analyzeAiButton.disabled = !state.analysis?.laps.length;
+      elements.copyStatus.textContent = t("ai.ready");
+    }
     await syncCloudLogs();
     setAccountMessage(t("account.saved"));
   } catch (error) { setAccountMessage(error.message, true); }
@@ -945,14 +1017,17 @@ elements.copyAiButton.addEventListener("click", async () => {
   await navigator.clipboard.writeText(buildAiPrompt(state.analysis, elements.aiQuestion.value));
   elements.copyStatus.textContent = "AI-контекст выбранной BLE-сессии скопирован.";
 });
+elements.analyzeAiButton.addEventListener("click", runAiAnalysis);
 elements.primaryLapSelect.addEventListener("change", () => {
   state.selectedLapNumber = Number(elements.primaryLapSelect.value) || null;
   if (state.comparisonLapNumber === state.selectedLapNumber) state.comparisonLapNumber = null;
+  clearAiReport();
   updateLapView();
 });
 elements.comparisonLapSelect.addEventListener("change", () => {
   state.comparisonLapNumber = Number(elements.comparisonLapSelect.value) || null;
   if (state.comparisonLapNumber === state.selectedLapNumber) state.comparisonLapNumber = null;
+  clearAiReport();
   updateLapView();
 });
 elements.telemetryMetricSelect.addEventListener("change", () => selectTelemetryMetric(elements.telemetryMetricSelect.value));

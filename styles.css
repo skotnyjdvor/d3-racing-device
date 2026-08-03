@@ -237,8 +237,20 @@ tr.best td:nth-child(2) { color: var(--acid); font-weight: 800; }
 
 .ai-panel { margin: 16px 0 60px; padding: clamp(25px, 4vw, 52px); display: grid; grid-template-columns: .8fr 1.2fr; gap: 56px; align-items: center; }
 .ai-panel p:not(.eyebrow) { max-width: 560px; color: var(--muted); line-height: 1.55; }
+.ai-report { grid-column: 1 / -1; display: grid; gap: 14px; }
+.ai-report[hidden] { display: none; }
+.ai-report-summary { padding: 20px; border-left: 3px solid var(--acid); background: #0b1117; font-size: 16px; line-height: 1.55; }
+.ai-report-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.ai-report-card { padding: 18px; color: var(--text); text-align: left; background: #111820; border: 1px solid #2b3742; }
+button.ai-report-card:hover { border-color: var(--acid); transform: translateY(-1px); }
+.ai-report-card strong, .ai-report-card span { display: block; }
+.ai-report-card strong { margin-bottom: 8px; color: var(--acid); }
+.ai-report-card span { color: #c1cad3; line-height: 1.45; }
+.ai-report-card small { display: block; margin-top: 10px; color: var(--muted); line-height: 1.4; }
+.ai-confidence { margin-left: 8px; color: var(--muted); font: 10px ui-monospace, monospace; text-transform: uppercase; }
+.ai-warnings { margin: 0; padding: 16px 16px 16px 34px; color: #ffad98; background: rgba(255,95,53,.08); border: 1px solid rgba(255,95,53,.25); }
 .ai-actions { display: grid; grid-template-columns: 1fr auto; gap: 10px; }
-.ai-actions textarea { grid-column: 1 / -1; width: 100%; resize: vertical; color: var(--text); background: #0c1016; border: 1px solid #303946; padding: 14px; outline: none; }
+.ai-actions textarea { grid-column: 1 / -1; width: 100%; min-height: 88px; resize: vertical; color: var(--text); background: #0c1016; border: 1px solid #303946; padding: 14px; font-size: 16px; outline: none; }
 .ai-actions textarea:focus { border-color: var(--acid); }
 .ai-actions .primary { padding: 0 20px; }
 .ai-actions small { color: var(--muted); align-self: center; }
@@ -246,6 +258,7 @@ footer { width: min(1480px, calc(100% - 40px)); min-height: 74px; margin: 0 auto
 
 @media (max-width: 900px) {
   .hero, .ai-panel { grid-template-columns: 1fr; gap: 36px; }
+  .ai-report-grid { grid-template-columns: 1fr; }
   .landing-hero { grid-template-columns: 1fr; padding-top: 70px; }
   .device-orbit { justify-self: center; width: min(620px, 94vw); }
   .demo-heading { grid-template-columns: 1fr; gap: 20px; }
