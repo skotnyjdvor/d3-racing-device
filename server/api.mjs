@@ -36,7 +36,16 @@ function authenticate(request, response, next) {
 }
 
 app.get("/api/health", async (_request, response) => {
-  try { await requireDatabase().query("select 1"); response.json({ ok: true }); }
+  response.set("Cache-Control", "no-store");
+  try {
+    await requireDatabase().query("select 1");
+    response.json({
+      ok: true,
+      aiConfigured: Boolean(process.env.OPENAI_API_KEY?.trim()),
+      aiModel: AI_MODEL,
+      revision: process.env.RENDER_GIT_COMMIT?.slice(0, 7) || null,
+    });
+  }
   catch (error) { response.status(error.status || 500).json({ ok: false, error: error.message }); }
 });
 
