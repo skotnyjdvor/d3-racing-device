@@ -8,7 +8,7 @@ import express from "express";
 import { rateLimit } from "express-rate-limit";
 import jwt from "jsonwebtoken";
 import { migrate, requireDatabase } from "./db.mjs";
-import { AI_MODEL, buildTelemetrySnapshot, generateAiReport, snapshotCacheKey } from "./ai.mjs";
+import { AI_MODEL, buildTelemetrySnapshot, generateAiReport, getOpenAiApiKey, snapshotCacheKey } from "./ai.mjs";
 
 const app = express();
 app.disable("x-powered-by");
@@ -41,7 +41,7 @@ app.get("/api/health", async (_request, response) => {
     await requireDatabase().query("select 1");
     response.json({
       ok: true,
-      aiConfigured: Boolean(process.env.OPENAI_API_KEY?.trim()),
+      aiConfigured: Boolean(getOpenAiApiKey()),
       aiModel: AI_MODEL,
       revision: process.env.RENDER_GIT_COMMIT?.slice(0, 7) || null,
     });

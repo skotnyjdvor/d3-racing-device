@@ -4,6 +4,7 @@ import { splitSessionIntoLaps } from "../src/domain/laps.js";
 import { distanceMeters, identifyTrack } from "../src/domain/tracks.js";
 
 export const AI_MODEL = process.env.OPENAI_MODEL || "gpt-5.6-sol";
+export const getOpenAiApiKey = () => (process.env.LAPTRACE_OPENAI_KEY || process.env.OPENAI_API_KEY || "").trim();
 
 export const AI_REPORT_SCHEMA = {
   type: "object",
@@ -159,7 +160,7 @@ function outputText(response) {
   return "";
 }
 
-export async function generateAiReport(snapshot, { apiKey = process.env.OPENAI_API_KEY, model = AI_MODEL } = {}) {
+export async function generateAiReport(snapshot, { apiKey = getOpenAiApiKey(), model = AI_MODEL } = {}) {
   if (!apiKey) {
     const error = new Error("AI analysis is not configured");
     error.status = 503;
