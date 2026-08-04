@@ -247,6 +247,7 @@ button.ai-report-card:hover { border-color: var(--acid); transform: translateY(-
 .ai-report-card strong { margin-bottom: 8px; color: var(--acid); }
 .ai-report-card span { color: #c1cad3; line-height: 1.45; }
 .ai-report-card small { display: block; margin-top: 10px; color: var(--muted); line-height: 1.4; }
+.ai-report-card .ai-phase { margin: -3px 0 9px; color: var(--acid); font: 10px ui-monospace, monospace; letter-spacing: .1em; text-transform: uppercase; }
 .ai-confidence { margin-left: 8px; color: var(--muted); font: 10px ui-monospace, monospace; text-transform: uppercase; }
 .ai-warnings { margin: 0; padding: 16px 16px 16px 34px; color: #ffad98; background: rgba(255,95,53,.08); border: 1px solid rgba(255,95,53,.25); }
 .ai-actions { display: grid; grid-template-columns: 1fr auto; gap: 10px; }

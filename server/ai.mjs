@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { analyzeSession } from "../src/domain/analysis.js";
 import { splitSessionIntoLaps } from "../src/domain/laps.js";
+import { extractLapEvents } from "../src/domain/lap-events.js";
 import { distanceMeters, identifyTrack } from "../src/domain/tracks.js";
 
 export const AI_MODEL = process.env.OPENAI_MODEL || "gpt-5.6-sol";
@@ -31,10 +32,12 @@ export const AI_REPORT_SCHEMA = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["distancePercent", "deltaSeconds", "observation", "hypothesis", "recommendation", "confidence"],
+        required: ["distancePercent", "deltaSeconds", "phaseType", "phaseId", "observation", "hypothesis", "recommendation", "confidence"],
         properties: {
           distancePercent: { type: "number", minimum: 0, maximum: 100 },
           deltaSeconds: { type: "number" },
+          phaseType: { type: "string", enum: ["corner", "braking", "acceleration", "transition", "unknown"] },
+          phaseId: { type: "string" },
           observation: { type: "string" },
           hypothesis: { type: "string" },
           recommendation: { type: "string" },
@@ -111,6 +114,8 @@ export function buildTelemetrySnapshot(points, options = {}) {
   const comparisonPoints = comparisonLap ? prepared.filter((point) => point.lap === comparisonLap) : [];
   const primaryProfile = lapProfile(primaryPoints);
   const comparisonProfile = lapProfile(comparisonPoints);
+  const primaryEvents = extractLapEvents(primaryPoints);
+  const comparisonEvents = extractLapEvents(comparisonPoints);
   const trace = primaryProfile.map((primary, index) => {
     const comparison = comparisonProfile[index];
     return {
@@ -122,7 +127,7 @@ export function buildTelemetrySnapshot(points, options = {}) {
   });
   const lapTimes = analysis.laps.map((lap) => lap.durationMs / 1000);
   return {
-    schema: "laptrace-telemetry-snapshot/v1",
+    schema: "laptrace-telemetry-snapshot/v2",
     language: ["ru", "en", "pl"].includes(options.language) ? options.language : "ru",
     question: String(options.question || "").trim().slice(0, 500),
     track: track ? { id: track.id, name: track.name } : null,
@@ -142,7 +147,16 @@ export function buildTelemetrySnapshot(points, options = {}) {
       peakLateralG: rounded(lap.peakLateralG),
       strongestNegativeLongitudinalG: rounded(lap.minLongitudinalG),
     })),
-    comparison: { primaryLap, comparisonLap, trace },
+    comparison: {
+      primaryLap,
+      comparisonLap,
+      trace,
+      detectedPhases: {
+        methodology: "Braking and acceleration use smoothed GPS speed derivative; corners use smoothed absolute lateral acceleration; apex is the minimum-speed sample inside a corner.",
+        primary: primaryEvents,
+        comparison: comparisonEvents,
+      },
+    },
     sensorWarning: "Accelerometer signs depend on mounting. Treat causal claims as hypotheses unless supported by multiple signals.",
   };
 }
@@ -176,6 +190,9 @@ export async function generateAiReport(snapshot, { apiKey = getOpenAiApiKey(), m
       instructions: [
         "You are a motorsport telemetry engineer.",
         "Use only facts present in the telemetry snapshot.",
+        "Use detectedPhases to compare braking points, corner entry/apex/exit speeds, and acceleration zones by distance percentage.",
+        "For every time loss, set phaseId to the closest evidence reference such as primary.C2 or comparison.B1; use an empty string only when no phase matches.",
+        "Treat corner direction labels as sensor polarity, not guaranteed left/right direction.",
         "Separate observations from hypotheses. Never invent track geometry, driver inputs, or vehicle setup.",
         "Use the requested language. Keep recommendations specific and testable.",
         "When data quality is insufficient, add a warning and lower confidence.",

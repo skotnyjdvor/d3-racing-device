@@ -12,8 +12,11 @@ test("builds a compact AI snapshot from a full telemetry log", () => {
   assert.equal(snapshot.comparison.primaryLap, 4);
   assert.equal(snapshot.comparison.comparisonLap, 6);
   assert.equal(snapshot.comparison.trace.length, 41);
+  assert.ok(snapshot.comparison.detectedPhases.primary.corners.length >= 8);
+  assert.ok(snapshot.comparison.detectedPhases.primary.brakingZones.length >= 5);
+  assert.ok(snapshot.comparison.detectedPhases.primary.accelerationZones.length >= 5);
   assert.ok(JSON.stringify(snapshot).length < 20_000);
-  assert.equal(snapshot.schema, "laptrace-telemetry-snapshot/v1");
+  assert.equal(snapshot.schema, "laptrace-telemetry-snapshot/v2");
 });
 
 test("AI cache key is deterministic and input-sensitive", () => {
@@ -27,4 +30,5 @@ test("AI report schema requires evidence-backed structured sections", () => {
   assert.deepEqual(AI_REPORT_SCHEMA.required, ["summary", "strengths", "timeLosses", "consistency", "dataWarnings"]);
   assert.equal(AI_REPORT_SCHEMA.additionalProperties, false);
   assert.equal(AI_REPORT_SCHEMA.properties.timeLosses.items.properties.confidence.enum.length, 3);
+  assert.ok(AI_REPORT_SCHEMA.properties.timeLosses.items.required.includes("phaseId"));
 });

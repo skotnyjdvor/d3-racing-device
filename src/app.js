@@ -645,6 +645,7 @@ function renderAiReport(report) {
   const losses = (report.timeLosses || []).map((item) => `
     <button class="ai-report-card" type="button" data-ai-progress="${Number(item.distancePercent) / 100}">
       <strong>${Number(item.distancePercent).toFixed(1)}% · ${Number(item.deltaSeconds) >= 0 ? "+" : ""}${Number(item.deltaSeconds).toFixed(3)} s</strong>
+      ${item.phaseId ? `<small class="ai-phase">${escapeHtml(item.phaseType)} · ${escapeHtml(item.phaseId)}</small>` : ""}
       <span>${escapeHtml(item.observation)}</span>
       <small><b>${escapeHtml(t("ai.hypothesis"))}:</b> ${escapeHtml(item.hypothesis)}</small>
       <small><b>${escapeHtml(t("ai.recommendation"))}:</b> ${escapeHtml(item.recommendation)}</small>
