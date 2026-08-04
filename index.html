@@ -19,6 +19,7 @@
       <nav class="app-nav" id="appNav" aria-label="Application">
         <button class="active" id="analysisNavButton" type="button" data-i18n="nav.analysis"></button>
         <button id="logsNavButton" type="button" data-i18n="nav.logs"></button>
+        <button id="aiNavButton" type="button" data-i18n="nav.ai"></button>
       </nav>
       <div class="header-actions">
         <button class="account-button" id="accountButton" type="button">
@@ -343,6 +344,21 @@
           </ol>
         </article>
       </section>
+    </main>
+    <section class="ai-page" id="aiPage">
+      <div class="ai-page-head">
+        <div>
+          <p class="eyebrow" data-i18n="aiPage.kicker"></p>
+          <h1 data-i18n="aiPage.title"></h1>
+          <p data-i18n="aiPage.copy"></p>
+        </div>
+        <div class="ai-page-context">
+          <span data-i18n="aiPage.selected"></span>
+          <strong id="aiSelectedSession">—</strong>
+          <small id="aiSelectedLaps">—</small>
+          <button class="secondary" id="aiBackButton" type="button" data-i18n="aiPage.back"></button>
+        </div>
+      </div>
       <section class="ai-panel panel" id="aiPanel">
         <div>
           <p class="eyebrow">AI-READY</p>
@@ -371,7 +387,7 @@
         </div>
         <div class="ai-report" id="aiReport" hidden></div>
       </section>
-    </main>
+    </section>
     <footer>
       <span>D3 Racing Lab · BLE MVP 0.2</span
       ><span id="sourceLabel" data-i18n="footer.noData"></span>

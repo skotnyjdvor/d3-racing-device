@@ -47,13 +47,33 @@ function setHint(text, isError = false) {
   elements.actionHint.classList.toggle("error", isError);
 }
 
+function viewFromHash() {
+  if (location.hash === "#logs") return "logs";
+  if (location.hash === "#ai") return "ai";
+  return "analysis";
+}
+
+function renderAiPageContext() {
+  const session = state.selectedSession;
+  elements.aiSelectedSession.textContent = session
+    ? session.title || t("sessions.item", { id: session.displayId ?? session.id })
+    : t("aiPage.noLog");
+  const primary = state.selectedLapNumber ? t("laps.legend", { lap: state.selectedLapNumber }) : "—";
+  const comparison = state.comparisonLapNumber ? t("laps.legend", { lap: state.comparisonLapNumber }) : t("laps.none");
+  elements.aiSelectedLaps.textContent = `${primary} · ${comparison}`;
+}
+
 function showView(view, updateHash = true) {
   const logs = view === "logs";
+  const ai = view === "ai";
   document.body.classList.toggle("view-logs", logs);
-  elements.analysisNavButton.classList.toggle("active", !logs);
+  document.body.classList.toggle("view-ai", ai);
+  elements.analysisNavButton.classList.toggle("active", !logs && !ai);
   elements.logsNavButton.classList.toggle("active", logs);
-  if (updateHash) history.pushState(null, "", logs ? "#logs" : "#analysis");
-  if (!logs) requestAnimationFrame(() => { drawTrack(); drawCharts(); });
+  elements.aiNavButton.classList.toggle("active", ai);
+  if (ai) renderAiPageContext();
+  if (updateHash) history.pushState(null, "", logs ? "#logs" : ai ? "#ai" : "#analysis");
+  if (!logs && !ai) requestAnimationFrame(() => { drawTrack(); drawCharts(); });
 }
 
 function connectionErrorMessage(error) {
@@ -629,7 +649,7 @@ function updateLapView() {
   elements.maxSpeedValue.textContent = (lap?.maxSpeed ?? state.analysis.session.maxSpeed).toFixed(1);
   elements.sampleRateValue.textContent = state.analysis.sampleRateHz.toFixed(0);
   elements.trackTitle.textContent = `${state.track ? `${state.track.name} · ` : ""}${t("sessions.item", { id: state.selectedSession.displayId ?? state.selectedSession.id })}${lap ? ` · ${t("laps.legend", { lap: lap.number })}` : ""}`;
-  renderLapControls(); drawTrack(); drawCharts();
+  renderLapControls(); renderAiPageContext(); drawTrack(); drawCharts();
 }
 
 function clearAiReport() {
@@ -669,8 +689,11 @@ function renderAiReport(report) {
     const start = Math.max(0, Math.min(1 - span, progress - span / 2));
     state.chartView = { start, end: start + span };
     elements.chartZoomReset.textContent = "500%";
-    drawTrack(); drawCharts();
-    elements.trackCanvas.scrollIntoView({ behavior: "smooth", block: "center" });
+    showView("analysis");
+    requestAnimationFrame(() => {
+      drawTrack(); drawCharts();
+      elements.trackCanvas.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
   }));
 }
 
@@ -806,7 +829,7 @@ async function applyUser(user) {
   }
   renderAccount();
   await syncCloudLogs();
-  showView(location.hash === "#logs" ? "logs" : "analysis", false);
+  showView(viewFromHash(), false);
 }
 
 async function submitAccount(action) {
@@ -982,7 +1005,9 @@ elements.eraseButton.addEventListener("click", eraseDeviceMemory);
 elements.cancelButton.addEventListener("click", () => state.client?.cancelDownload());
 elements.analysisNavButton.addEventListener("click", () => showView("analysis"));
 elements.logsNavButton.addEventListener("click", () => state.user || testMode ? showView("logs") : openAccountDialog("signin"));
+elements.aiNavButton.addEventListener("click", () => state.user || testMode ? showView("ai") : openAccountDialog("signin"));
 elements.logsBackButton.addEventListener("click", () => showView("analysis"));
+elements.aiBackButton.addEventListener("click", () => showView("analysis"));
 elements.importLogButton.addEventListener("click", () => elements.importLogInput.click());
 elements.importLogInput.addEventListener("change", () => importLogFile(elements.importLogInput.files?.[0]));
 elements.accountButton.addEventListener("click", () => openAccountDialog("signin"));
@@ -1021,9 +1046,7 @@ elements.copyAiButton.addEventListener("click", async () => {
   elements.copyStatus.textContent = "AI-контекст выбранной BLE-сессии скопирован.";
 });
 elements.analyzeAiButton.addEventListener("click", runAiAnalysis);
-elements.aiReportJumpButton.addEventListener("click", () => {
-  (state.aiReport ? elements.aiReport : elements.aiPanel).scrollIntoView({ behavior: "smooth", block: "start" });
-});
+elements.aiReportJumpButton.addEventListener("click", () => showView("ai"));
 elements.primaryLapSelect.addEventListener("change", () => {
   state.selectedLapNumber = Number(elements.primaryLapSelect.value) || null;
   if (state.comparisonLapNumber === state.selectedLapNumber) state.comparisonLapNumber = null;
@@ -1040,8 +1063,9 @@ elements.telemetryMetricSelect.addEventListener("change", () => selectTelemetryM
 document.querySelectorAll("[data-metric]").forEach((button) => button.addEventListener("click", () => selectTelemetryMetric(button.dataset.metric)));
 window.addEventListener("resize", () => { drawTrack(); drawCharts(); });
 window.addEventListener("hashchange", () => {
-  if (location.hash === "#logs" && (state.user || testMode)) showView("logs", false);
-  else showView("analysis", false);
+  const view = viewFromHash();
+  if ((view === "logs" || view === "ai") && !(state.user || testMode)) showView("analysis", false);
+  else showView(view, false);
 });
 elements.languageSelect.addEventListener("change", () => setLanguage(elements.languageSelect.value));
 onLanguageChange(() => {
@@ -1062,7 +1086,7 @@ onLanguageChange(() => {
 });
 applyTranslations();
 renderAccount();
-showView(location.hash === "#logs" && testMode ? "logs" : "analysis", false);
+showView(testMode ? viewFromHash() : "analysis", false);
 drawTrack(); drawCharts();
 
 if (cloudConfigured) {
