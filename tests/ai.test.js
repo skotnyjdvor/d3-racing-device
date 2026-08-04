@@ -18,7 +18,7 @@ test("builds a compact AI snapshot from a full telemetry log", () => {
   assert.ok(snapshot.comparison.deltaLossZones.zones.length > 0);
   assert.ok(snapshot.comparison.deltaLossZones.zones.every((zone) => zone.deltaSeconds > 0));
   assert.ok(JSON.stringify(snapshot).length < 24_000);
-  assert.equal(snapshot.schema, "laptrace-telemetry-snapshot/v3");
+  assert.equal(snapshot.schema, "laptrace-telemetry-snapshot/v4");
 });
 
 test("AI cache key is deterministic and input-sensitive", () => {

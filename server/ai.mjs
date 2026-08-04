@@ -110,7 +110,7 @@ function lapProfile(points, bins = 40) {
   });
 }
 
-function closestPhase(events, distancePercent) {
+function closestPhase(events, distancePercent, lapRole = "primary") {
   const phases = [
     ...(events.corners || []).map((event) => ({ type: "corner", ...event })),
     ...(events.brakingZones || []).map((event) => ({ type: "braking", ...event })),
@@ -121,7 +121,7 @@ function closestPhase(events, distancePercent) {
     distance: distancePercent < phase.startPercent ? phase.startPercent - distancePercent
       : distancePercent > phase.endPercent ? distancePercent - phase.endPercent : 0,
   })).sort((a, b) => a.distance - b.distance);
-  return ranked[0] && ranked[0].distance <= 4 ? { phaseType: ranked[0].phase.type, phaseId: `primary.${ranked[0].phase.id}` }
+  return ranked[0] && ranked[0].distance <= 4 ? { phaseType: ranked[0].phase.type, phaseId: `${lapRole}.${ranked[0].phase.id}` }
     : { phaseType: "transition", phaseId: "" };
 }
 
@@ -159,13 +159,13 @@ export function buildTelemetrySnapshot(points, options = {}) {
     const index = Math.max(0, Math.min(400, Math.round(zone.distancePercent * 4)));
     return {
       ...zone,
-      ...closestPhase(primaryEvents, zone.distancePercent),
+      ...closestPhase(comparisonEvents, zone.distancePercent, "comparison"),
       primarySpeedKph: detailedPrimary[index].speedKph,
       comparisonSpeedKph: detailedComparison[index].speedKph,
     };
   }) : [];
   return {
-    schema: "laptrace-telemetry-snapshot/v3",
+    schema: "laptrace-telemetry-snapshot/v4",
     language: ["ru", "en", "pl"].includes(options.language) ? options.language : "ru",
     question: String(options.question || "").trim().slice(0, 500),
     track: track ? { id: track.id, name: track.name } : null,
@@ -190,7 +190,7 @@ export function buildTelemetrySnapshot(points, options = {}) {
       comparisonLap,
       trace,
       deltaLossZones: {
-        methodology: "Authoritative zones computed from positive changes in the smoothed cumulative time delta. Positive deltaSeconds means the primary lap lost time to the comparison lap in this interval.",
+        methodology: "Authoritative zones computed where the smoothed primary-minus-comparison cumulative delta decreases. Positive deltaSeconds means the comparison lap lost this amount of time to the primary lap in the interval.",
         zones: deltaLossZones,
       },
       detectedPhases: {
@@ -211,13 +211,13 @@ export function groundAiReport(report, snapshot) {
   const zones = snapshot.comparison?.deltaLossZones?.zones || [];
   const generatedByZone = new Map((report.timeLosses || []).map((item) => [item.zoneId, item]));
   const fallback = snapshot.language === "ru" ? {
-    observation: (zone) => `Дельта увеличилась на ${zone.deltaSeconds.toFixed(3)} с между ${zone.startPercent}% и ${zone.endPercent}% дистанции.`,
+    observation: (zone) => `Сравнительный круг потерял ${zone.deltaSeconds.toFixed(3)} с относительно основного между ${zone.startPercent}% и ${zone.endPercent}% дистанции.`,
     hypothesis: "Причина не установлена по доступным сигналам.", recommendation: "Сравнить скорость и перегрузки в этой зоне.",
   } : snapshot.language === "pl" ? {
-    observation: (zone) => `Delta wzrosła o ${zone.deltaSeconds.toFixed(3)} s między ${zone.startPercent}% a ${zone.endPercent}% dystansu.`,
+    observation: (zone) => `Okrążenie porównawcze straciło ${zone.deltaSeconds.toFixed(3)} s do głównego między ${zone.startPercent}% a ${zone.endPercent}% dystansu.`,
     hypothesis: "Przyczyny nie ustalono na podstawie dostępnych sygnałów.", recommendation: "Porównaj prędkość i przeciążenia w tej strefie.",
   } : {
-    observation: (zone) => `Delta increased by ${zone.deltaSeconds.toFixed(3)} s between ${zone.startPercent}% and ${zone.endPercent}% distance.`,
+    observation: (zone) => `The comparison lap lost ${zone.deltaSeconds.toFixed(3)} s to the primary lap between ${zone.startPercent}% and ${zone.endPercent}% distance.`,
     hypothesis: "The available signals do not establish the cause.", recommendation: "Compare speed and acceleration traces in this zone.",
   };
   return {
@@ -271,7 +271,7 @@ export async function generateAiReport(snapshot, { apiKey = getOpenAiApiKey(), m
         "You are a motorsport telemetry engineer.",
         "Use only facts present in the telemetry snapshot.",
         "Use detectedPhases to compare braking points, corner entry/apex/exit speeds, and acceleration zones by distance percentage.",
-        "deltaLossZones is authoritative: return exactly one timeLosses item for each supplied zone and reference it only by zoneId.",
+        "deltaLossZones is authoritative and describes where the comparison lap loses time to the primary lap: return exactly one timeLosses item for each supplied zone and reference it only by zoneId.",
         "Never invent or alter a loss position, delta value, phase ID, or zone ID. Explain possible causes only from the supplied signals.",
         "Treat corner direction labels as sensor polarity, not guaranteed left/right direction.",
         "Separate observations from hypotheses. Never invent track geometry, driver inputs, or vehicle setup.",

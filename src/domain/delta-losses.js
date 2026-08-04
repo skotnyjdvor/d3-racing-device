@@ -18,13 +18,13 @@ export function detectDeltaLossZones(deltaSeries, options = {}) {
   const maxZones = options.maxZones ?? 6;
   const smoothed = movingAverage(valid.map((item) => item.value), smoothingRadius);
   const slopes = smoothed.map((value, index) => index ? value - smoothed[index - 1] : 0);
-  const positive = slopes.map((slope) => slope > .00015);
+  const losing = slopes.map((slope) => slope < -.00015);
   const raw = [];
   let start = null;
-  positive.forEach((active, index) => {
+  losing.forEach((active, index) => {
     if (active && start === null) start = Math.max(0, index - 1);
-    if ((!active || index === positive.length - 1) && start !== null) {
-      raw.push({ start, end: active && index === positive.length - 1 ? index : index - 1 });
+    if ((!active || index === losing.length - 1) && start !== null) {
+      raw.push({ start, end: active && index === losing.length - 1 ? index : index - 1 });
       start = null;
     }
   });
@@ -40,7 +40,7 @@ export function detectDeltaLossZones(deltaSeries, options = {}) {
     const endIndex = Math.min(valid.length - 1, range.end + smoothingRadius);
     let peakSlopeIndex = range.start;
     for (let index = range.start + 1; index <= range.end; index += 1) {
-      if (slopes[index] > slopes[peakSlopeIndex]) peakSlopeIndex = index;
+      if (slopes[index] < slopes[peakSlopeIndex]) peakSlopeIndex = index;
     }
     return {
       startPercent: rounded(valid[startIndex].progress * 100, 1),
@@ -48,8 +48,8 @@ export function detectDeltaLossZones(deltaSeries, options = {}) {
       distancePercent: rounded(valid[peakSlopeIndex].progress * 100, 1),
       deltaStartSeconds: rounded(smoothed[startIndex]),
       deltaEndSeconds: rounded(smoothed[endIndex]),
-      deltaSeconds: rounded(smoothed[endIndex] - smoothed[startIndex]),
-      peakDeltaRate: rounded(slopes[peakSlopeIndex], 4),
+      deltaSeconds: rounded(smoothed[startIndex] - smoothed[endIndex]),
+      peakDeltaRate: rounded(Math.abs(slopes[peakSlopeIndex]), 4),
     };
   }).filter((zone) => zone.deltaSeconds >= minimumLossSeconds && zone.endPercent > zone.startPercent);
 
