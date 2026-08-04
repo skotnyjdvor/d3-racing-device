@@ -295,6 +295,7 @@
           <div class="legend trajectory-legend">
             <span class="trajectory-primary" data-i18n="laps.primary"></span>
             <span class="trajectory-comparison" data-i18n="laps.compare"></span>
+            <span class="trajectory-ai" id="aiTrackLegend" hidden>AI POINTS</span>
           </div>
         </article>
         <article class="panel chart-panel telemetry-panel">
@@ -391,7 +392,21 @@
           ></button
           ><small id="copyStatus" data-i18n="ai.first"></small>
         </div>
-        <div class="ai-report" id="aiReport" hidden></div>
+        <div class="ai-results" id="aiResults" hidden>
+          <article class="ai-track-preview panel">
+            <div class="panel-head">
+              <div><p class="eyebrow">AI POINTS</p><h2 data-i18n="track.kicker"></h2></div>
+              <span class="ai-map-hint">1—6</span>
+            </div>
+            <canvas id="aiTrackCanvas"></canvas>
+            <div class="legend trajectory-legend">
+              <span class="trajectory-primary" data-i18n="laps.primary"></span>
+              <span class="trajectory-comparison" data-i18n="laps.compare"></span>
+              <span class="trajectory-ai">AI POINTS</span>
+            </div>
+          </article>
+          <div class="ai-report" id="aiReport" hidden></div>
+        </div>
       </section>
     </section>
     <footer>

@@ -9,7 +9,8 @@ import { analyzeLog, cloudConfigured, currentUser, deleteLog, loadLog, loadLogs,
 import "./demo.js";
 
 const elements = Object.fromEntries([...document.querySelectorAll("[id]")].map((element) => [element.id, element]));
-const state = { client: null, connected: false, deviceName: "", deviceModel: "", latestTelemetry: null, storage: null, sessions: [], selectedSession: null, analysis: null, selectedLapNumber: null, comparisonLapNumber: null, cursorProgress: null, chartView: { start: 0, end: 1 }, trackView: { scale: 1, offsetX: 0, offsetY: 0 }, telemetryMetric: "speed", track: null, user: null, cloudLogs: [], pollTimer: null, memoryBusy: false, aiReport: null };
+const state = { client: null, connected: false, deviceName: "", deviceModel: "", latestTelemetry: null, storage: null, sessions: [], selectedSession: null, analysis: null, selectedLapNumber: null, comparisonLapNumber: null, cursorProgress: null, chartView: { start: 0, end: 1 }, trackView: { scale: 1, offsetX: 0, offsetY: 0 }, telemetryMetric: "speed", track: null, user: null, cloudLogs: [], pollTimer: null, memoryBusy: false, aiReport: null, aiHoverIndex: null, aiSelectedIndex: null };
+const trackAiMarkerAreas = new WeakMap();
 const testMode = new URLSearchParams(location.search).has("mock");
 let accountMode = "signin";
 
@@ -81,7 +82,8 @@ function showView(view, updateHash = true) {
   elements.aiNavButton.classList.toggle("active", ai);
   if (ai) renderAiPageContext();
   if (updateHash) history.pushState(null, "", logs ? "#logs" : ai ? "#ai" : "#analysis");
-  if (!logs && !ai) requestAnimationFrame(() => { drawTrack(); drawCharts(); });
+  if (ai) requestAnimationFrame(drawTrack);
+  else if (!logs) requestAnimationFrame(() => { drawTrack(); drawCharts(); });
 }
 
 function connectionErrorMessage(error) {
@@ -198,8 +200,11 @@ function resetTrackZoom() {
   drawTrack();
 }
 
-function drawTrack() {
-  const { context, width, height } = canvasContext(elements.trackCanvas);
+function drawTrackCanvas(canvas) {
+  const rect = canvas.getBoundingClientRect();
+  if (rect.width < 2 || rect.height < 2) return;
+  trackAiMarkerAreas.set(canvas, []);
+  const { context, width, height } = canvasContext(canvas);
   context.fillStyle = "#0c1117";
   context.fillRect(0, 0, width, height);
   context.strokeStyle = "rgba(151,166,181,.09)"; context.lineWidth = 1;
@@ -264,6 +269,45 @@ function drawTrack() {
   };
   drawCursorPoint(comparisonSeries, "#37d7ff", "rgba(55,215,255,.8)");
   drawCursorPoint(primarySeries, "#c9ff37", "rgba(201,255,55,.8)");
+
+  const markerAreas = (state.aiReport?.timeLosses || []).map((item, index) => {
+    const progress = Math.max(0, Math.min(1, Number(item.distancePercent) / 100));
+    const markerPoint = pointAtProgress(primarySeries, progress)?.point;
+    if (!markerPoint) return null;
+    const [x, y] = project(markerPoint);
+    const active = index === state.aiHoverIndex || index === state.aiSelectedIndex;
+    const radius = active ? 13 : 10;
+    context.save();
+    context.shadowColor = "rgba(255,116,56,.9)"; context.shadowBlur = active ? 24 : 15;
+    context.fillStyle = "#ff7438"; context.beginPath(); context.arc(x, y, radius, 0, Math.PI * 2); context.fill();
+    context.shadowBlur = 0; context.strokeStyle = active ? "#ffffff" : "rgba(255,255,255,.8)"; context.lineWidth = active ? 2.5 : 1.5;
+    context.beginPath(); context.arc(x, y, radius + 4, 0, Math.PI * 2); context.stroke();
+    context.fillStyle = "#080b10"; context.font = `900 ${active ? 13 : 11}px ui-monospace, monospace`;
+    context.textAlign = "center"; context.textBaseline = "middle"; context.fillText(String(index + 1), x, y + .5);
+    context.restore();
+    return { x, y, radius: radius + 8, index, progress };
+  }).filter(Boolean);
+  trackAiMarkerAreas.set(canvas, markerAreas);
+
+}
+
+function drawTrack() {
+  drawTrackCanvas(elements.trackCanvas);
+  drawTrackCanvas(elements.aiTrackCanvas);
+}
+
+function openAiRecommendation(index, progress) {
+  state.aiSelectedIndex = index;
+  state.cursorProgress = progress;
+  const span = 0.2;
+  const start = Math.max(0, Math.min(1 - span, progress - span / 2));
+  state.chartView = { start, end: start + span };
+  elements.chartZoomReset.textContent = "500%";
+  showView("analysis");
+  requestAnimationFrame(() => {
+    drawTrack(); drawCharts();
+    elements.trackCanvas.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
 }
 
 function distanceSeries(points, key) {
@@ -527,6 +571,15 @@ elements.chartZoomReset.addEventListener("click", resetChartZoom);
   elements.trackZoomReset.addEventListener("click", resetTrackZoom);
 }
 
+elements.aiTrackCanvas.addEventListener("click", (event) => {
+  const rect = elements.aiTrackCanvas.getBoundingClientRect();
+  const x = event.clientX - rect.left;
+  const y = event.clientY - rect.top;
+  const marker = (trackAiMarkerAreas.get(elements.aiTrackCanvas) || [])
+    .find((item) => Math.hypot(item.x - x, item.y - y) <= item.radius);
+  if (marker) openAiRecommendation(marker.index, marker.progress);
+});
+
 function selectTelemetryMetric(metric) {
   state.telemetryMetric = ["speed", "gForceX", "gForceY"].includes(metric) ? metric : "speed";
   const translationKey = state.telemetryMetric === "speed" ? "telemetry.speed" : state.telemetryMetric === "gForceX" ? "telemetry.longitudinal" : "telemetry.lateral";
@@ -663,18 +716,28 @@ function updateLapView() {
 
 function clearAiReport() {
   state.aiReport = null;
+  state.aiHoverIndex = null;
+  state.aiSelectedIndex = null;
+  elements.aiResults.hidden = true;
   elements.aiReport.hidden = true;
   elements.aiReport.innerHTML = "";
+  elements.aiTrackLegend.hidden = true;
   elements.aiReportJumpButton.classList.remove("ready");
+  drawTrack();
 }
 
 function renderAiReport(report) {
   state.aiReport = report;
+  state.aiHoverIndex = null;
+  state.aiSelectedIndex = null;
+  elements.aiResults.hidden = false;
+  elements.aiTrackLegend.hidden = !(report.timeLosses || []).length;
   elements.aiReportJumpButton.classList.add("ready");
   const strengths = (report.strengths || []).map((item) => `
     <article class="ai-report-card"><strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(item.evidence)}</span></article>`).join("");
-  const losses = (report.timeLosses || []).map((item) => `
-    <button class="ai-report-card" type="button" data-ai-progress="${Number(item.distancePercent) / 100}">
+  const losses = (report.timeLosses || []).map((item, index) => `
+    <button class="ai-report-card" type="button" data-ai-index="${index}" data-ai-progress="${Number(item.distancePercent) / 100}">
+      <i class="ai-marker-index">${index + 1}</i>
       <strong>${Number(item.distancePercent).toFixed(1)}% · ${Number(item.deltaSeconds) >= 0 ? "+" : ""}${Number(item.deltaSeconds).toFixed(3)} s</strong>
       ${item.phaseId ? `<small class="ai-phase">${escapeHtml(item.phaseType)} · ${escapeHtml(item.phaseId)}</small>` : ""}
       <span>${escapeHtml(item.observation)}</span>
@@ -691,19 +754,15 @@ function renderAiReport(report) {
     <article class="ai-report-card"><strong>${escapeHtml(t("ai.consistency"))}</strong><span>${escapeHtml(report.consistency?.assessment)}</span><small>${Number(report.consistency?.lapTimeSpreadSeconds || 0).toFixed(3)} s</small></article>
     ${warnings ? `<div><p class="eyebrow">${escapeHtml(t("ai.warnings"))}</p>${warnings}</div>` : ""}`;
   elements.aiReport.hidden = false;
-  elements.aiReport.querySelectorAll("[data-ai-progress]").forEach((card) => card.addEventListener("click", () => {
-    const progress = Math.max(0, Math.min(1, Number(card.dataset.aiProgress)));
-    state.cursorProgress = progress;
-    const span = 0.2;
-    const start = Math.max(0, Math.min(1 - span, progress - span / 2));
-    state.chartView = { start, end: start + span };
-    elements.chartZoomReset.textContent = "500%";
-    showView("analysis");
-    requestAnimationFrame(() => {
-      drawTrack(); drawCharts();
-      elements.trackCanvas.scrollIntoView({ behavior: "smooth", block: "center" });
+  elements.aiReport.querySelectorAll("[data-ai-progress]").forEach((card) => {
+    card.addEventListener("mouseenter", () => { state.aiHoverIndex = Number(card.dataset.aiIndex); drawTrack(); });
+    card.addEventListener("mouseleave", () => { state.aiHoverIndex = null; drawTrack(); });
+    card.addEventListener("click", () => {
+      const progress = Math.max(0, Math.min(1, Number(card.dataset.aiProgress)));
+      openAiRecommendation(Number(card.dataset.aiIndex), progress);
     });
-  }));
+  });
+  requestAnimationFrame(drawTrack);
 }
 
 async function runAiAnalysis() {
