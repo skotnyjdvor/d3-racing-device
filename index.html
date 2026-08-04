@@ -353,9 +353,15 @@
           <p data-i18n="aiPage.copy"></p>
         </div>
         <div class="ai-page-context">
-          <span data-i18n="aiPage.selected"></span>
-          <strong id="aiSelectedSession">—</strong>
-          <small id="aiSelectedLaps">—</small>
+          <label class="ai-session-control">
+            <span data-i18n="aiPage.selected"></span>
+            <select id="aiSessionSelect"></select>
+          </label>
+          <div class="ai-lap-controls">
+            <label><span data-i18n="laps.primary"></span><select id="aiPrimaryLapSelect"></select></label>
+            <span class="lap-vs">VS</span>
+            <label><span data-i18n="laps.compare"></span><select id="aiComparisonLapSelect"></select></label>
+          </div>
           <button class="secondary" id="aiBackButton" type="button" data-i18n="aiPage.back"></button>
         </div>
       </div>

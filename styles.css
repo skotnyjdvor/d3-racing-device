@@ -52,9 +52,16 @@ main { width: min(1480px, calc(100% - 40px)); margin: 0 auto; }
 .ai-page-head { margin-bottom: 22px; display: grid; grid-template-columns: 1fr minmax(300px, 410px); align-items: end; gap: 44px; }
 .ai-page-head h1 { max-width: 850px; font-size: clamp(48px, 6vw, 86px); }
 .ai-page-head > div:first-child > p:last-child { max-width: 760px; margin: 22px 0 0; color: var(--muted); font-size: 16px; line-height: 1.55; }
-.ai-page-context { padding: 18px; display: grid; gap: 7px; background: rgba(16,21,28,.82); border: 1px solid var(--line); }
-.ai-page-context span, .ai-page-context small { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .1em; }
-.ai-page-context strong { overflow: hidden; color: var(--acid); font-size: 18px; text-overflow: ellipsis; white-space: nowrap; }
+.ai-page-context { padding: 18px; display: grid; gap: 13px; background: rgba(16,21,28,.82); border: 1px solid var(--line); }
+.ai-page-context label { min-width: 0; display: grid; gap: 6px; }
+.ai-page-context label > span { color: var(--muted); font-size: 9px; text-transform: uppercase; letter-spacing: .1em; }
+.ai-page-context select { min-width: 0; width: 100%; padding: 10px 34px 10px 11px; color: var(--text); background: #0c1016; border: 1px solid var(--line); outline: none; font-size: 13px; font-weight: 750; }
+.ai-page-context select:focus { border-color: var(--acid); }
+.ai-session-control select { color: var(--acid); }
+.ai-lap-controls { display: grid; grid-template-columns: minmax(0,1fr) 30px minmax(0,1fr); align-items: end; gap: 7px; }
+.ai-lap-controls .lap-vs { width: 30px; height: 30px; margin-bottom: 3px; }
+.ai-lap-controls label:first-child select { color: var(--acid); }
+.ai-lap-controls label:last-child select { color: var(--cyan); }
 .ai-page-context button { margin-top: 8px; }
 .logs-page-head { margin-bottom: 28px; display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 32px; }
 .logs-page-head h1 { max-width: 900px; margin: 8px 0 14px; font-size: clamp(50px, 7vw, 100px); }

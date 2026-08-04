@@ -55,12 +55,20 @@ function viewFromHash() {
 
 function renderAiPageContext() {
   const session = state.selectedSession;
-  elements.aiSelectedSession.textContent = session
-    ? session.title || t("sessions.item", { id: session.displayId ?? session.id })
-    : t("aiPage.noLog");
-  const primary = state.selectedLapNumber ? t("laps.legend", { lap: state.selectedLapNumber }) : "—";
-  const comparison = state.comparisonLapNumber ? t("laps.legend", { lap: state.comparisonLapNumber }) : t("laps.none");
-  elements.aiSelectedLaps.textContent = `${primary} · ${comparison}`;
+  elements.aiSessionSelect.innerHTML = state.sessions.length
+    ? state.sessions.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.title || t("sessions.item", { id: item.displayId ?? item.id }))}${item.cloudId ? " ☁" : ""}</option>`).join("")
+    : `<option value="">${escapeHtml(t("aiPage.noLog"))}</option>`;
+  elements.aiSessionSelect.disabled = !state.sessions.length;
+  elements.aiSessionSelect.value = session ? String(session.id) : "";
+
+  const laps = state.analysis?.laps ?? [];
+  const options = laps.map((lap) => `<option value="${lap.number}">${escapeHtml(t("laps.option", { lap: lap.number, time: formatLapTime(lap.durationMs) }))}</option>`).join("");
+  elements.aiPrimaryLapSelect.innerHTML = options || `<option value="">—</option>`;
+  elements.aiComparisonLapSelect.innerHTML = `<option value="">${escapeHtml(t("laps.none"))}</option>${options}`;
+  elements.aiPrimaryLapSelect.disabled = !laps.length;
+  elements.aiComparisonLapSelect.disabled = laps.length < 2;
+  elements.aiPrimaryLapSelect.value = state.selectedLapNumber ? String(state.selectedLapNumber) : "";
+  elements.aiComparisonLapSelect.value = state.comparisonLapNumber ? String(state.comparisonLapNumber) : "";
 }
 
 function showView(view, updateHash = true) {
@@ -577,6 +585,7 @@ function renderSessions() {
   elements.sessionsMeta.textContent = t("progress.records", { received: totalPoints.toLocaleString(getLanguage()), expected: totalPoints.toLocaleString(getLanguage()) });
   elements.logsPageCount.textContent = String(state.sessions.length);
   elements.logsPagePoints.textContent = t("sessions.points", { count: totalPoints.toLocaleString(getLanguage()) });
+  renderAiPageContext();
   if (!state.sessions.length) {
     elements.sessionList.innerHTML = `<p class="empty">${t("sessions.empty")}</p>`;
     return;
@@ -1047,18 +1056,25 @@ elements.copyAiButton.addEventListener("click", async () => {
 });
 elements.analyzeAiButton.addEventListener("click", runAiAnalysis);
 elements.aiReportJumpButton.addEventListener("click", () => showView("ai"));
-elements.primaryLapSelect.addEventListener("change", () => {
-  state.selectedLapNumber = Number(elements.primaryLapSelect.value) || null;
+elements.aiSessionSelect.addEventListener("change", async () => {
+  if (elements.aiSessionSelect.value) await selectSession(elements.aiSessionSelect.value);
+});
+function changePrimaryLap(value) {
+  state.selectedLapNumber = Number(value) || null;
   if (state.comparisonLapNumber === state.selectedLapNumber) state.comparisonLapNumber = null;
   clearAiReport();
   updateLapView();
-});
-elements.comparisonLapSelect.addEventListener("change", () => {
-  state.comparisonLapNumber = Number(elements.comparisonLapSelect.value) || null;
+}
+function changeComparisonLap(value) {
+  state.comparisonLapNumber = Number(value) || null;
   if (state.comparisonLapNumber === state.selectedLapNumber) state.comparisonLapNumber = null;
   clearAiReport();
   updateLapView();
-});
+}
+elements.primaryLapSelect.addEventListener("change", () => changePrimaryLap(elements.primaryLapSelect.value));
+elements.comparisonLapSelect.addEventListener("change", () => changeComparisonLap(elements.comparisonLapSelect.value));
+elements.aiPrimaryLapSelect.addEventListener("change", () => changePrimaryLap(elements.aiPrimaryLapSelect.value));
+elements.aiComparisonLapSelect.addEventListener("change", () => changeComparisonLap(elements.aiComparisonLapSelect.value));
 elements.telemetryMetricSelect.addEventListener("change", () => selectTelemetryMetric(elements.telemetryMetricSelect.value));
 document.querySelectorAll("[data-metric]").forEach((button) => button.addEventListener("click", () => selectTelemetryMetric(button.dataset.metric)));
 window.addEventListener("resize", () => { drawTrack(); drawCharts(); });
@@ -1074,6 +1090,7 @@ onLanguageChange(() => {
   if (state.latestTelemetry) renderTelemetry(state.latestTelemetry);
   selectTelemetryMetric(state.telemetryMetric);
   if (state.sessions.length) renderSessions();
+  else renderAiPageContext();
   if (state.selectedSession) selectSession(state.selectedSession.id);
   else { drawTrack(); drawCharts(); }
   if (state.connected) {
