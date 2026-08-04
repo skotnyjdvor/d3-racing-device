@@ -636,10 +636,12 @@ function clearAiReport() {
   state.aiReport = null;
   elements.aiReport.hidden = true;
   elements.aiReport.innerHTML = "";
+  elements.aiReportJumpButton.classList.remove("ready");
 }
 
 function renderAiReport(report) {
   state.aiReport = report;
+  elements.aiReportJumpButton.classList.add("ready");
   const strengths = (report.strengths || []).map((item) => `
     <article class="ai-report-card"><strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(item.evidence)}</span></article>`).join("");
   const losses = (report.timeLosses || []).map((item) => `
@@ -1019,6 +1021,9 @@ elements.copyAiButton.addEventListener("click", async () => {
   elements.copyStatus.textContent = "AI-контекст выбранной BLE-сессии скопирован.";
 });
 elements.analyzeAiButton.addEventListener("click", runAiAnalysis);
+elements.aiReportJumpButton.addEventListener("click", () => {
+  (state.aiReport ? elements.aiReport : elements.aiPanel).scrollIntoView({ behavior: "smooth", block: "start" });
+});
 elements.primaryLapSelect.addEventListener("change", () => {
   state.selectedLapNumber = Number(elements.primaryLapSelect.value) || null;
   if (state.comparisonLapNumber === state.selectedLapNumber) state.comparisonLapNumber = null;
