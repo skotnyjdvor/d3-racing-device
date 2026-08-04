@@ -735,16 +735,32 @@ function renderAiReport(report) {
   elements.aiReportJumpButton.classList.add("ready");
   const strengths = (report.strengths || []).map((item) => `
     <article class="ai-report-card"><strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(item.evidence)}</span></article>`).join("");
-  const losses = (report.timeLosses || []).map((item, index) => `
+  const formatG = (value) => `${Number(value || 0) >= 0 ? "+" : ""}${Number(value || 0).toFixed(2)} g`;
+  const lapLabel = (number) => `${t("ai.lapShort")}${number || "—"}`;
+  const losses = (report.timeLosses || []).map((item, index) => {
+    const primaryG = item.gForces?.primary;
+    const comparisonG = item.gForces?.comparison;
+    const gForces = primaryG && comparisonG ? `
+      <div class="ai-g-comparison">
+        <b>${escapeHtml(t("ai.gForces"))}</b>
+        <div class="ai-g-head"><span></span><span>${escapeHtml(lapLabel(state.selectedLapNumber))}</span><span>${escapeHtml(lapLabel(state.comparisonLapNumber))}</span></div>
+        <div><span>${escapeHtml(t("ai.longitudinalPoint"))}</span><em>${formatG(primaryG.atLossPoint.longitudinalG)}</em><em>${formatG(comparisonG.atLossPoint.longitudinalG)}</em></div>
+        <div><span>${escapeHtml(t("ai.lateralPoint"))}</span><em>${formatG(primaryG.atLossPoint.lateralG)}</em><em>${formatG(comparisonG.atLossPoint.lateralG)}</em></div>
+        <div><span>${escapeHtml(t("ai.longitudinalPeak"))}</span><em>${formatG(primaryG.zone.peakLongitudinalG)}</em><em>${formatG(comparisonG.zone.peakLongitudinalG)}</em></div>
+        <div><span>${escapeHtml(t("ai.lateralPeak"))}</span><em>${formatG(primaryG.zone.peakLateralG)}</em><em>${formatG(comparisonG.zone.peakLateralG)}</em></div>
+      </div>` : "";
+    return `
     <button class="ai-report-card" type="button" data-ai-index="${index}" data-ai-progress="${Number(item.distancePercent) / 100}">
       <i class="ai-marker-index">${index + 1}</i>
       <strong>${Number(item.distancePercent).toFixed(1)}% · ${Number(item.deltaSeconds) >= 0 ? "+" : ""}${Number(item.deltaSeconds).toFixed(3)} s</strong>
       <small class="ai-phase">${escapeHtml(item.zoneId || "DELTA")} · ${Number(item.startPercent).toFixed(1)}–${Number(item.endPercent).toFixed(1)}%${item.phaseId ? ` · ${escapeHtml(item.phaseType)} · ${escapeHtml(item.phaseId)}` : ""}</small>
       <span>${escapeHtml(item.observation)}</span>
+      ${gForces}
       <small><b>${escapeHtml(t("ai.hypothesis"))}:</b> ${escapeHtml(item.hypothesis)}</small>
       <small><b>${escapeHtml(t("ai.recommendation"))}:</b> ${escapeHtml(item.recommendation)}</small>
       <small class="ai-confidence">${escapeHtml(t("ai.confidence", { value: item.confidence }))}</small>
-    </button>`).join("");
+    </button>`;
+  }).join("");
   const warnings = (report.dataWarnings || []).length
     ? `<ul class="ai-warnings">${report.dataWarnings.map((warning) => `<li>${escapeHtml(warning)}</li>`).join("")}</ul>` : "";
   elements.aiReport.innerHTML = `

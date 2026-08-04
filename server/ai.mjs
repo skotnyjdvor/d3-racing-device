@@ -110,6 +110,34 @@ function lapProfile(points, bins = 40) {
   });
 }
 
+function signedPeak(values) {
+  return values.reduce((peak, value) => Math.abs(value) > Math.abs(peak) ? value : peak, 0);
+}
+
+function summarizeGForZone(profile, zone) {
+  const startIndex = Math.max(0, Math.floor(zone.startPercent / 100 * (profile.length - 1)));
+  const endIndex = Math.min(profile.length - 1, Math.ceil(zone.endPercent / 100 * (profile.length - 1)));
+  const focusIndex = Math.max(0, Math.min(profile.length - 1, Math.round(zone.distancePercent / 100 * (profile.length - 1))));
+  const samples = profile.slice(startIndex, endIndex + 1);
+  const longitudinal = samples.map((point) => point.longitudinalG);
+  const lateral = samples.map((point) => point.lateralG);
+  const mean = (values) => values.reduce((sum, value) => sum + value, 0) / Math.max(values.length, 1);
+  const meanAbs = (values) => mean(values.map(Math.abs));
+  return {
+    atLossPoint: {
+      longitudinalG: rounded(profile[focusIndex].longitudinalG),
+      lateralG: rounded(profile[focusIndex].lateralG),
+    },
+    zone: {
+      meanLongitudinalG: rounded(mean(longitudinal)),
+      peakLongitudinalG: rounded(signedPeak(longitudinal)),
+      meanLateralG: rounded(mean(lateral)),
+      meanAbsoluteLateralG: rounded(meanAbs(lateral)),
+      peakLateralG: rounded(signedPeak(lateral)),
+    },
+  };
+}
+
 function closestPhase(events, distancePercent, lapRole = "primary") {
   const phases = [
     ...(events.corners || []).map((event) => ({ type: "corner", ...event })),
@@ -162,10 +190,14 @@ export function buildTelemetrySnapshot(points, options = {}) {
       ...closestPhase(comparisonEvents, zone.distancePercent, "comparison"),
       primarySpeedKph: detailedPrimary[index].speedKph,
       comparisonSpeedKph: detailedComparison[index].speedKph,
+      gForces: {
+        primary: summarizeGForZone(detailedPrimary, zone),
+        comparison: summarizeGForZone(detailedComparison, zone),
+      },
     };
   }) : [];
   return {
-    schema: "laptrace-telemetry-snapshot/v4",
+    schema: "laptrace-telemetry-snapshot/v5",
     language: ["ru", "en", "pl"].includes(options.language) ? options.language : "ru",
     question: String(options.question || "").trim().slice(0, 500),
     track: track ? { id: track.id, name: track.name } : null,
@@ -190,7 +222,7 @@ export function buildTelemetrySnapshot(points, options = {}) {
       comparisonLap,
       trace,
       deltaLossZones: {
-        methodology: "Authoritative zones computed where the smoothed primary-minus-comparison cumulative delta decreases. Positive deltaSeconds means the comparison lap lost this amount of time to the primary lap in the interval.",
+        methodology: "Authoritative zones computed where the smoothed primary-minus-comparison cumulative delta decreases. Positive deltaSeconds means the comparison lap lost this amount of time to the primary lap in the interval. G-force samples are synchronized by normalized lap distance; signed peaks preserve the device-axis polarity.",
         zones: deltaLossZones,
       },
       detectedPhases: {
@@ -240,6 +272,7 @@ export function groundAiReport(report, snapshot) {
         phaseId: zone.phaseId,
         primarySpeedKph: zone.primarySpeedKph,
         comparisonSpeedKph: zone.comparisonSpeedKph,
+        gForces: zone.gForces,
       };
     }),
   };
@@ -272,6 +305,8 @@ export async function generateAiReport(snapshot, { apiKey = getOpenAiApiKey(), m
         "Use only facts present in the telemetry snapshot.",
         "Use detectedPhases to compare braking points, corner entry/apex/exit speeds, and acceleration zones by distance percentage.",
         "deltaLossZones is authoritative and describes where the comparison lap loses time to the primary lap: return exactly one timeLosses item for each supplied zone and reference it only by zoneId.",
+        "For every time-loss zone, compare gForces.primary with gForces.comparison. atLossPoint contains exact longitudinal and lateral G at the strongest delta change; zone contains measured means and signed peaks across the interval.",
+        "Use longitudinal G to support braking or acceleration hypotheses and lateral G to support cornering-load hypotheses, but account for the mounting-dependent sign and do not treat G-force alone as driver input.",
         "Never invent or alter a loss position, delta value, phase ID, or zone ID. Explain possible causes only from the supplied signals.",
         "Treat corner direction labels as sensor polarity, not guaranteed left/right direction.",
         "Separate observations from hypotheses. Never invent track geometry, driver inputs, or vehicle setup.",

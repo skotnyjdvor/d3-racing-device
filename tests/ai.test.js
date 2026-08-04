@@ -17,8 +17,12 @@ test("builds a compact AI snapshot from a full telemetry log", () => {
   assert.ok(snapshot.comparison.detectedPhases.primary.accelerationZones.length >= 5);
   assert.ok(snapshot.comparison.deltaLossZones.zones.length > 0);
   assert.ok(snapshot.comparison.deltaLossZones.zones.every((zone) => zone.deltaSeconds > 0));
-  assert.ok(JSON.stringify(snapshot).length < 24_000);
-  assert.equal(snapshot.schema, "laptrace-telemetry-snapshot/v4");
+  assert.ok(snapshot.comparison.deltaLossZones.zones.every((zone) => Number.isFinite(zone.gForces.primary.atLossPoint.longitudinalG)));
+  assert.ok(snapshot.comparison.deltaLossZones.zones.every((zone) => Number.isFinite(zone.gForces.primary.atLossPoint.lateralG)));
+  assert.ok(snapshot.comparison.deltaLossZones.zones.every((zone) => Number.isFinite(zone.gForces.comparison.zone.peakLongitudinalG)));
+  assert.ok(snapshot.comparison.deltaLossZones.zones.every((zone) => Number.isFinite(zone.gForces.comparison.zone.peakLateralG)));
+  assert.ok(JSON.stringify(snapshot).length < 25_000);
+  assert.equal(snapshot.schema, "laptrace-telemetry-snapshot/v5");
 });
 
 test("AI cache key is deterministic and input-sensitive", () => {
@@ -44,6 +48,7 @@ test("grounds AI loss positions and deltas in deterministic telemetry zones", ()
   }] }, snapshot);
   assert.equal(report.timeLosses[0].distancePercent, firstZone.distancePercent);
   assert.equal(report.timeLosses[0].deltaSeconds, firstZone.deltaSeconds);
+  assert.deepEqual(report.timeLosses[0].gForces, firstZone.gForces);
   assert.equal(report.timeLosses[0].observation, "Model explanation");
   assert.equal(report.timeLosses.length, snapshot.comparison.deltaLossZones.zones.length);
 });
