@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { analyzeSession } from "../src/domain/analysis.js";
 import { splitSessionIntoLaps } from "../src/domain/laps.js";
 import { extractLapEvents } from "../src/domain/lap-events.js";
+import { detectDeltaLossZones } from "../src/domain/delta-losses.js";
 import { distanceMeters, identifyTrack } from "../src/domain/tracks.js";
 
 export const AI_MODEL = process.env.OPENAI_MODEL || "gpt-5.6-sol";
@@ -32,12 +33,9 @@ export const AI_REPORT_SCHEMA = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["distancePercent", "deltaSeconds", "phaseType", "phaseId", "observation", "hypothesis", "recommendation", "confidence"],
+        required: ["zoneId", "observation", "hypothesis", "recommendation", "confidence"],
         properties: {
-          distancePercent: { type: "number", minimum: 0, maximum: 100 },
-          deltaSeconds: { type: "number" },
-          phaseType: { type: "string", enum: ["corner", "braking", "acceleration", "transition", "unknown"] },
-          phaseId: { type: "string" },
+          zoneId: { type: "string" },
           observation: { type: "string" },
           hypothesis: { type: "string" },
           recommendation: { type: "string" },
@@ -74,14 +72,25 @@ function distanceSeries(points) {
   return series.map((item) => ({ ...item, progress: item.distance / total }));
 }
 
-function nearestAtProgress(series, progress) {
+function interpolatedAtProgress(series, progress) {
+  if (!series.length) return null;
   let low = 0; let high = series.length - 1;
   while (low < high) {
     const middle = Math.floor((low + high) / 2);
     if (series[middle].progress < progress) low = middle + 1;
     else high = middle;
   }
-  return series[Math.max(0, low)];
+  const after = series[low];
+  const before = series[Math.max(0, low - 1)];
+  const span = after.progress - before.progress;
+  const ratio = span > 0 ? (progress - before.progress) / span : 0;
+  const interpolate = (key) => Number(before.point[key]) + (Number(after.point[key]) - Number(before.point[key])) * ratio;
+  return {
+    timeMs: interpolate("timeMs"),
+    speed: interpolate("speed"),
+    gForceX: interpolate("gForceX"),
+    gForceY: interpolate("gForceY"),
+  };
 }
 
 function lapProfile(points, bins = 40) {
@@ -90,15 +99,30 @@ function lapProfile(points, bins = 40) {
   const startedAt = series[0].point.timeMs;
   return Array.from({ length: bins + 1 }, (_, index) => {
     const progress = index / bins;
-    const item = nearestAtProgress(series, progress);
+    const point = interpolatedAtProgress(series, progress);
     return {
       distancePercent: rounded(progress * 100, 1),
-      elapsedSeconds: rounded((item.point.timeMs - startedAt) / 1000),
-      speedKph: rounded(item.point.speed, 1),
-      longitudinalG: rounded(item.point.gForceX),
-      lateralG: rounded(item.point.gForceY),
+      elapsedSeconds: rounded((point.timeMs - startedAt) / 1000),
+      speedKph: rounded(point.speed, 1),
+      longitudinalG: rounded(point.gForceX),
+      lateralG: rounded(point.gForceY),
     };
   });
+}
+
+function closestPhase(events, distancePercent) {
+  const phases = [
+    ...(events.corners || []).map((event) => ({ type: "corner", ...event })),
+    ...(events.brakingZones || []).map((event) => ({ type: "braking", ...event })),
+    ...(events.accelerationZones || []).map((event) => ({ type: "acceleration", ...event })),
+  ];
+  const ranked = phases.map((phase) => ({
+    phase,
+    distance: distancePercent < phase.startPercent ? phase.startPercent - distancePercent
+      : distancePercent > phase.endPercent ? distancePercent - phase.endPercent : 0,
+  })).sort((a, b) => a.distance - b.distance);
+  return ranked[0] && ranked[0].distance <= 4 ? { phaseType: ranked[0].phase.type, phaseId: `primary.${ranked[0].phase.id}` }
+    : { phaseType: "transition", phaseId: "" };
 }
 
 export function buildTelemetrySnapshot(points, options = {}) {
@@ -126,8 +150,22 @@ export function buildTelemetrySnapshot(points, options = {}) {
     };
   });
   const lapTimes = analysis.laps.map((lap) => lap.durationMs / 1000);
+  const detailedPrimary = lapProfile(primaryPoints, 400);
+  const detailedComparison = lapProfile(comparisonPoints, 400);
+  const deltaLossZones = comparisonLap ? detectDeltaLossZones(detailedPrimary.map((primary, index) => ({
+    progress: index / 400,
+    value: primary.elapsedSeconds - detailedComparison[index].elapsedSeconds,
+  }))).map((zone) => {
+    const index = Math.max(0, Math.min(400, Math.round(zone.distancePercent * 4)));
+    return {
+      ...zone,
+      ...closestPhase(primaryEvents, zone.distancePercent),
+      primarySpeedKph: detailedPrimary[index].speedKph,
+      comparisonSpeedKph: detailedComparison[index].speedKph,
+    };
+  }) : [];
   return {
-    schema: "laptrace-telemetry-snapshot/v2",
+    schema: "laptrace-telemetry-snapshot/v3",
     language: ["ru", "en", "pl"].includes(options.language) ? options.language : "ru",
     question: String(options.question || "").trim().slice(0, 500),
     track: track ? { id: track.id, name: track.name } : null,
@@ -151,6 +189,10 @@ export function buildTelemetrySnapshot(points, options = {}) {
       primaryLap,
       comparisonLap,
       trace,
+      deltaLossZones: {
+        methodology: "Authoritative zones computed from positive changes in the smoothed cumulative time delta. Positive deltaSeconds means the primary lap lost time to the comparison lap in this interval.",
+        zones: deltaLossZones,
+      },
       detectedPhases: {
         methodology: "Braking and acceleration use smoothed GPS speed derivative; corners use smoothed absolute lateral acceleration; apex is the minimum-speed sample inside a corner.",
         primary: primaryEvents,
@@ -163,6 +205,44 @@ export function buildTelemetrySnapshot(points, options = {}) {
 
 export function snapshotCacheKey(logId, snapshot, model = AI_MODEL) {
   return createHash("sha256").update(JSON.stringify({ logId, model, snapshot })).digest("hex");
+}
+
+export function groundAiReport(report, snapshot) {
+  const zones = snapshot.comparison?.deltaLossZones?.zones || [];
+  const generatedByZone = new Map((report.timeLosses || []).map((item) => [item.zoneId, item]));
+  const fallback = snapshot.language === "ru" ? {
+    observation: (zone) => `Дельта увеличилась на ${zone.deltaSeconds.toFixed(3)} с между ${zone.startPercent}% и ${zone.endPercent}% дистанции.`,
+    hypothesis: "Причина не установлена по доступным сигналам.", recommendation: "Сравнить скорость и перегрузки в этой зоне.",
+  } : snapshot.language === "pl" ? {
+    observation: (zone) => `Delta wzrosła o ${zone.deltaSeconds.toFixed(3)} s między ${zone.startPercent}% a ${zone.endPercent}% dystansu.`,
+    hypothesis: "Przyczyny nie ustalono na podstawie dostępnych sygnałów.", recommendation: "Porównaj prędkość i przeciążenia w tej strefie.",
+  } : {
+    observation: (zone) => `Delta increased by ${zone.deltaSeconds.toFixed(3)} s between ${zone.startPercent}% and ${zone.endPercent}% distance.`,
+    hypothesis: "The available signals do not establish the cause.", recommendation: "Compare speed and acceleration traces in this zone.",
+  };
+  return {
+    ...report,
+    timeLosses: zones.map((zone) => {
+      const generated = generatedByZone.get(zone.id) || {};
+      return {
+        zoneId: zone.id,
+        observation: generated.observation || fallback.observation(zone),
+        hypothesis: generated.hypothesis || fallback.hypothesis,
+        recommendation: generated.recommendation || fallback.recommendation,
+        confidence: generated.confidence || "low",
+        distancePercent: zone.distancePercent,
+        deltaSeconds: zone.deltaSeconds,
+        deltaStartSeconds: zone.deltaStartSeconds,
+        deltaEndSeconds: zone.deltaEndSeconds,
+        startPercent: zone.startPercent,
+        endPercent: zone.endPercent,
+        phaseType: zone.phaseType,
+        phaseId: zone.phaseId,
+        primarySpeedKph: zone.primarySpeedKph,
+        comparisonSpeedKph: zone.comparisonSpeedKph,
+      };
+    }),
+  };
 }
 
 function outputText(response) {
@@ -191,7 +271,8 @@ export async function generateAiReport(snapshot, { apiKey = getOpenAiApiKey(), m
         "You are a motorsport telemetry engineer.",
         "Use only facts present in the telemetry snapshot.",
         "Use detectedPhases to compare braking points, corner entry/apex/exit speeds, and acceleration zones by distance percentage.",
-        "For every time loss, set phaseId to the closest evidence reference such as primary.C2 or comparison.B1; use an empty string only when no phase matches.",
+        "deltaLossZones is authoritative: return exactly one timeLosses item for each supplied zone and reference it only by zoneId.",
+        "Never invent or alter a loss position, delta value, phase ID, or zone ID. Explain possible causes only from the supplied signals.",
         "Treat corner direction labels as sensor polarity, not guaranteed left/right direction.",
         "Separate observations from hypotheses. Never invent track geometry, driver inputs, or vehicle setup.",
         "Use the requested language. Keep recommendations specific and testable.",

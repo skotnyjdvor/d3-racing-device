@@ -8,7 +8,7 @@ import express from "express";
 import { rateLimit } from "express-rate-limit";
 import jwt from "jsonwebtoken";
 import { migrate, requireDatabase } from "./db.mjs";
-import { AI_MODEL, buildTelemetrySnapshot, generateAiReport, getOpenAiApiKey, snapshotCacheKey } from "./ai.mjs";
+import { AI_MODEL, buildTelemetrySnapshot, generateAiReport, getOpenAiApiKey, groundAiReport, snapshotCacheKey } from "./ai.mjs";
 
 const app = express();
 app.disable("x-powered-by");
@@ -171,6 +171,7 @@ app.post("/api/logs/:id/ai-analysis", authenticate, aiLimiter, async (request, r
       if (cached.rows[0]) return response.json({ analysis: cached.rows[0], cached: true });
     }
     const generated = await generateAiReport(snapshot);
+    generated.report = groundAiReport(generated.report, snapshot);
     const saved = await database.query(`insert into ai_analyses
       (id, user_id, log_id, cache_key, model, primary_lap, comparison_lap, question, snapshot, report, usage, provider_response_id)
       values ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::jsonb, $11::jsonb, $12)

@@ -739,7 +739,7 @@ function renderAiReport(report) {
     <button class="ai-report-card" type="button" data-ai-index="${index}" data-ai-progress="${Number(item.distancePercent) / 100}">
       <i class="ai-marker-index">${index + 1}</i>
       <strong>${Number(item.distancePercent).toFixed(1)}% · ${Number(item.deltaSeconds) >= 0 ? "+" : ""}${Number(item.deltaSeconds).toFixed(3)} s</strong>
-      ${item.phaseId ? `<small class="ai-phase">${escapeHtml(item.phaseType)} · ${escapeHtml(item.phaseId)}</small>` : ""}
+      <small class="ai-phase">${escapeHtml(item.zoneId || "DELTA")} · ${Number(item.startPercent).toFixed(1)}–${Number(item.endPercent).toFixed(1)}%${item.phaseId ? ` · ${escapeHtml(item.phaseType)} · ${escapeHtml(item.phaseId)}` : ""}</small>
       <span>${escapeHtml(item.observation)}</span>
       <small><b>${escapeHtml(t("ai.hypothesis"))}:</b> ${escapeHtml(item.hypothesis)}</small>
       <small><b>${escapeHtml(t("ai.recommendation"))}:</b> ${escapeHtml(item.recommendation)}</small>

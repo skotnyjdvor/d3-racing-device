@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { parseRaceBoxCsv } from "../src/domain/csv.js";
-import { AI_REPORT_SCHEMA, buildTelemetrySnapshot, snapshotCacheKey } from "../server/ai.mjs";
+import { AI_REPORT_SCHEMA, buildTelemetrySnapshot, groundAiReport, snapshotCacheKey } from "../server/ai.mjs";
 
 const points = parseRaceBoxCsv(fs.readFileSync(new URL("../src/fixtures/viterbo-session-2026-07-10.csv", import.meta.url), "utf8"));
 
@@ -15,8 +15,10 @@ test("builds a compact AI snapshot from a full telemetry log", () => {
   assert.ok(snapshot.comparison.detectedPhases.primary.corners.length >= 8);
   assert.ok(snapshot.comparison.detectedPhases.primary.brakingZones.length >= 5);
   assert.ok(snapshot.comparison.detectedPhases.primary.accelerationZones.length >= 5);
-  assert.ok(JSON.stringify(snapshot).length < 20_000);
-  assert.equal(snapshot.schema, "laptrace-telemetry-snapshot/v2");
+  assert.ok(snapshot.comparison.deltaLossZones.zones.length > 0);
+  assert.ok(snapshot.comparison.deltaLossZones.zones.every((zone) => zone.deltaSeconds > 0));
+  assert.ok(JSON.stringify(snapshot).length < 24_000);
+  assert.equal(snapshot.schema, "laptrace-telemetry-snapshot/v3");
 });
 
 test("AI cache key is deterministic and input-sensitive", () => {
@@ -30,5 +32,18 @@ test("AI report schema requires evidence-backed structured sections", () => {
   assert.deepEqual(AI_REPORT_SCHEMA.required, ["summary", "strengths", "timeLosses", "consistency", "dataWarnings"]);
   assert.equal(AI_REPORT_SCHEMA.additionalProperties, false);
   assert.equal(AI_REPORT_SCHEMA.properties.timeLosses.items.properties.confidence.enum.length, 3);
-  assert.ok(AI_REPORT_SCHEMA.properties.timeLosses.items.required.includes("phaseId"));
+  assert.deepEqual(AI_REPORT_SCHEMA.properties.timeLosses.items.required, ["zoneId", "observation", "hypothesis", "recommendation", "confidence"]);
+});
+
+test("grounds AI loss positions and deltas in deterministic telemetry zones", () => {
+  const snapshot = buildTelemetrySnapshot(points, { primaryLap: 4, comparisonLap: 6, language: "en" });
+  const firstZone = snapshot.comparison.deltaLossZones.zones[0];
+  const report = groundAiReport({ timeLosses: [{
+    zoneId: firstZone.id, distancePercent: 99, deltaSeconds: 99,
+    observation: "Model explanation", hypothesis: "Model hypothesis", recommendation: "Model recommendation", confidence: "medium",
+  }] }, snapshot);
+  assert.equal(report.timeLosses[0].distancePercent, firstZone.distancePercent);
+  assert.equal(report.timeLosses[0].deltaSeconds, firstZone.deltaSeconds);
+  assert.equal(report.timeLosses[0].observation, "Model explanation");
+  assert.equal(report.timeLosses.length, snapshot.comparison.deltaLossZones.zones.length);
 });
