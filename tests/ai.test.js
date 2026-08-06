@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { parseRaceBoxCsv } from "../src/domain/csv.js";
-import { AI_FOLLOWUP_SCHEMA, AI_REPORT_SCHEMA, buildTelemetrySnapshot, generateAiFollowUp, groundAiReport, snapshotCacheKey } from "../server/ai.mjs";
+import { AI_FOLLOWUP_SCHEMA, AI_PILOT_LANGUAGE_RULES, AI_REPORT_SCHEMA, buildTelemetrySnapshot, generateAiFollowUp, groundAiReport, snapshotCacheKey } from "../server/ai.mjs";
 
 const points = parseRaceBoxCsv(fs.readFileSync(new URL("../src/fixtures/viterbo-session-2026-07-10.csv", import.meta.url), "utf8"));
 
@@ -22,8 +22,8 @@ test("builds a compact AI snapshot from a full telemetry log", () => {
   assert.ok(snapshot.comparison.deltaLossZones.zones.every((zone) => Number.isFinite(zone.gForces.comparison.zone.peakLongitudinalG)));
   assert.ok(snapshot.comparison.deltaLossZones.zones.every((zone) => Number.isFinite(zone.gForces.comparison.zone.peakLateralG)));
   assert.ok(JSON.stringify(snapshot).length < 25_000);
-  assert.equal(snapshot.schema, "laptrace-telemetry-snapshot/v6");
-  assert.equal(snapshot.analysisMode, "standard-report/v1");
+  assert.equal(snapshot.schema, "laptrace-telemetry-snapshot/v7");
+  assert.equal(snapshot.analysisMode, "standard-report/v2-driver-language");
 });
 
 test("AI cache key is deterministic and input-sensitive", () => {
@@ -36,6 +36,8 @@ test("AI cache key is deterministic and input-sensitive", () => {
 test("AI report schema requires evidence-backed structured sections", () => {
   assert.deepEqual(AI_REPORT_SCHEMA.required, ["summary", "strengths", "timeLosses", "consistency", "dataWarnings"]);
   assert.equal(AI_REPORT_SCHEMA.additionalProperties, false);
+  assert.match(AI_REPORT_SCHEMA.properties.summary.description, /plain-language/);
+  assert.match(AI_REPORT_SCHEMA.properties.timeLosses.items.properties.recommendation.description, /next lap/);
   assert.equal(AI_REPORT_SCHEMA.properties.timeLosses.items.properties.confidence.enum.length, 3);
   assert.deepEqual(AI_REPORT_SCHEMA.properties.timeLosses.items.required, ["zoneId", "observation", "hypothesis", "recommendation", "confidence"]);
 });
@@ -44,6 +46,12 @@ test("AI follow-up schema returns a focused answer with evidence", () => {
   assert.equal(AI_FOLLOWUP_SCHEMA.additionalProperties, false);
   assert.deepEqual(AI_FOLLOWUP_SCHEMA.required, ["answer", "evidence", "dataWarnings"]);
   assert.equal(AI_FOLLOWUP_SCHEMA.properties.evidence.maxItems, 6);
+});
+
+test("AI report language is written for drivers without unexplained telemetry jargon", () => {
+  assert.match(AI_PILOT_LANGUAGE_RULES, /racing driver/);
+  assert.match(AI_PILOT_LANGUAGE_RULES, /what happened/);
+  assert.match(AI_PILOT_LANGUAGE_RULES, /Do not use unexplained jargon/);
 });
 
 test("AI follow-up rejects an empty question before calling the provider", async () => {

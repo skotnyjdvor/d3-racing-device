@@ -747,6 +747,7 @@ function renderAiReport(report, analysisId) {
   const losses = (report.timeLosses || []).map((item, index) => {
     const primaryG = item.gForces?.primary;
     const comparisonG = item.gForces?.comparison;
+    const phaseLabel = item.phaseType ? t(`ai.phase.${item.phaseType}`) : "";
     const gForces = primaryG && comparisonG ? `
       <div class="ai-g-comparison">
         <b>${escapeHtml(t("ai.gForces"))}</b>
@@ -755,12 +756,13 @@ function renderAiReport(report, analysisId) {
         <div><span>${escapeHtml(t("ai.lateralPoint"))}</span><em>${formatG(primaryG.atLossPoint.lateralG)}</em><em>${formatG(comparisonG.atLossPoint.lateralG)}</em></div>
         <div><span>${escapeHtml(t("ai.longitudinalPeak"))}</span><em>${formatG(primaryG.zone.peakLongitudinalG)}</em><em>${formatG(comparisonG.zone.peakLongitudinalG)}</em></div>
         <div><span>${escapeHtml(t("ai.lateralPeak"))}</span><em>${formatG(primaryG.zone.peakLateralG)}</em><em>${formatG(comparisonG.zone.peakLateralG)}</em></div>
+        <small>${escapeHtml(t("ai.gHint"))}</small>
       </div>` : "";
     return `
     <button class="ai-report-card" type="button" data-ai-index="${index}" data-ai-progress="${Number(item.distancePercent) / 100}">
       <i class="ai-marker-index">${index + 1}</i>
       <strong>${Number(item.distancePercent).toFixed(1)}% · ${Number(item.deltaSeconds) >= 0 ? "+" : ""}${Number(item.deltaSeconds).toFixed(3)} s</strong>
-      <small class="ai-phase">${escapeHtml(item.zoneId || "DELTA")} · ${Number(item.startPercent).toFixed(1)}–${Number(item.endPercent).toFixed(1)}%${item.phaseId ? ` · ${escapeHtml(item.phaseType)} · ${escapeHtml(item.phaseId)}` : ""}</small>
+      <small class="ai-phase">${escapeHtml(item.zoneId || "ZONE")} · ${Number(item.startPercent).toFixed(1)}–${Number(item.endPercent).toFixed(1)}%${phaseLabel ? ` · ${escapeHtml(phaseLabel)}` : ""}</small>
       <span>${escapeHtml(item.observation)}</span>
       ${gForces}
       <small><b>${escapeHtml(t("ai.hypothesis"))}:</b> ${escapeHtml(item.hypothesis)}</small>

@@ -8,12 +8,21 @@ import { distanceMeters, identifyTrack } from "../src/domain/tracks.js";
 export const AI_MODEL = process.env.OPENAI_MODEL || "gpt-5.6-sol";
 export const getOpenAiApiKey = () => (process.env.LAPTRACE_OPENAI_KEY || process.env.OPENAI_API_KEY || "").trim();
 
+export const AI_PILOT_LANGUAGE_RULES = [
+  "Write for the racing driver, not for a telemetry engineer.",
+  "Use short sentences and familiar driving terms: braking point, corner entry, middle of the corner, corner exit, acceleration, speed, and time gained or lost.",
+  "Do not use unexplained jargon, raw phase IDs, sensor-axis names, mathematical terms, or words such as apex, derivative, polarity, and cumulative delta in the prose.",
+  "If a technical term is unavoidable, explain it immediately in plain language.",
+  "Keep the important measured numbers, but explain what each number means for the driver instead of listing telemetry without interpretation.",
+  "For every time-loss zone, say what happened, what may have caused it, and what the driver should try on the next lap.",
+].join(" ");
+
 export const AI_REPORT_SCHEMA = {
   type: "object",
   additionalProperties: false,
   required: ["summary", "strengths", "timeLosses", "consistency", "dataWarnings"],
   properties: {
-    summary: { type: "string" },
+    summary: { type: "string", description: "Two or three plain-language sentences with the main takeaway for the driver." },
     strengths: {
       type: "array",
       maxItems: 4,
@@ -22,8 +31,8 @@ export const AI_REPORT_SCHEMA = {
         additionalProperties: false,
         required: ["title", "evidence"],
         properties: {
-          title: { type: "string" },
-          evidence: { type: "string" },
+          title: { type: "string", description: "A short driver-friendly title without telemetry jargon." },
+          evidence: { type: "string", description: "A measured fact followed by what it means on track." },
         },
       },
     },
@@ -36,9 +45,9 @@ export const AI_REPORT_SCHEMA = {
         required: ["zoneId", "observation", "hypothesis", "recommendation", "confidence"],
         properties: {
           zoneId: { type: "string" },
-          observation: { type: "string" },
-          hypothesis: { type: "string" },
-          recommendation: { type: "string" },
+          observation: { type: "string", description: "What happened on track, in words a driver can immediately understand." },
+          hypothesis: { type: "string", description: "A possible cause stated as a possibility, not as a measured fact." },
+          recommendation: { type: "string", description: "One specific action the driver can safely test on the next lap." },
           confidence: { type: "string", enum: ["low", "medium", "high"] },
         },
       },
@@ -48,7 +57,7 @@ export const AI_REPORT_SCHEMA = {
       additionalProperties: false,
       required: ["assessment", "lapTimeSpreadSeconds"],
       properties: {
-        assessment: { type: "string" },
+        assessment: { type: "string", description: "A plain-language assessment of how repeatable the laps were." },
         lapTimeSpreadSeconds: { type: "number", minimum: 0 },
       },
     },
@@ -216,8 +225,8 @@ export function buildTelemetrySnapshot(points, options = {}) {
     };
   }) : [];
   return {
-    schema: "laptrace-telemetry-snapshot/v6",
-    analysisMode: "standard-report/v1",
+    schema: "laptrace-telemetry-snapshot/v7",
+    analysisMode: "standard-report/v2-driver-language",
     language: ["ru", "en", "pl"].includes(options.language) ? options.language : "ru",
     question: String(options.question || "").trim().slice(0, 500),
     track: track ? { id: track.id, name: track.name } : null,
@@ -321,7 +330,8 @@ export async function generateAiReport(snapshot, { apiKey = getOpenAiApiKey(), m
       store: false,
       reasoning: { effort: "medium" },
       instructions: [
-        "You are a motorsport telemetry engineer.",
+        "You are a racing coach who explains measured telemetry in language every track driver can understand.",
+        AI_PILOT_LANGUAGE_RULES,
         "Use only facts present in the telemetry snapshot.",
         "When the snapshot question is empty, produce the standard engineering report: summary, strongest measured advantages, every authoritative loss zone, consistency, and data limitations.",
         "Use detectedPhases to compare braking points, corner entry/apex/exit speeds, and acceleration zones by distance percentage.",
@@ -373,6 +383,7 @@ export async function generateAiFollowUp(snapshot, report, question, { apiKey = 
       reasoning: { effort: "medium" },
       instructions: [
         "You are answering a follow-up question about an existing motorsport telemetry report.",
+        AI_PILOT_LANGUAGE_RULES,
         "Use only the supplied telemetry snapshot and grounded report. Do not move, add, or reinterpret authoritative delta-loss zones.",
         "Support the answer with measured lap time, speed, longitudinal G, lateral G, delta, phase, or data-quality evidence from the input.",
         "Clearly distinguish measured observations from hypotheses. Accelerometer signs depend on device mounting.",
