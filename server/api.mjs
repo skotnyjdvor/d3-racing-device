@@ -8,7 +8,7 @@ import express from "express";
 import { rateLimit } from "express-rate-limit";
 import jwt from "jsonwebtoken";
 import { migrate, requireDatabase } from "./db.mjs";
-import { AI_MODEL, buildTelemetrySnapshot, generateAiReport, getOpenAiApiKey, groundAiReport, snapshotCacheKey } from "./ai.mjs";
+import { AI_MODEL, buildTelemetrySnapshot, generateAiFollowUp, generateAiReport, getOpenAiApiKey, groundAiReport, snapshotCacheKey } from "./ai.mjs";
 
 const app = express();
 app.disable("x-powered-by");
@@ -191,6 +191,19 @@ app.get("/api/logs/:id/ai-analyses", authenticate, async (request, response, nex
       from ai_analyses where log_id = $1 and user_id = $2 order by created_at desc limit 20`,
     [request.params.id, request.auth.sub]);
     response.json({ analyses: result.rows });
+  } catch (error) { next(error); }
+});
+
+app.post("/api/ai-analyses/:id/follow-up", authenticate, aiLimiter, async (request, response, next) => {
+  try {
+    const result = await requireDatabase().query(
+      "select snapshot, report from ai_analyses where id = $1 and user_id = $2",
+      [request.params.id, request.auth.sub],
+    );
+    const analysis = result.rows[0];
+    if (!analysis) return response.status(404).json({ error: "AI analysis not found" });
+    const generated = await generateAiFollowUp(analysis.snapshot, analysis.report, request.body?.question);
+    response.json(generated);
   } catch (error) { next(error); }
 });
 

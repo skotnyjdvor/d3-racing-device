@@ -1,15 +1,14 @@
 import { RaceBoxBleClient } from "./ble/racebox.js";
 import { analyzeSession, generateLocalInsights } from "./domain/analysis.js";
-import { buildAiPrompt } from "./domain/ai-context.js";
 import { parseRaceBoxCsv } from "./domain/csv.js";
 import { distanceMeters, identifyTrack } from "./domain/tracks.js";
 import { splitSessionIntoLaps } from "./domain/laps.js";
 import { applyTranslations, getLanguage, onLanguageChange, setLanguage, t } from "./i18n.js";
-import { analyzeLog, cloudConfigured, currentUser, deleteLog, loadLog, loadLogs, renameLog, saveLog, signIn, signOut, signUp } from "./cloud/api.js";
+import { analyzeLog, askAiFollowUp, cloudConfigured, currentUser, deleteLog, loadLog, loadLogs, renameLog, saveLog, signIn, signOut, signUp } from "./cloud/api.js";
 import "./demo.js";
 
 const elements = Object.fromEntries([...document.querySelectorAll("[id]")].map((element) => [element.id, element]));
-const state = { client: null, connected: false, deviceName: "", deviceModel: "", latestTelemetry: null, storage: null, sessions: [], selectedSession: null, analysis: null, selectedLapNumber: null, comparisonLapNumber: null, cursorProgress: null, chartView: { start: 0, end: 1 }, trackView: { scale: 1, offsetX: 0, offsetY: 0 }, telemetryMetric: "speed", track: null, user: null, cloudLogs: [], pollTimer: null, memoryBusy: false, aiReport: null, aiHoverIndex: null, aiSelectedIndex: null };
+const state = { client: null, connected: false, deviceName: "", deviceModel: "", latestTelemetry: null, storage: null, sessions: [], selectedSession: null, analysis: null, selectedLapNumber: null, comparisonLapNumber: null, cursorProgress: null, chartView: { start: 0, end: 1 }, trackView: { scale: 1, offsetX: 0, offsetY: 0 }, telemetryMetric: "speed", track: null, user: null, cloudLogs: [], pollTimer: null, memoryBusy: false, aiReport: null, aiAnalysisId: null, aiHoverIndex: null, aiSelectedIndex: null };
 const trackAiMarkerAreas = new WeakMap();
 const testMode = new URLSearchParams(location.search).has("mock");
 let accountMode = "signin";
@@ -681,7 +680,7 @@ async function deleteCloudSession(cloudId) {
       else {
         elements.durationValue.textContent = "—"; elements.durationMeta.textContent = t("summary.selected");
         elements.maxSpeedValue.textContent = "—"; elements.sampleRateValue.textContent = "—";
-        elements.trackTitle.textContent = t("track.empty"); elements.copyAiButton.disabled = true;
+        elements.trackTitle.textContent = t("track.empty"); elements.analyzeAiButton.disabled = true;
         elements.insightsList.innerHTML = `<li>${t("insights.empty")}</li>`;
         drawTrack(); drawCharts();
       }
@@ -716,18 +715,26 @@ function updateLapView() {
 
 function clearAiReport() {
   state.aiReport = null;
+  state.aiAnalysisId = null;
   state.aiHoverIndex = null;
   state.aiSelectedIndex = null;
   elements.aiResults.hidden = true;
   elements.aiReport.hidden = true;
   elements.aiReport.innerHTML = "";
+  elements.aiFollowup.hidden = true;
+  elements.aiFollowupAnswer.hidden = true;
+  elements.aiFollowupAnswer.innerHTML = "";
+  elements.aiQuestion.value = "";
+  elements.aiQuestionStatus.textContent = "";
+  elements.askAiButton.disabled = true;
   elements.aiTrackLegend.hidden = true;
   elements.aiReportJumpButton.classList.remove("ready");
   drawTrack();
 }
 
-function renderAiReport(report) {
+function renderAiReport(report, analysisId) {
   state.aiReport = report;
+  state.aiAnalysisId = analysisId;
   state.aiHoverIndex = null;
   state.aiSelectedIndex = null;
   elements.aiResults.hidden = false;
@@ -770,6 +777,12 @@ function renderAiReport(report) {
     <article class="ai-report-card"><strong>${escapeHtml(t("ai.consistency"))}</strong><span>${escapeHtml(report.consistency?.assessment)}</span><small>${Number(report.consistency?.lapTimeSpreadSeconds || 0).toFixed(3)} s</small></article>
     ${warnings ? `<div><p class="eyebrow">${escapeHtml(t("ai.warnings"))}</p>${warnings}</div>` : ""}`;
   elements.aiReport.hidden = false;
+  elements.aiFollowup.hidden = false;
+  elements.aiFollowupAnswer.hidden = true;
+  elements.aiFollowupAnswer.innerHTML = "";
+  elements.aiQuestion.value = "";
+  elements.aiQuestionStatus.textContent = "";
+  elements.askAiButton.disabled = true;
   elements.aiReport.querySelectorAll("[data-ai-progress]").forEach((card) => {
     card.addEventListener("mouseenter", () => { state.aiHoverIndex = Number(card.dataset.aiIndex); drawTrack(); });
     card.addEventListener("mouseleave", () => { state.aiHoverIndex = null; drawTrack(); });
@@ -791,16 +804,43 @@ async function runAiAnalysis() {
     const result = await analyzeLog(cloudId, {
       primaryLap: state.selectedLapNumber,
       comparisonLap: state.comparisonLapNumber,
-      question: elements.aiQuestion.value.trim(),
+      question: "",
       language: getLanguage(),
     });
-    renderAiReport(result.analysis.report);
+    renderAiReport(result.analysis.report, result.analysis.id);
     elements.copyStatus.textContent = `${t("ai.reportReady")}${result.cached ? " · cache" : ""}`;
   } catch (error) {
     elements.copyStatus.textContent = error.message;
   } finally {
     elements.analyzeAiButton.disabled = !state.selectedSession?.cloudId || !state.analysis?.laps.length;
     elements.analyzeAiButton.textContent = t("ai.analyze");
+  }
+}
+
+async function askAiQuestion() {
+  const question = elements.aiQuestion.value.trim();
+  if (!state.aiAnalysisId || question.length < 3) return;
+  elements.askAiButton.disabled = true;
+  elements.askAiButton.textContent = t("ai.asking");
+  elements.aiQuestionStatus.textContent = t("ai.asking");
+  elements.aiFollowupAnswer.hidden = true;
+  try {
+    const result = await askAiFollowUp(state.aiAnalysisId, question);
+    const followUp = result.followUp || {};
+    const evidence = (followUp.evidence || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("");
+    const warnings = (followUp.dataWarnings || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("");
+    elements.aiFollowupAnswer.innerHTML = `
+      <strong>${escapeHtml(t("ai.answer"))}</strong>
+      <p>${escapeHtml(followUp.answer)}</p>
+      ${evidence ? `<b>${escapeHtml(t("ai.evidence"))}</b><ul>${evidence}</ul>` : ""}
+      ${warnings ? `<b>${escapeHtml(t("ai.warnings"))}</b><ul class="ai-warnings">${warnings}</ul>` : ""}`;
+    elements.aiFollowupAnswer.hidden = false;
+    elements.aiQuestionStatus.textContent = t("ai.answerReady");
+  } catch (error) {
+    elements.aiQuestionStatus.textContent = error.message;
+  } finally {
+    elements.askAiButton.disabled = elements.aiQuestion.value.trim().length < 3;
+    elements.askAiButton.textContent = t("ai.ask");
   }
 }
 
@@ -830,7 +870,6 @@ async function selectSession(id) {
     state.comparisonLapNumber = ordered[1]?.number ?? null;
   }
   elements.sourceLabel.textContent = `${state.deviceName} · память устройства`;
-  elements.copyAiButton.disabled = false;
   elements.analyzeAiButton.disabled = !state.selectedSession.cloudId || !state.analysis.laps.length;
   elements.copyStatus.textContent = state.selectedSession.cloudId ? t("ai.ready") : t("ai.cloudRequired");
   elements.insightsList.innerHTML = generateLocalInsights(state.analysis, t).map((insight) => `<li>${insight}</li>`).join("");
@@ -1125,11 +1164,11 @@ elements.unlockForm.addEventListener("submit", async (event) => {
     renderStorage(await state.client.readStorageStatus()); setHint("Память разблокирована.");
   } catch (error) { setHint(error.message, true); }
 });
-elements.copyAiButton.addEventListener("click", async () => {
-  await navigator.clipboard.writeText(buildAiPrompt(state.analysis, elements.aiQuestion.value));
-  elements.copyStatus.textContent = "AI-контекст выбранной BLE-сессии скопирован.";
-});
 elements.analyzeAiButton.addEventListener("click", runAiAnalysis);
+elements.askAiButton.addEventListener("click", askAiQuestion);
+elements.aiQuestion.addEventListener("input", () => {
+  elements.askAiButton.disabled = !state.aiAnalysisId || elements.aiQuestion.value.trim().length < 3;
+});
 elements.aiReportJumpButton.addEventListener("click", () => showView("ai"));
 elements.aiSessionSelect.addEventListener("change", async () => {
   if (elements.aiSessionSelect.value) await selectSession(elements.aiSessionSelect.value);

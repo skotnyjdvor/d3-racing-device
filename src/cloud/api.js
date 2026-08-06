@@ -105,6 +105,13 @@ export async function analyzeLog(id, options = {}) {
   });
 }
 
+export async function askAiFollowUp(analysisId, question) {
+  return request(`/api/ai-analyses/${analysisId}/follow-up`, {
+    method: "POST",
+    body: JSON.stringify({ question }),
+  });
+}
+
 export async function loadAiAnalyses(id) {
   return request(`/api/logs/${id}/ai-analyses`);
 }

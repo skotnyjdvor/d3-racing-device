@@ -60,6 +60,25 @@ export const AI_REPORT_SCHEMA = {
   },
 };
 
+export const AI_FOLLOWUP_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["answer", "evidence", "dataWarnings"],
+  properties: {
+    answer: { type: "string" },
+    evidence: {
+      type: "array",
+      maxItems: 6,
+      items: { type: "string" },
+    },
+    dataWarnings: {
+      type: "array",
+      maxItems: 4,
+      items: { type: "string" },
+    },
+  },
+};
+
 const rounded = (value, digits = 3) => Number(Number(value || 0).toFixed(digits));
 
 function distanceSeries(points) {
@@ -197,7 +216,8 @@ export function buildTelemetrySnapshot(points, options = {}) {
     };
   }) : [];
   return {
-    schema: "laptrace-telemetry-snapshot/v5",
+    schema: "laptrace-telemetry-snapshot/v6",
+    analysisMode: "standard-report/v1",
     language: ["ru", "en", "pl"].includes(options.language) ? options.language : "ru",
     question: String(options.question || "").trim().slice(0, 500),
     track: track ? { id: track.id, name: track.name } : null,
@@ -303,6 +323,7 @@ export async function generateAiReport(snapshot, { apiKey = getOpenAiApiKey(), m
       instructions: [
         "You are a motorsport telemetry engineer.",
         "Use only facts present in the telemetry snapshot.",
+        "When the snapshot question is empty, produce the standard engineering report: summary, strongest measured advantages, every authoritative loss zone, consistency, and data limitations.",
         "Use detectedPhases to compare braking points, corner entry/apex/exit speeds, and acceleration zones by distance percentage.",
         "deltaLossZones is authoritative and describes where the comparison lap loses time to the primary lap: return exactly one timeLosses item for each supplied zone and reference it only by zoneId.",
         "For every time-loss zone, compare gForces.primary with gForces.comparison. atLossPoint contains exact longitudinal and lateral G at the strongest delta change; zone contains measured means and signed peaks across the interval.",
@@ -329,4 +350,49 @@ export async function generateAiReport(snapshot, { apiKey = getOpenAiApiKey(), m
   const text = outputText(body);
   if (!text) throw Object.assign(new Error("AI returned no report"), { status: 502 });
   return { report: JSON.parse(text), responseId: body.id, usage: body.usage ?? null, model: body.model ?? model };
+}
+
+export async function generateAiFollowUp(snapshot, report, question, { apiKey = getOpenAiApiKey(), model = AI_MODEL } = {}) {
+  if (!apiKey) {
+    const error = new Error("AI analysis is not configured");
+    error.status = 503;
+    throw error;
+  }
+  const normalizedQuestion = String(question || "").trim().slice(0, 500);
+  if (normalizedQuestion.length < 3) {
+    const error = new Error("Question is too short");
+    error.status = 422;
+    throw error;
+  }
+  const response = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model,
+      store: false,
+      reasoning: { effort: "medium" },
+      instructions: [
+        "You are answering a follow-up question about an existing motorsport telemetry report.",
+        "Use only the supplied telemetry snapshot and grounded report. Do not move, add, or reinterpret authoritative delta-loss zones.",
+        "Support the answer with measured lap time, speed, longitudinal G, lateral G, delta, phase, or data-quality evidence from the input.",
+        "Clearly distinguish measured observations from hypotheses. Accelerometer signs depend on device mounting.",
+        "If the question cannot be answered from the supplied data, say so directly and add a data warning.",
+        "Answer in the snapshot language and keep the response concise and actionable.",
+      ].join(" "),
+      input: JSON.stringify({ question: normalizedQuestion, telemetrySnapshot: snapshot, groundedReport: report }),
+      text: {
+        verbosity: "low",
+        format: { type: "json_schema", name: "laptrace_ai_follow_up", strict: true, schema: AI_FOLLOWUP_SCHEMA },
+      },
+    }),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error(body.error?.message || `OpenAI API error ${response.status}`);
+    error.status = response.status === 429 ? 429 : 502;
+    throw error;
+  }
+  const text = outputText(body);
+  if (!text) throw Object.assign(new Error("AI returned no answer"), { status: 502 });
+  return { followUp: JSON.parse(text), responseId: body.id, usage: body.usage ?? null, model: body.model ?? model };
 }
