@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { parseRaceBoxCsv } from "../src/domain/csv.js";
-import { AI_FOLLOWUP_SCHEMA, AI_PILOT_LANGUAGE_RULES, AI_REPORT_SCHEMA, buildTelemetrySnapshot, generateAiFollowUp, groundAiReport, snapshotCacheKey } from "../server/ai.mjs";
+import { AI_FOLLOWUP_SCHEMA, AI_PILOT_LANGUAGE_RULES, AI_REPORT_SCHEMA, AI_STANDARD_REPORT_RULES, buildTelemetrySnapshot, generateAiFollowUp, groundAiReport, snapshotCacheKey } from "../server/ai.mjs";
 
 const points = parseRaceBoxCsv(fs.readFileSync(new URL("../src/fixtures/viterbo-session-2026-07-10.csv", import.meta.url), "utf8"));
 
@@ -21,9 +21,10 @@ test("builds a compact AI snapshot from a full telemetry log", () => {
   assert.ok(snapshot.comparison.deltaLossZones.zones.every((zone) => Number.isFinite(zone.gForces.primary.atLossPoint.lateralG)));
   assert.ok(snapshot.comparison.deltaLossZones.zones.every((zone) => Number.isFinite(zone.gForces.comparison.zone.peakLongitudinalG)));
   assert.ok(snapshot.comparison.deltaLossZones.zones.every((zone) => Number.isFinite(zone.gForces.comparison.zone.peakLateralG)));
+  assert.ok(snapshot.comparison.deltaLossZones.zones.every((zone) => ["beforeCorner", "inCorner", "afterCorner"].includes(zone.driverLocation)));
   assert.ok(JSON.stringify(snapshot).length < 25_000);
-  assert.equal(snapshot.schema, "laptrace-telemetry-snapshot/v7");
-  assert.equal(snapshot.analysisMode, "standard-report/v2-driver-language");
+  assert.equal(snapshot.schema, "laptrace-telemetry-snapshot/v8");
+  assert.equal(snapshot.analysisMode, "standard-report/v3-qualitative-driver-language");
 });
 
 test("AI cache key is deterministic and input-sensitive", () => {
@@ -52,6 +53,9 @@ test("AI report language is written for drivers without unexplained telemetry ja
   assert.match(AI_PILOT_LANGUAGE_RULES, /racing driver/);
   assert.match(AI_PILOT_LANGUAGE_RULES, /what happened/);
   assert.match(AI_PILOT_LANGUAGE_RULES, /Do not use unexplained jargon/);
+  assert.match(AI_STANDARD_REPORT_RULES, /only as hidden evidence/);
+  assert.match(AI_STANDARD_REPORT_RULES, /Do not include digits/);
+  assert.match(AI_STANDARD_REPORT_RULES, /before the corner, in the corner, or after the corner/);
 });
 
 test("AI follow-up rejects an empty question before calling the provider", async () => {
@@ -71,6 +75,14 @@ test("grounds AI loss positions and deltas in deterministic telemetry zones", ()
   assert.equal(report.timeLosses[0].distancePercent, firstZone.distancePercent);
   assert.equal(report.timeLosses[0].deltaSeconds, firstZone.deltaSeconds);
   assert.deepEqual(report.timeLosses[0].gForces, firstZone.gForces);
+  assert.equal(report.timeLosses[0].driverLocation, firstZone.driverLocation);
   assert.equal(report.timeLosses[0].observation, "Model explanation");
   assert.equal(report.timeLosses.length, snapshot.comparison.deltaLossZones.zones.length);
+});
+
+test("fallback AI loss text does not expose exact telemetry figures", () => {
+  const snapshot = buildTelemetrySnapshot(points, { primaryLap: 4, comparisonLap: 6, language: "ru" });
+  const report = groundAiReport({ timeLosses: [] }, snapshot);
+  assert.doesNotMatch(report.timeLosses[0].observation, /\d/);
+  assert.doesNotMatch(report.timeLosses[0].recommendation, /\d/);
 });

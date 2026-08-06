@@ -742,29 +742,15 @@ function renderAiReport(report, analysisId) {
   elements.aiReportJumpButton.classList.add("ready");
   const strengths = (report.strengths || []).map((item) => `
     <article class="ai-report-card"><strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(item.evidence)}</span></article>`).join("");
-  const formatG = (value) => `${Number(value || 0) >= 0 ? "+" : ""}${Number(value || 0).toFixed(2)} g`;
-  const lapLabel = (number) => `${t("ai.lapShort")}${number || "—"}`;
   const losses = (report.timeLosses || []).map((item, index) => {
-    const primaryG = item.gForces?.primary;
-    const comparisonG = item.gForces?.comparison;
     const phaseLabel = item.phaseType ? t(`ai.phase.${item.phaseType}`) : "";
-    const gForces = primaryG && comparisonG ? `
-      <div class="ai-g-comparison">
-        <b>${escapeHtml(t("ai.gForces"))}</b>
-        <div class="ai-g-head"><span></span><span>${escapeHtml(lapLabel(state.selectedLapNumber))}</span><span>${escapeHtml(lapLabel(state.comparisonLapNumber))}</span></div>
-        <div><span>${escapeHtml(t("ai.longitudinalPoint"))}</span><em>${formatG(primaryG.atLossPoint.longitudinalG)}</em><em>${formatG(comparisonG.atLossPoint.longitudinalG)}</em></div>
-        <div><span>${escapeHtml(t("ai.lateralPoint"))}</span><em>${formatG(primaryG.atLossPoint.lateralG)}</em><em>${formatG(comparisonG.atLossPoint.lateralG)}</em></div>
-        <div><span>${escapeHtml(t("ai.longitudinalPeak"))}</span><em>${formatG(primaryG.zone.peakLongitudinalG)}</em><em>${formatG(comparisonG.zone.peakLongitudinalG)}</em></div>
-        <div><span>${escapeHtml(t("ai.lateralPeak"))}</span><em>${formatG(primaryG.zone.peakLateralG)}</em><em>${formatG(comparisonG.zone.peakLateralG)}</em></div>
-        <small>${escapeHtml(t("ai.gHint"))}</small>
-      </div>` : "";
+    const locationLabel = t(`ai.location.${item.driverLocation || "betweenCorners"}`);
     return `
     <button class="ai-report-card" type="button" data-ai-index="${index}" data-ai-progress="${Number(item.distancePercent) / 100}">
       <i class="ai-marker-index">${index + 1}</i>
-      <strong>${Number(item.distancePercent).toFixed(1)}% · ${Number(item.deltaSeconds) >= 0 ? "+" : ""}${Number(item.deltaSeconds).toFixed(3)} s</strong>
-      <small class="ai-phase">${escapeHtml(item.zoneId || "ZONE")} · ${Number(item.startPercent).toFixed(1)}–${Number(item.endPercent).toFixed(1)}%${phaseLabel ? ` · ${escapeHtml(phaseLabel)}` : ""}</small>
+      <strong>${escapeHtml(locationLabel)}</strong>
+      <small class="ai-phase">${escapeHtml(item.zoneId || "ZONE")}${phaseLabel ? ` · ${escapeHtml(phaseLabel)}` : ""}</small>
       <span>${escapeHtml(item.observation)}</span>
-      ${gForces}
       <small><b>${escapeHtml(t("ai.hypothesis"))}:</b> ${escapeHtml(item.hypothesis)}</small>
       <small><b>${escapeHtml(t("ai.recommendation"))}:</b> ${escapeHtml(item.recommendation)}</small>
       <small class="ai-confidence">${escapeHtml(t("ai.confidence", { value: item.confidence }))}</small>
@@ -776,7 +762,7 @@ function renderAiReport(report, analysisId) {
     <div><p class="eyebrow">${escapeHtml(t("ai.summary"))}</p><div class="ai-report-summary">${escapeHtml(report.summary)}</div></div>
     ${strengths ? `<div><p class="eyebrow">${escapeHtml(t("ai.strengths"))}</p><div class="ai-report-grid">${strengths}</div></div>` : ""}
     ${losses ? `<div><p class="eyebrow">${escapeHtml(t("ai.losses"))}</p><div class="ai-report-grid">${losses}</div></div>` : ""}
-    <article class="ai-report-card"><strong>${escapeHtml(t("ai.consistency"))}</strong><span>${escapeHtml(report.consistency?.assessment)}</span><small>${Number(report.consistency?.lapTimeSpreadSeconds || 0).toFixed(3)} s</small></article>
+    <article class="ai-report-card"><strong>${escapeHtml(t("ai.consistency"))}</strong><span>${escapeHtml(report.consistency?.assessment)}</span></article>
     ${warnings ? `<div><p class="eyebrow">${escapeHtml(t("ai.warnings"))}</p>${warnings}</div>` : ""}`;
   elements.aiReport.hidden = false;
   elements.aiFollowup.hidden = false;

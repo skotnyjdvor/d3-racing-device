@@ -13,8 +13,15 @@ export const AI_PILOT_LANGUAGE_RULES = [
   "Use short sentences and familiar driving terms: braking point, corner entry, middle of the corner, corner exit, acceleration, speed, and time gained or lost.",
   "Do not use unexplained jargon, raw phase IDs, sensor-axis names, mathematical terms, or words such as apex, derivative, polarity, and cumulative delta in the prose.",
   "If a technical term is unavoidable, explain it immediately in plain language.",
-  "Keep the important measured numbers, but explain what each number means for the driver instead of listing telemetry without interpretation.",
   "For every time-loss zone, say what happened, what may have caused it, and what the driver should try on the next lap.",
+].join(" ");
+
+export const AI_STANDARD_REPORT_RULES = [
+  "Use exact telemetry, including speed, time delta, distance, and G-forces, only as hidden evidence for reasoning.",
+  "Do not include digits, exact measurements, units, percentages, G-force values, or sensor readings in any user-visible report field.",
+  "Do not mention G-forces or accelerometer signals in the report. Translate them into a plain conclusion about braking, turning, or acceleration only when supported by the other signals.",
+  "Use qualitative comparisons such as earlier or later, faster or slower, stronger or smoother.",
+  "Describe every loss location only with its supplied driverLocation: before the corner, in the corner, or after the corner. Never expose distancePercent, startPercent, or endPercent.",
 ].join(" ");
 
 export const AI_REPORT_SCHEMA = {
@@ -22,7 +29,7 @@ export const AI_REPORT_SCHEMA = {
   additionalProperties: false,
   required: ["summary", "strengths", "timeLosses", "consistency", "dataWarnings"],
   properties: {
-    summary: { type: "string", description: "Two or three plain-language sentences with the main takeaway for the driver." },
+    summary: { type: "string", description: "Two or three plain-language sentences with the main takeaway for the driver, without exact measurements or digits." },
     strengths: {
       type: "array",
       maxItems: 4,
@@ -32,7 +39,7 @@ export const AI_REPORT_SCHEMA = {
         required: ["title", "evidence"],
         properties: {
           title: { type: "string", description: "A short driver-friendly title without telemetry jargon." },
-          evidence: { type: "string", description: "A measured fact followed by what it means on track." },
+          evidence: { type: "string", description: "A qualitative comparison derived from measurements, followed by what it means on track; do not quote numbers or units." },
         },
       },
     },
@@ -45,7 +52,7 @@ export const AI_REPORT_SCHEMA = {
         required: ["zoneId", "observation", "hypothesis", "recommendation", "confidence"],
         properties: {
           zoneId: { type: "string" },
-          observation: { type: "string", description: "What happened on track, in words a driver can immediately understand." },
+          observation: { type: "string", description: "What happened before, in, or after the corner, in words a driver can understand and without exact figures." },
           hypothesis: { type: "string", description: "A possible cause stated as a possibility, not as a measured fact." },
           recommendation: { type: "string", description: "One specific action the driver can safely test on the next lap." },
           confidence: { type: "string", enum: ["low", "medium", "high"] },
@@ -57,7 +64,7 @@ export const AI_REPORT_SCHEMA = {
       additionalProperties: false,
       required: ["assessment", "lapTimeSpreadSeconds"],
       properties: {
-        assessment: { type: "string", description: "A plain-language assessment of how repeatable the laps were." },
+        assessment: { type: "string", description: "A qualitative plain-language assessment of lap repeatability without exact figures." },
         lapTimeSpreadSeconds: { type: "number", minimum: 0 },
       },
     },
@@ -181,6 +188,20 @@ function closestPhase(events, distancePercent, lapRole = "primary") {
     : { phaseType: "transition", phaseId: "" };
 }
 
+function locationAroundCorner(corners, distancePercent) {
+  if (!corners?.length) return { driverLocation: "betweenCorners", cornerId: "" };
+  const ranked = corners.map((corner) => {
+    if (distancePercent < corner.startPercent) {
+      return { corner, driverLocation: "beforeCorner", distance: corner.startPercent - distancePercent };
+    }
+    if (distancePercent > corner.endPercent) {
+      return { corner, driverLocation: "afterCorner", distance: distancePercent - corner.endPercent };
+    }
+    return { corner, driverLocation: "inCorner", distance: 0 };
+  }).sort((a, b) => a.distance - b.distance);
+  return { driverLocation: ranked[0].driverLocation, cornerId: ranked[0].corner.id };
+}
+
 export function buildTelemetrySnapshot(points, options = {}) {
   const track = identifyTrack(points);
   const prepared = splitSessionIntoLaps(points, track);
@@ -216,6 +237,7 @@ export function buildTelemetrySnapshot(points, options = {}) {
     return {
       ...zone,
       ...closestPhase(comparisonEvents, zone.distancePercent, "comparison"),
+      ...locationAroundCorner(comparisonEvents.corners, zone.distancePercent),
       primarySpeedKph: detailedPrimary[index].speedKph,
       comparisonSpeedKph: detailedComparison[index].speedKph,
       gForces: {
@@ -225,8 +247,8 @@ export function buildTelemetrySnapshot(points, options = {}) {
     };
   }) : [];
   return {
-    schema: "laptrace-telemetry-snapshot/v7",
-    analysisMode: "standard-report/v2-driver-language",
+    schema: "laptrace-telemetry-snapshot/v8",
+    analysisMode: "standard-report/v3-qualitative-driver-language",
     language: ["ru", "en", "pl"].includes(options.language) ? options.language : "ru",
     question: String(options.question || "").trim().slice(0, 500),
     track: track ? { id: track.id, name: track.name } : null,
@@ -272,14 +294,14 @@ export function groundAiReport(report, snapshot) {
   const zones = snapshot.comparison?.deltaLossZones?.zones || [];
   const generatedByZone = new Map((report.timeLosses || []).map((item) => [item.zoneId, item]));
   const fallback = snapshot.language === "ru" ? {
-    observation: (zone) => `Сравнительный круг потерял ${zone.deltaSeconds.toFixed(3)} с относительно основного между ${zone.startPercent}% и ${zone.endPercent}% дистанции.`,
-    hypothesis: "Причина не установлена по доступным сигналам.", recommendation: "Сравнить скорость и перегрузки в этой зоне.",
+    observation: () => "На этом участке сравниваемый круг теряет время относительно основного.",
+    hypothesis: "По доступным данным нельзя уверенно назвать причину.", recommendation: "На следующем круге сравнить момент торможения, скорость в повороте и начало разгона.",
   } : snapshot.language === "pl" ? {
-    observation: (zone) => `Okrążenie porównawcze straciło ${zone.deltaSeconds.toFixed(3)} s do głównego między ${zone.startPercent}% a ${zone.endPercent}% dystansu.`,
-    hypothesis: "Przyczyny nie ustalono na podstawie dostępnych sygnałów.", recommendation: "Porównaj prędkość i przeciążenia w tej strefie.",
+    observation: () => "Na tym odcinku okrążenie porównawcze traci czas do głównego.",
+    hypothesis: "Dostępne dane nie pozwalają pewnie określić przyczyny.", recommendation: "Na kolejnym okrążeniu porównaj moment hamowania, prędkość w zakręcie i początek przyspieszania.",
   } : {
-    observation: (zone) => `The comparison lap lost ${zone.deltaSeconds.toFixed(3)} s to the primary lap between ${zone.startPercent}% and ${zone.endPercent}% distance.`,
-    hypothesis: "The available signals do not establish the cause.", recommendation: "Compare speed and acceleration traces in this zone.",
+    observation: () => "The comparison lap loses time to the primary lap in this section.",
+    hypothesis: "The available data does not establish the cause with confidence.", recommendation: "On the next lap, compare the braking point, corner speed, and the start of acceleration.",
   };
   return {
     ...report,
@@ -299,6 +321,8 @@ export function groundAiReport(report, snapshot) {
         endPercent: zone.endPercent,
         phaseType: zone.phaseType,
         phaseId: zone.phaseId,
+        driverLocation: zone.driverLocation,
+        cornerId: zone.cornerId,
         primarySpeedKph: zone.primarySpeedKph,
         comparisonSpeedKph: zone.comparisonSpeedKph,
         gForces: zone.gForces,
@@ -332,9 +356,10 @@ export async function generateAiReport(snapshot, { apiKey = getOpenAiApiKey(), m
       instructions: [
         "You are a racing coach who explains measured telemetry in language every track driver can understand.",
         AI_PILOT_LANGUAGE_RULES,
+        AI_STANDARD_REPORT_RULES,
         "Use only facts present in the telemetry snapshot.",
         "When the snapshot question is empty, produce the standard engineering report: summary, strongest measured advantages, every authoritative loss zone, consistency, and data limitations.",
-        "Use detectedPhases to compare braking points, corner entry/apex/exit speeds, and acceleration zones by distance percentage.",
+        "Use detectedPhases to compare braking points, corner entry, middle, exit speeds, and acceleration zones, but describe the result only through driverLocation.",
         "deltaLossZones is authoritative and describes where the comparison lap loses time to the primary lap: return exactly one timeLosses item for each supplied zone and reference it only by zoneId.",
         "For every time-loss zone, compare gForces.primary with gForces.comparison. atLossPoint contains exact longitudinal and lateral G at the strongest delta change; zone contains measured means and signed peaks across the interval.",
         "Use longitudinal G to support braking or acceleration hypotheses and lateral G to support cornering-load hypotheses, but account for the mounting-dependent sign and do not treat G-force alone as driver input.",
