@@ -23,8 +23,9 @@ test("builds a compact AI snapshot from a full telemetry log", () => {
   assert.ok(snapshot.comparison.deltaLossZones.zones.every((zone) => Number.isFinite(zone.gForces.comparison.zone.peakLateralG)));
   assert.ok(snapshot.comparison.deltaLossZones.zones.every((zone) => ["beforeCorner", "inCorner", "afterCorner"].includes(zone.driverLocation)));
   assert.ok(JSON.stringify(snapshot).length < 25_000);
-  assert.equal(snapshot.schema, "laptrace-telemetry-snapshot/v8");
-  assert.equal(snapshot.analysisMode, "standard-report/v3-qualitative-driver-language");
+  assert.equal(snapshot.schema, "laptrace-telemetry-snapshot/v9");
+  assert.equal(snapshot.analysisMode, "standard-report/v4-quality-aware-compact-advice");
+  assert.equal(snapshot.session.dataQuality.assessment.level, "warning");
 });
 
 test("AI cache key is deterministic and input-sensitive", () => {
@@ -72,7 +73,7 @@ test("grounds AI loss positions and deltas in deterministic telemetry zones", ()
   const firstZone = snapshot.comparison.deltaLossZones.zones[0];
   const report = groundAiReport({ timeLosses: [{
     zoneId: firstZone.id, distancePercent: 99, deltaSeconds: 99,
-    observation: "Model explanation", hypothesis: "Model hypothesis", recommendation: "Model recommendation", confidence: "medium",
+    observation: "Model explanation", hypothesis: "Model hypothesis", recommendation: "Model recommendation", confidence: "high",
   }] }, snapshot);
   assert.equal(report.timeLosses[0].distancePercent, firstZone.distancePercent);
   assert.equal(report.timeLosses[0].startPercent, firstZone.startPercent);
@@ -81,7 +82,15 @@ test("grounds AI loss positions and deltas in deterministic telemetry zones", ()
   assert.deepEqual(report.timeLosses[0].gForces, firstZone.gForces);
   assert.equal(report.timeLosses[0].driverLocation, firstZone.driverLocation);
   assert.equal(report.timeLosses[0].observation, "Model explanation");
+  assert.equal(report.timeLosses[0].confidence, "medium");
   assert.equal(report.timeLosses.length, snapshot.comparison.deltaLossZones.zones.length);
+
+  const poorSnapshot = structuredClone(snapshot);
+  poorSnapshot.session.dataQuality.assessment.level = "poor";
+  const poorReport = groundAiReport({ timeLosses: [{
+    zoneId: firstZone.id, observation: "Observation", hypothesis: "Hypothesis", recommendation: "Recommendation", confidence: "high",
+  }] }, poorSnapshot);
+  assert.equal(poorReport.timeLosses[0].confidence, "low");
 });
 
 test("fallback AI loss text does not expose exact telemetry figures", () => {

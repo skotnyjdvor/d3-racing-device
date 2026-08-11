@@ -23,4 +23,29 @@ test("calculates sample rate and lap metrics", () => {
   assert.equal(analysis.laps[0].durationMs, 80);
   assert.equal(analysis.session.maxSpeed, 40);
   assert.equal(analysis.quality.gapCount, 0);
+  assert.equal(analysis.quality.assessment.level, "warning");
+  assert.equal(analysis.quality.assessment.checks.gps, "unknown");
+});
+
+test("rates GPS, stream continuity, and device mounting deterministically", () => {
+  const makePoint = (index) => ({
+    time: new Date(1_700_000_000_000 + index * 40).toISOString(), timeMs: 1_700_000_000_000 + index * 40,
+    latitude: 42 + index * 1e-7, longitude: 12 + index * 1e-7, speed: 2,
+    gForceX: 0, gForceY: 0, gForceZ: 1, gyroZ: 0, lap: 1,
+    horizontalAccuracy: 1.2, satellites: 14, fixStatus: 3, fixStatusFlags: 1,
+  });
+  const good = analyzeSession(Array.from({ length: 30 }, (_, index) => makePoint(index)));
+  assert.equal(good.quality.assessment.level, "good");
+  assert.deepEqual(good.quality.assessment.checks, { gps: "good", stream: "good", mounting: "good" });
+
+  const poorPoints = Array.from({ length: 30 }, (_, index) => ({
+    ...makePoint(index), horizontalAccuracy: 12, satellites: 4, fixStatus: 2,
+    gForceX: .95, gForceZ: .15,
+    timeMs: 1_700_000_000_000 + index * 40 + (index >= 15 ? 1000 : 0),
+  }));
+  const poor = analyzeSession(poorPoints);
+  assert.equal(poor.quality.assessment.level, "poor");
+  assert.equal(poor.quality.assessment.checks.gps, "poor");
+  assert.equal(poor.quality.assessment.checks.stream, "poor");
+  assert.equal(poor.quality.assessment.checks.mounting, "poor");
 });

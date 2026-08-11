@@ -7,6 +7,72 @@ function median(values) {
   return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
 }
 
+const QUALITY_RANK = { good: 0, unknown: 1, warning: 2, poor: 3 };
+const worstQuality = (levels) => levels.reduce((worst, level) => QUALITY_RANK[level] > QUALITY_RANK[worst] ? level : worst, "good");
+const finiteValues = (points, key) => points
+  .map((point) => point[key])
+  .filter((value) => value !== null && value !== "" && Number.isFinite(Number(value)))
+  .map(Number);
+
+export function assessTelemetryQuality(points, { sampleRateHz, quality }) {
+  const issues = [];
+  const gpsLevels = [];
+  if (quality.invalidCoordinates > 0) { gpsLevels.push("poor"); issues.push("coordinates"); }
+
+  const horizontalAccuracy = finiteValues(points, "horizontalAccuracy");
+  const satellites = finiteValues(points, "satellites");
+  const fixPoints = points.filter((point) => point.fixStatus !== null && point.fixStatus !== ""
+    && Number.isFinite(Number(point.fixStatus)));
+  if (!horizontalAccuracy.length && !satellites.length && !fixPoints.length) {
+    gpsLevels.push("unknown"); issues.push("gpsUnavailable");
+  }
+  if (horizontalAccuracy.length) {
+    const accuracy = median(horizontalAccuracy);
+    if (accuracy > 5) { gpsLevels.push("poor"); issues.push("gpsWeak"); }
+    else if (accuracy > 2) { gpsLevels.push("warning"); issues.push("gpsFair"); }
+  }
+  if (satellites.length) {
+    const satelliteCount = median(satellites);
+    if (satelliteCount < 7) { gpsLevels.push("poor"); issues.push("gpsWeak"); }
+    else if (satelliteCount < 10) { gpsLevels.push("warning"); issues.push("gpsFair"); }
+  }
+  if (fixPoints.length) {
+    const goodFixes = fixPoints.filter((point) => Number(point.fixStatus) >= 3 && (Number(point.fixStatusFlags) & 1) !== 0).length;
+    const fixRatio = goodFixes / fixPoints.length;
+    if (fixRatio < .9) { gpsLevels.push("poor"); issues.push("gpsFix"); }
+    else if (fixRatio < .98) { gpsLevels.push("warning"); issues.push("gpsFix"); }
+  }
+  const gps = worstQuality(gpsLevels.length ? gpsLevels : ["good"]);
+
+  const streamLevels = [];
+  if (sampleRateHz < 10) { streamLevels.push("poor"); issues.push("sampleRate"); }
+  else if (sampleRateHz < 20) { streamLevels.push("warning"); issues.push("sampleRate"); }
+  if (quality.completeness < .98 || quality.maxGapMs > 500) { streamLevels.push("poor"); issues.push("gaps"); }
+  else if (quality.completeness < .995 || quality.maxGapMs > 120) { streamLevels.push("warning"); issues.push("gaps"); }
+  const stream = worstQuality(streamLevels.length ? streamLevels : ["good"]);
+
+  const stationary = points.filter((point) => Number(point.speed) <= 5
+    && [point.gForceX, point.gForceY, point.gForceZ].every((value) => Number.isFinite(Number(value))));
+  let mounting = "unknown";
+  if (stationary.length >= 20) {
+    const mean = (key) => stationary.reduce((sum, point) => sum + Number(point[key]), 0) / stationary.length;
+    const gravityX = mean("gForceX"); const gravityY = mean("gForceY"); const gravityZ = mean("gForceZ");
+    const gravity = Math.hypot(gravityX, gravityY, gravityZ);
+    const verticalShare = gravity > 0 ? Math.abs(gravityZ) / gravity : 0;
+    if (gravity < .75 || gravity > 1.25 || verticalShare < .65) { mounting = "poor"; issues.push("mounting"); }
+    else if (verticalShare < .85) { mounting = "warning"; issues.push("mounting"); }
+    else mounting = "good";
+  }
+
+  const overallInputs = [stream, gps === "unknown" ? "warning" : gps];
+  if (mounting !== "unknown") overallInputs.push(mounting);
+  return {
+    level: worstQuality(overallInputs),
+    checks: { gps, stream, mounting },
+    issues: [...new Set(issues)],
+  };
+}
+
 function haversine(a, b) {
   const radians = (degrees) => degrees * Math.PI / 180;
   const lat1 = radians(a.latitude);
@@ -56,6 +122,13 @@ export function analyzeSession(points) {
   const gapThreshold = samplePeriodMs * 1.5;
   const gaps = intervals.filter((interval) => interval > gapThreshold);
   const invalidCoordinates = points.filter((point) => Math.abs(point.latitude) > 90 || Math.abs(point.longitude) > 180).length;
+  const quality = {
+    gapCount: gaps.length,
+    maxGapMs: gaps.length ? Math.max(...gaps) : samplePeriodMs,
+    invalidCoordinates,
+    completeness: points.length > 1 ? 1 - gaps.length / intervals.length : 1,
+  };
+  quality.assessment = assessTelemetryQuality(points, { sampleRateHz: 1000 / samplePeriodMs, quality });
   return {
     startedAt: points[0].time,
     endedAt: points.at(-1).time,
@@ -64,12 +137,7 @@ export function analyzeSession(points) {
     session,
     laps,
     fastestLap,
-    quality: {
-      gapCount: gaps.length,
-      maxGapMs: gaps.length ? Math.max(...gaps) : samplePeriodMs,
-      invalidCoordinates,
-      completeness: points.length > 1 ? 1 - gaps.length / intervals.length : 1,
-    },
+    quality,
   };
 }
 

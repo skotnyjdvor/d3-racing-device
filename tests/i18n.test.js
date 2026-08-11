@@ -7,9 +7,12 @@ test("supports Russian, English and Polish translations", () => {
   setLanguage("en");
   assert.equal(t("action.start"), "Start recording");
   assert.equal(t("action.connect"), "Connect LapTrace");
+  assert.equal(t("ai.quality.warning"), "Use the advice with care");
   setLanguage("pl");
   assert.equal(t("action.start"), "Rozpocznij zapis");
   assert.equal(t("device.satellites", { count: 12 }), "Satelity: 12");
+  assert.equal(t("ai.details"), "Dlaczego taka porada");
   setLanguage("ru");
   assert.equal(getLanguage(), "ru");
+  assert.equal(t("ai.confidence.medium"), "средняя");
 });

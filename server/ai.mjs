@@ -14,6 +14,7 @@ export const AI_PILOT_LANGUAGE_RULES = [
   "Do not use unexplained jargon, raw phase IDs, sensor-axis names, mathematical terms, or words such as apex, derivative, polarity, and cumulative delta in the prose.",
   "If a technical term is unavoidable, explain it immediately in plain language.",
   "For every time-loss zone, say what happened, what may have caused it, and what the driver should try on the next lap.",
+  "Keep each of those three parts to one short sentence. Put supporting detail in dataWarnings instead of repeating the recommendation.",
 ].join(" ");
 
 export const AI_STANDARD_REPORT_RULES = [
@@ -52,9 +53,9 @@ export const AI_REPORT_SCHEMA = {
         required: ["zoneId", "observation", "hypothesis", "recommendation", "confidence"],
         properties: {
           zoneId: { type: "string" },
-          observation: { type: "string", description: "What happened before, in, or after the corner, in words a driver can understand and without exact figures." },
-          hypothesis: { type: "string", description: "A possible cause stated as a possibility, not as a measured fact." },
-          recommendation: { type: "string", description: "One specific action the driver can safely test on the next lap." },
+          observation: { type: "string", description: "One short sentence saying what happened before, in, or after the corner, without exact figures." },
+          hypothesis: { type: "string", description: "One short sentence with a possible cause, clearly stated as a possibility rather than a measured fact." },
+          recommendation: { type: "string", description: "One short sentence with one specific action the driver can safely test on the next lap." },
           confidence: { type: "string", enum: ["low", "medium", "high"] },
         },
       },
@@ -247,8 +248,8 @@ export function buildTelemetrySnapshot(points, options = {}) {
     };
   }) : [];
   return {
-    schema: "laptrace-telemetry-snapshot/v8",
-    analysisMode: "standard-report/v3-qualitative-driver-language",
+    schema: "laptrace-telemetry-snapshot/v9",
+    analysisMode: "standard-report/v4-quality-aware-compact-advice",
     language: ["ru", "en", "pl"].includes(options.language) ? options.language : "ru",
     question: String(options.question || "").trim().slice(0, 500),
     track: track ? { id: track.id, name: track.name } : null,
@@ -292,6 +293,7 @@ export function snapshotCacheKey(logId, snapshot, model = AI_MODEL) {
 
 export function groundAiReport(report, snapshot) {
   const zones = snapshot.comparison?.deltaLossZones?.zones || [];
+  const qualityLevel = snapshot.session?.dataQuality?.assessment?.level || "good";
   const generatedByZone = new Map((report.timeLosses || []).map((item) => [item.zoneId, item]));
   const fallback = snapshot.language === "ru" ? {
     observation: () => "На этом участке сравниваемый круг теряет время относительно основного.",
@@ -307,12 +309,15 @@ export function groundAiReport(report, snapshot) {
     ...report,
     timeLosses: zones.map((zone) => {
       const generated = generatedByZone.get(zone.id) || {};
+      const generatedConfidence = generated.confidence || "low";
+      const confidence = qualityLevel === "poor" ? "low"
+        : qualityLevel === "warning" && generatedConfidence === "high" ? "medium" : generatedConfidence;
       return {
         zoneId: zone.id,
         observation: generated.observation || fallback.observation(zone),
         hypothesis: generated.hypothesis || fallback.hypothesis,
         recommendation: generated.recommendation || fallback.recommendation,
-        confidence: generated.confidence || "low",
+        confidence,
         distancePercent: zone.distancePercent,
         deltaSeconds: zone.deltaSeconds,
         deltaStartSeconds: zone.deltaStartSeconds,
@@ -368,6 +373,7 @@ export async function generateAiReport(snapshot, { apiKey = getOpenAiApiKey(), m
         "Separate observations from hypotheses. Never invent track geometry, driver inputs, or vehicle setup.",
         "Use the requested language. Keep recommendations specific and testable.",
         "When data quality is insufficient, add a warning and lower confidence.",
+        "Treat session.dataQuality.assessment as authoritative: never use high confidence when it reports warning, and use only low confidence when it reports poor.",
       ].join(" "),
       input: JSON.stringify(snapshot),
       text: {

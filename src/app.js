@@ -386,11 +386,96 @@ function drawAiSegmentPreview(canvas, item, index) {
   context.fillText(String(index + 1), markerX, markerY + .5);
 }
 
-function drawAiSegmentPreviews() {
+function drawAiSpeedPreview(canvas, item) {
+  const primary = distancePoints(lapPoints(state.selectedLapNumber), 700);
+  const comparison = state.comparisonLapNumber ? distancePoints(lapPoints(state.comparisonLapNumber), 700) : [];
+  const { context, width, height } = canvasContext(canvas);
+  context.fillStyle = "#0b1117";
+  context.fillRect(0, 0, width, height);
+  if (primary.length < 2 || comparison.length < 2 || width < 2 || height < 2) return;
+
+  const focus = Math.max(0, Math.min(1, Number(item.distancePercent) / 100));
+  const rawStart = Math.max(0, Math.min(1, Number(item.startPercent) / 100));
+  const rawEnd = Math.max(0, Math.min(1, Number(item.endPercent) / 100));
+  const zoneStart = Number.isFinite(rawStart) ? rawStart : Math.max(0, focus - .03);
+  const zoneEnd = Number.isFinite(rawEnd) ? rawEnd : Math.min(1, focus + .03);
+  const zoneSpan = zoneEnd >= zoneStart ? zoneEnd - zoneStart : .08;
+  const viewSpan = Math.min(1, Math.max(.14, zoneSpan * 2.4));
+  const viewStart = Math.max(0, Math.min(1 - viewSpan, focus - viewSpan / 2));
+  const viewEnd = viewStart + viewSpan;
+  const visible = [...primary, ...comparison].filter((entry) => entry.progress >= viewStart && entry.progress <= viewEnd);
+  const speeds = visible.map((entry) => Number(entry.point.speed)).filter(Number.isFinite);
+  if (!speeds.length) return;
+
+  const padding = { left: 10, right: 10, top: 27, bottom: 10 };
+  const plotWidth = width - padding.left - padding.right;
+  const plotHeight = height - padding.top - padding.bottom;
+  const minimum = Math.max(0, Math.min(...speeds) - 8);
+  const maximum = Math.max(minimum + 20, Math.max(...speeds) + 8);
+  const x = (progress) => padding.left + (progress - viewStart) / viewSpan * plotWidth;
+  const y = (speed) => padding.top + (maximum - speed) / (maximum - minimum) * plotHeight;
+
+  context.fillStyle = "rgba(255,116,56,.09)";
+  const highlightStart = x(Math.max(viewStart, zoneStart));
+  const highlightEnd = x(Math.min(viewEnd, zoneEnd));
+  context.fillRect(highlightStart, padding.top, Math.max(2, highlightEnd - highlightStart), plotHeight);
+  context.strokeStyle = "rgba(151,166,181,.1)";
+  context.lineWidth = 1;
+  for (let row = 0; row <= 2; row += 1) {
+    const rowY = padding.top + plotHeight * row / 2;
+    context.beginPath(); context.moveTo(padding.left, rowY); context.lineTo(width - padding.right, rowY); context.stroke();
+  }
+
+  const drawLine = (series, color, lineWidth) => {
+    const section = series.filter((entry) => entry.progress >= viewStart && entry.progress <= viewEnd);
+    if (section.length < 2) return;
+    context.strokeStyle = color;
+    context.lineWidth = lineWidth;
+    context.lineCap = "round";
+    context.lineJoin = "round";
+    context.beginPath();
+    section.forEach((entry, pointIndex) => {
+      const pointX = x(entry.progress); const pointY = y(entry.point.speed);
+      if (pointIndex) context.lineTo(pointX, pointY); else context.moveTo(pointX, pointY);
+    });
+    context.stroke();
+  };
+  drawLine(comparison, "#37d7ff", 1.8);
+  drawLine(primary, "#c9ff37", 2.4);
+
+  const focusX = x(focus);
+  context.strokeStyle = "rgba(255,255,255,.55)";
+  context.lineWidth = 1;
+  context.beginPath(); context.moveTo(focusX, padding.top); context.lineTo(focusX, height - padding.bottom); context.stroke();
+  [{ series: primary, color: "#c9ff37" }, { series: comparison, color: "#37d7ff" }].forEach(({ series, color }) => {
+    const point = pointAtProgress(series, focus)?.point;
+    if (!point) return;
+    context.fillStyle = color;
+    context.beginPath(); context.arc(focusX, y(point.speed), 3.5, 0, Math.PI * 2); context.fill();
+  });
+
+  context.font = "700 9px ui-monospace, monospace";
+  context.textBaseline = "middle";
+  const legends = [
+    { x: 10, color: "#c9ff37", label: t("laps.legend", { lap: state.selectedLapNumber }) },
+    { x: Math.min(width / 2, 116), color: "#37d7ff", label: t("laps.legend", { lap: state.comparisonLapNumber }) },
+  ];
+  legends.forEach((legend) => {
+    context.fillStyle = legend.color; context.fillRect(legend.x, 10, 12, 2);
+    context.fillStyle = "#aeb9c4"; context.fillText(legend.label, legend.x + 17, 11);
+  });
+}
+
+function drawAiCardVisuals() {
   elements.aiReport.querySelectorAll("[data-ai-segment]").forEach((canvas) => {
     const index = Number(canvas.dataset.aiSegment);
     const item = state.aiReport?.timeLosses?.[index];
     if (item) drawAiSegmentPreview(canvas, item, index);
+  });
+  elements.aiReport.querySelectorAll("[data-ai-speed]").forEach((canvas) => {
+    const index = Number(canvas.dataset.aiSpeed);
+    const item = state.aiReport?.timeLosses?.[index];
+    if (item) drawAiSpeedPreview(canvas, item);
   });
 }
 
@@ -834,6 +919,24 @@ function clearAiReport() {
   drawTrack();
 }
 
+function aiQualityMarkup() {
+  const assessment = state.analysis?.quality?.assessment;
+  if (!assessment) return "";
+  const validLevels = new Set(["good", "warning", "poor", "unknown"]);
+  const level = ["good", "warning", "poor"].includes(assessment.level) ? assessment.level : "warning";
+  const checks = ["gps", "stream", "mounting"].map((name) => {
+    const checkLevel = validLevels.has(assessment.checks?.[name]) ? assessment.checks[name] : "unknown";
+    return `<div class="ai-quality-check ${checkLevel}"><span>${escapeHtml(t(`ai.qualityCheck.${name}`))}</span><strong>${escapeHtml(t(`ai.qualityLevel.${checkLevel}`))}</strong></div>`;
+  }).join("");
+  const issues = (assessment.issues || []).map((issue) => `<li>${escapeHtml(t(`ai.qualityIssue.${issue}`))}</li>`).join("");
+  return `<section class="ai-quality ${level}">
+    <div class="ai-quality-heading"><div><p class="eyebrow">${escapeHtml(t("ai.qualityTitle"))}</p><strong>${escapeHtml(t(`ai.quality.${level}`))}</strong></div><span class="ai-quality-light" aria-hidden="true"></span></div>
+    <p>${escapeHtml(t(`ai.qualityCopy.${level}`))}</p>
+    <div class="ai-quality-checks">${checks}</div>
+    ${issues ? `<ul>${issues}</ul>` : ""}
+  </section>`;
+}
+
 function renderAiReport(report, analysisId, reportLanguage = getLanguage()) {
   state.aiReport = report;
   state.aiReportLanguage = reportLanguage;
@@ -848,21 +951,29 @@ function renderAiReport(report, analysisId, reportLanguage = getLanguage()) {
   const losses = (report.timeLosses || []).map((item, index) => {
     const phaseLabel = item.phaseType ? t(`ai.phase.${item.phaseType}`) : "";
     const locationLabel = t(`ai.location.${item.driverLocation || "betweenCorners"}`);
+    const confidence = ["low", "medium", "high"].includes(item.confidence) ? item.confidence : "low";
     return `
-    <button class="ai-report-card" type="button" data-ai-index="${index}" data-ai-progress="${Number(item.distancePercent) / 100}">
+    <article class="ai-report-card" data-ai-index="${index}" data-ai-progress="${Number(item.distancePercent) / 100}">
       <i class="ai-marker-index">${index + 1}</i>
-      <canvas class="ai-segment-preview" data-ai-segment="${index}" aria-hidden="true"></canvas>
-      <strong>${escapeHtml(locationLabel)}</strong>
-      <small class="ai-phase">${escapeHtml(item.zoneId || "ZONE")}${phaseLabel ? ` · ${escapeHtml(phaseLabel)}` : ""}</small>
-      <span>${escapeHtml(item.observation)}</span>
-      <small><b>${escapeHtml(t("ai.hypothesis"))}:</b> ${escapeHtml(item.hypothesis)}</small>
-      <small><b>${escapeHtml(t("ai.recommendation"))}:</b> ${escapeHtml(item.recommendation)}</small>
-      <small class="ai-confidence">${escapeHtml(t("ai.confidence", { value: item.confidence }))}</small>
-    </button>`;
+      <button class="ai-card-focus" type="button" data-ai-open>
+        <canvas class="ai-segment-preview" data-ai-segment="${index}" aria-hidden="true"></canvas>
+        <canvas class="ai-speed-preview" data-ai-speed="${index}" aria-label="${escapeHtml(t("ai.speedPreview"))}"></canvas>
+        <strong>${escapeHtml(locationLabel)}</strong>
+        <small class="ai-phase">${escapeHtml(item.zoneId || "ZONE")}${phaseLabel ? ` · ${escapeHtml(phaseLabel)}` : ""}</small>
+        <span class="ai-observation"><b>${escapeHtml(t("ai.observation"))}:</b> ${escapeHtml(item.observation)}</span>
+        <small class="ai-action"><b>${escapeHtml(t("ai.recommendation"))}:</b> ${escapeHtml(item.recommendation)}</small>
+      </button>
+      <details class="ai-card-details">
+        <summary>${escapeHtml(t("ai.details"))}</summary>
+        <small><b>${escapeHtml(t("ai.hypothesis"))}:</b> ${escapeHtml(item.hypothesis)}</small>
+        <small class="ai-confidence ${confidence}">${escapeHtml(t("ai.confidence", { value: t(`ai.confidence.${confidence}`) }))}</small>
+      </details>
+    </article>`;
   }).join("");
   const warnings = (report.dataWarnings || []).length
     ? `<ul class="ai-warnings">${report.dataWarnings.map((warning) => `<li>${escapeHtml(warning)}</li>`).join("")}</ul>` : "";
   elements.aiReport.innerHTML = `
+    ${aiQualityMarkup()}
     <div><p class="eyebrow">${escapeHtml(t("ai.summary"))}</p><div class="ai-report-summary">${escapeHtml(report.summary)}</div></div>
     ${strengths ? `<div><p class="eyebrow">${escapeHtml(t("ai.strengths"))}</p><div class="ai-report-grid">${strengths}</div></div>` : ""}
     ${losses ? `<div><p class="eyebrow">${escapeHtml(t("ai.losses"))}</p><div class="ai-report-grid">${losses}</div></div>` : ""}
@@ -878,12 +989,12 @@ function renderAiReport(report, analysisId, reportLanguage = getLanguage()) {
   elements.aiReport.querySelectorAll("[data-ai-progress]").forEach((card) => {
     card.addEventListener("mouseenter", () => { state.aiHoverIndex = Number(card.dataset.aiIndex); drawTrack(); });
     card.addEventListener("mouseleave", () => { state.aiHoverIndex = null; drawTrack(); });
-    card.addEventListener("click", () => {
+    card.querySelector("[data-ai-open]").addEventListener("click", () => {
       const progress = Math.max(0, Math.min(1, Number(card.dataset.aiProgress)));
       openAiRecommendation(Number(card.dataset.aiIndex), progress);
     });
   });
-  requestAnimationFrame(() => { drawTrack(); drawAiSegmentPreviews(); });
+  requestAnimationFrame(() => { drawTrack(); drawAiCardVisuals(); });
 }
 
 async function runAiAnalysis() {
@@ -1296,7 +1407,7 @@ elements.aiPrimaryLapSelect.addEventListener("change", () => changePrimaryLap(el
 elements.aiComparisonLapSelect.addEventListener("change", () => changeComparisonLap(elements.aiComparisonLapSelect.value));
 elements.telemetryMetricSelect.addEventListener("change", () => selectTelemetryMetric(elements.telemetryMetricSelect.value));
 document.querySelectorAll("[data-metric]").forEach((button) => button.addEventListener("click", () => selectTelemetryMetric(button.dataset.metric)));
-window.addEventListener("resize", () => { drawTrack(); drawCharts(); drawAiSegmentPreviews(); });
+window.addEventListener("resize", () => { drawTrack(); drawCharts(); drawAiCardVisuals(); });
 window.addEventListener("hashchange", () => {
   const view = viewFromHash();
   if ((view === "logs" || view === "ai") && !(state.user || testMode)) showView("analysis", false);
