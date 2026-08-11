@@ -8,10 +8,11 @@ import { analyzeLog, askAiFollowUp, cloudConfigured, currentUser, deleteLog, loa
 import "./demo.js";
 
 const elements = Object.fromEntries([...document.querySelectorAll("[id]")].map((element) => [element.id, element]));
-const state = { client: null, connected: false, deviceName: "", deviceModel: "", latestTelemetry: null, storage: null, sessions: [], selectedSession: null, analysis: null, selectedLapNumber: null, comparisonLapNumber: null, cursorProgress: null, chartView: { start: 0, end: 1 }, trackView: { scale: 1, offsetX: 0, offsetY: 0 }, telemetryMetric: "speed", track: null, user: null, cloudLogs: [], pollTimer: null, memoryBusy: false, aiReport: null, aiAnalysisId: null, aiHoverIndex: null, aiSelectedIndex: null };
+const state = { client: null, connected: false, deviceName: "", deviceModel: "", latestTelemetry: null, storage: null, sessions: [], selectedSession: null, analysis: null, selectedLapNumber: null, comparisonLapNumber: null, cursorProgress: null, chartView: { start: 0, end: 1 }, trackView: { scale: 1, offsetX: 0, offsetY: 0 }, telemetryMetric: "speed", track: null, user: null, cloudLogs: [], pollTimer: null, memoryBusy: false, aiReport: null, aiReportLanguage: null, aiAnalysisId: null, aiPending: false, aiHoverIndex: null, aiSelectedIndex: null };
 const trackAiMarkerAreas = new WeakMap();
 const testMode = new URLSearchParams(location.search).has("mock");
 let accountMode = "signin";
+let aiRequestToken = 0;
 
 const formatDuration = (milliseconds) => {
   if (!Number.isFinite(milliseconds)) return "—";
@@ -714,8 +715,11 @@ function updateLapView() {
 }
 
 function clearAiReport() {
+  aiRequestToken += 1;
   state.aiReport = null;
+  state.aiReportLanguage = null;
   state.aiAnalysisId = null;
+  state.aiPending = false;
   state.aiHoverIndex = null;
   state.aiSelectedIndex = null;
   elements.aiResults.hidden = true;
@@ -732,8 +736,9 @@ function clearAiReport() {
   drawTrack();
 }
 
-function renderAiReport(report, analysisId) {
+function renderAiReport(report, analysisId, reportLanguage = getLanguage()) {
   state.aiReport = report;
+  state.aiReportLanguage = reportLanguage;
   state.aiAnalysisId = analysisId;
   state.aiHoverIndex = null;
   state.aiSelectedIndex = null;
@@ -785,23 +790,36 @@ function renderAiReport(report, analysisId) {
 async function runAiAnalysis() {
   const cloudId = state.selectedSession?.cloudId;
   if (!cloudId) { elements.copyStatus.textContent = t("ai.cloudRequired"); return; }
+  const requestLanguage = getLanguage();
+  const requestPrimaryLap = state.selectedLapNumber;
+  const requestComparisonLap = state.comparisonLapNumber;
+  const requestToken = ++aiRequestToken;
+  state.aiPending = true;
   elements.analyzeAiButton.disabled = true;
   elements.analyzeAiButton.textContent = t("ai.analyzing");
   elements.copyStatus.textContent = t("ai.analyzing");
   try {
     const result = await analyzeLog(cloudId, {
-      primaryLap: state.selectedLapNumber,
-      comparisonLap: state.comparisonLapNumber,
+      primaryLap: requestPrimaryLap,
+      comparisonLap: requestComparisonLap,
       question: "",
-      language: getLanguage(),
+      language: requestLanguage,
     });
-    renderAiReport(result.analysis.report, result.analysis.id);
+    if (requestToken !== aiRequestToken || requestLanguage !== getLanguage()) return;
+    renderAiReport(result.analysis.report, result.analysis.id, requestLanguage);
     elements.copyStatus.textContent = `${t("ai.reportReady")}${result.cached ? " · cache" : ""}`;
   } catch (error) {
-    elements.copyStatus.textContent = error.message;
+    if (requestToken === aiRequestToken) elements.copyStatus.textContent = error.message;
   } finally {
-    elements.analyzeAiButton.disabled = !state.selectedSession?.cloudId || !state.analysis?.laps.length;
-    elements.analyzeAiButton.textContent = t("ai.analyze");
+    if (requestToken === aiRequestToken) {
+      state.aiPending = false;
+      elements.analyzeAiButton.disabled = !state.selectedSession?.cloudId || !state.analysis?.laps.length;
+      elements.analyzeAiButton.textContent = t("ai.analyze");
+      const sameComparison = state.selectedSession?.cloudId === cloudId
+        && state.selectedLapNumber === requestPrimaryLap
+        && state.comparisonLapNumber === requestComparisonLap;
+      if (sameComparison && requestLanguage !== getLanguage()) void runAiAnalysis();
+    }
   }
 }
 
@@ -1186,14 +1204,16 @@ window.addEventListener("hashchange", () => {
   else showView(view, false);
 });
 elements.languageSelect.addEventListener("change", () => setLanguage(elements.languageSelect.value));
-onLanguageChange(() => {
+onLanguageChange(async (language) => {
+  const refreshGeneratedReport = Boolean(state.aiReport && state.aiReportLanguage !== language);
+  if (state.aiReport) renderAiReport(state.aiReport, state.aiAnalysisId, state.aiReportLanguage);
   renderAccount();
   if (state.storage) renderStorage(state.storage);
   if (state.latestTelemetry) renderTelemetry(state.latestTelemetry);
   selectTelemetryMetric(state.telemetryMetric);
   if (state.sessions.length) renderSessions();
   else renderAiPageContext();
-  if (state.selectedSession) selectSession(state.selectedSession.id);
+  if (state.selectedSession) await selectSession(state.selectedSession.id);
   else { drawTrack(); drawCharts(); }
   if (state.connected) {
     setStatus(t(state.storage?.recording ? "state.recording" : "state.ready", { name: state.deviceName }), true);
@@ -1202,6 +1222,7 @@ onLanguageChange(() => {
     setStatus(t("status.disconnected"));
     elements.connectButton.textContent = t("action.connect");
   }
+  if (refreshGeneratedReport && !state.aiPending) void runAiAnalysis();
 });
 applyTranslations();
 renderAccount();

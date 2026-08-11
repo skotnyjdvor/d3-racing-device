@@ -28,10 +28,12 @@ test("builds a compact AI snapshot from a full telemetry log", () => {
 });
 
 test("AI cache key is deterministic and input-sensitive", () => {
-  const first = buildTelemetrySnapshot(points, { primaryLap: 4, comparisonLap: 6 });
+  const first = buildTelemetrySnapshot(points, { primaryLap: 4, comparisonLap: 6, language: "ru" });
   const second = buildTelemetrySnapshot(points, { primaryLap: 4, comparisonLap: 5 });
+  const translated = buildTelemetrySnapshot(points, { primaryLap: 4, comparisonLap: 6, language: "en" });
   assert.equal(snapshotCacheKey("log-1", first), snapshotCacheKey("log-1", first));
   assert.notEqual(snapshotCacheKey("log-1", first), snapshotCacheKey("log-1", second));
+  assert.notEqual(snapshotCacheKey("log-1", first), snapshotCacheKey("log-1", translated));
 });
 
 test("AI report schema requires evidence-backed structured sections", () => {
