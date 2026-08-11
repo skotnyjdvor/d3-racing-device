@@ -332,13 +332,23 @@ footer { width: min(1480px, calc(100% - 40px)); min-height: 74px; margin: 0 auto
 }
 
 @media (max-width: 560px) {
-  .topbar { padding: 0 16px; }
+  .topbar {
+    padding: 0 8px;
+    display: grid;
+    grid-template-columns: 38px minmax(0, 1fr) auto;
+    gap: 4px;
+  }
+  .brand { grid-column: 1; min-width: 0; }
+  .brand-mark { width: 38px; height: 40px; }
   .brand > span:last-child { display: none; }
-  .device-state { max-width: 120px; text-align: right; }
-  .language-picker, .device-state { display: none; }
-  .app-nav { margin: 0 6px 0 auto; }
-  .app-nav button { padding: 0 9px; font-size: 9px; }
-  .header-actions { gap: 7px; }
+  .device-state { display: none; }
+  .app-nav { grid-column: 2; width: 100%; min-width: 0; margin: 0; padding: 3px; gap: 2px; }
+  .app-nav button { min-width: 0; flex: 1; padding: 0 3px; font-size: 8px; line-height: 1.15; letter-spacing: .045em; }
+  .header-actions { grid-column: 3; min-width: 0; gap: 4px; }
+  .language-picker { display: flex; gap: 0; }
+  .language-picker > span { display: none; }
+  .language-picker select { width: 42px; min-height: 40px; padding: 0; text-align: center; font-size: 11px; letter-spacing: 0; }
+  .account-button { min-height: 40px; padding: 5px; gap: 0; }
   .account-button b { display: none; }
   .logs-page { width: min(100% - 24px, 1480px); padding: 48px 0 60px; }
   .ai-page { width: min(100% - 24px, 1480px); padding: 38px 0 60px; }
@@ -388,4 +398,18 @@ footer { width: min(1480px, calc(100% - 40px)); min-height: 74px; margin: 0 auto
   .lap-vs { width: 32px; height: 32px; margin-bottom: 4px; }
   .lap-selectors select { padding: 9px 6px; font-size: 14px; }
   .lap-selectors select { width: 100%; min-width: 0; }
+}
+
+@media (max-width: 340px) {
+  .topbar {
+    height: 88px;
+    padding: 6px 8px;
+    grid-template-columns: 38px minmax(0, 1fr) auto;
+    grid-template-rows: 40px 32px;
+    align-content: center;
+  }
+  .brand { grid-row: 1; }
+  .header-actions { grid-row: 1; }
+  .app-nav { grid-column: 1 / -1; grid-row: 2; height: 32px; }
+  .app-nav button { min-height: 26px; font-size: 9px; }
 }
