@@ -187,10 +187,22 @@ app.post("/api/logs/:id/ai-analysis", authenticate, aiLimiter, async (request, r
 
 app.get("/api/logs/:id/ai-analyses", authenticate, async (request, response, next) => {
   try {
-    const result = await requireDatabase().query(`select id, model, primary_lap, comparison_lap, question, report, usage, created_at
+    const result = await requireDatabase().query(`select id, model, primary_lap, comparison_lap, question, report, usage, created_at,
+      coalesce(snapshot->>'language', 'ru') as language, snapshot->>'schema' as schema
       from ai_analyses where log_id = $1 and user_id = $2 order by created_at desc limit 20`,
     [request.params.id, request.auth.sub]);
     response.json({ analyses: result.rows });
+  } catch (error) { next(error); }
+});
+
+app.delete("/api/ai-analyses/:id", authenticate, async (request, response, next) => {
+  try {
+    const result = await requireDatabase().query(
+      "delete from ai_analyses where id = $1 and user_id = $2 returning id",
+      [request.params.id, request.auth.sub],
+    );
+    if (!result.rows[0]) return response.status(404).json({ error: "AI analysis not found" });
+    response.status(204).end();
   } catch (error) { next(error); }
 });
 

@@ -4,15 +4,16 @@ import { parseRaceBoxCsv } from "./domain/csv.js";
 import { distanceMeters, identifyTrack } from "./domain/tracks.js";
 import { splitSessionIntoLaps } from "./domain/laps.js";
 import { applyTranslations, getLanguage, onLanguageChange, setLanguage, t } from "./i18n.js";
-import { analyzeLog, askAiFollowUp, cloudConfigured, currentUser, deleteLog, loadLog, loadLogs, renameLog, saveLog, signIn, signOut, signUp } from "./cloud/api.js";
+import { analyzeLog, askAiFollowUp, cloudConfigured, currentUser, deleteAiAnalysis, deleteLog, loadAiAnalyses, loadLog, loadLogs, renameLog, saveLog, signIn, signOut, signUp } from "./cloud/api.js";
 import "./demo.js";
 
 const elements = Object.fromEntries([...document.querySelectorAll("[id]")].map((element) => [element.id, element]));
-const state = { client: null, connected: false, deviceName: "", deviceModel: "", latestTelemetry: null, storage: null, sessions: [], selectedSession: null, analysis: null, selectedLapNumber: null, comparisonLapNumber: null, cursorProgress: null, chartView: { start: 0, end: 1 }, trackView: { scale: 1, offsetX: 0, offsetY: 0 }, telemetryMetric: "speed", track: null, user: null, cloudLogs: [], pollTimer: null, memoryBusy: false, aiReport: null, aiReportLanguage: null, aiAnalysisId: null, aiPending: false, aiHoverIndex: null, aiSelectedIndex: null };
+const state = { client: null, connected: false, deviceName: "", deviceModel: "", latestTelemetry: null, storage: null, sessions: [], selectedSession: null, analysis: null, selectedLapNumber: null, comparisonLapNumber: null, cursorProgress: null, chartView: { start: 0, end: 1 }, trackView: { scale: 1, offsetX: 0, offsetY: 0 }, telemetryMetric: "speed", track: null, user: null, cloudLogs: [], pollTimer: null, memoryBusy: false, aiReport: null, aiReportLanguage: null, aiAnalysisId: null, aiPending: false, aiHistory: [], aiHistoryLoading: false, aiHistoryError: "", aiHoverIndex: null, aiSelectedIndex: null };
 const trackAiMarkerAreas = new WeakMap();
 const testMode = new URLSearchParams(location.search).has("mock");
 let accountMode = "signin";
 let aiRequestToken = 0;
+let aiHistoryRequestToken = 0;
 
 const formatDuration = (milliseconds) => {
   if (!Number.isFinite(milliseconds)) return "—";
@@ -70,6 +71,106 @@ function renderAiPageContext() {
   elements.aiComparisonLapSelect.disabled = laps.length < 2;
   elements.aiPrimaryLapSelect.value = state.selectedLapNumber ? String(state.selectedLapNumber) : "";
   elements.aiComparisonLapSelect.value = state.comparisonLapNumber ? String(state.comparisonLapNumber) : "";
+}
+
+function renderAiHistory() {
+  const available = Boolean(state.user && state.selectedSession?.cloudId);
+  elements.aiHistory.hidden = !available;
+  if (!available) return;
+  elements.aiHistoryCount.textContent = String(state.aiHistory.length);
+  if (state.aiHistoryLoading) {
+    elements.aiHistoryList.innerHTML = `<p class="ai-history-empty">${escapeHtml(t("ai.historyLoading"))}</p>`;
+    return;
+  }
+  if (state.aiHistoryError) {
+    elements.aiHistoryList.innerHTML = `<p class="ai-history-empty error">${escapeHtml(state.aiHistoryError)}</p>`;
+    return;
+  }
+  if (!state.aiHistory.length) {
+    elements.aiHistoryList.innerHTML = `<p class="ai-history-empty">${escapeHtml(t("ai.historyEmpty"))}</p>`;
+    return;
+  }
+  elements.aiHistoryList.innerHTML = state.aiHistory.map((item) => {
+    const comparison = Number(item.comparison_lap);
+    const primary = Number(item.primary_lap);
+    const pair = Number.isFinite(comparison) && comparison > 0
+      ? t("ai.historyPair", { primary, comparison })
+      : `${t("laps.legend", { lap: primary })} · ${t("laps.none")}`;
+    const language = ["ru", "en", "pl"].includes(item.language) ? item.language.toUpperCase() : "RU";
+    const current = item.id === state.aiAnalysisId ? " current" : "";
+    return `<article class="ai-history-item${current}">
+      <div class="ai-history-meta"><span>${escapeHtml(formatDate(item.created_at))}</span><b>${escapeHtml(language)}</b></div>
+      <strong>${escapeHtml(pair)}</strong>
+      <p>${escapeHtml(item.report?.summary || t("ai.historyTitle"))}</p>
+      <div class="ai-history-actions">
+        <button class="secondary" type="button" data-ai-history-open="${escapeHtml(item.id)}">${escapeHtml(t("ai.historyOpen"))}</button>
+        <button class="ai-history-delete" type="button" data-ai-history-delete="${escapeHtml(item.id)}" aria-label="${escapeHtml(t("ai.historyDelete"))}">×</button>
+      </div>
+    </article>`;
+  }).join("");
+  elements.aiHistoryList.querySelectorAll("[data-ai-history-open]").forEach((button) => {
+    button.addEventListener("click", () => openAiHistoryReport(button.dataset.aiHistoryOpen));
+  });
+  elements.aiHistoryList.querySelectorAll("[data-ai-history-delete]").forEach((button) => {
+    button.addEventListener("click", () => removeAiHistoryReport(button.dataset.aiHistoryDelete));
+  });
+}
+
+async function refreshAiHistory() {
+  const cloudId = state.selectedSession?.cloudId;
+  const requestToken = ++aiHistoryRequestToken;
+  if (!state.user || !cloudId) {
+    state.aiHistory = []; state.aiHistoryLoading = false; state.aiHistoryError = "";
+    renderAiHistory();
+    return;
+  }
+  state.aiHistoryLoading = true;
+  state.aiHistoryError = "";
+  renderAiHistory();
+  try {
+    const result = await loadAiAnalyses(cloudId);
+    if (requestToken !== aiHistoryRequestToken || state.selectedSession?.cloudId !== cloudId) return;
+    state.aiHistory = result.analyses || [];
+  } catch (error) {
+    if (requestToken === aiHistoryRequestToken && state.selectedSession?.cloudId === cloudId) state.aiHistoryError = error.message;
+  } finally {
+    if (requestToken === aiHistoryRequestToken && state.selectedSession?.cloudId === cloudId) {
+      state.aiHistoryLoading = false;
+      renderAiHistory();
+    }
+  }
+}
+
+function openAiHistoryReport(id) {
+  const saved = state.aiHistory.find((item) => item.id === id);
+  if (!saved?.report || !state.analysis) return;
+  aiRequestToken += 1;
+  state.aiPending = false;
+  const availableLaps = new Set(state.analysis.laps.map((lap) => lap.number));
+  const primary = Number(saved.primary_lap);
+  const comparison = Number(saved.comparison_lap);
+  if (availableLaps.has(primary)) state.selectedLapNumber = primary;
+  state.comparisonLapNumber = availableLaps.has(comparison) && comparison !== state.selectedLapNumber ? comparison : null;
+  updateLapView();
+  renderAiReport(saved.report, saved.id, saved.language || getLanguage());
+  elements.copyStatus.textContent = t("ai.historyOpened");
+  elements.analyzeAiButton.disabled = false;
+  elements.analyzeAiButton.textContent = t("ai.analyze");
+  renderAiHistory();
+  requestAnimationFrame(() => elements.aiResults.scrollIntoView({ behavior: "smooth", block: "start" }));
+}
+
+async function removeAiHistoryReport(id) {
+  if (!confirm(t("ai.historyDeleteConfirm"))) return;
+  try {
+    await deleteAiAnalysis(id);
+    if (state.aiAnalysisId === id) clearAiReport();
+    await refreshAiHistory();
+    elements.copyStatus.textContent = t("ai.historyDeleted");
+  } catch (error) {
+    state.aiHistoryError = error.message;
+    renderAiHistory();
+  }
 }
 
 function showView(view, updateHash = true) {
@@ -916,6 +1017,7 @@ function clearAiReport() {
   elements.askAiButton.disabled = true;
   elements.aiTrackLegend.hidden = true;
   elements.aiReportJumpButton.classList.remove("ready");
+  renderAiHistory();
   drawTrack();
 }
 
@@ -1018,6 +1120,7 @@ async function runAiAnalysis() {
     if (requestToken !== aiRequestToken || requestLanguage !== getLanguage()) return;
     renderAiReport(result.analysis.report, result.analysis.id, requestLanguage);
     elements.copyStatus.textContent = `${t("ai.reportReady")}${result.cached ? " · cache" : ""}`;
+    void refreshAiHistory();
   } catch (error) {
     if (requestToken === aiRequestToken) elements.copyStatus.textContent = error.message;
   } finally {
@@ -1062,7 +1165,10 @@ async function askAiQuestion() {
 
 async function selectSession(id) {
   const isNewSession = String(state.selectedSession?.id) !== String(id);
-  if (isNewSession) { resetChartZoom(); resetTrackZoom(); clearAiReport(); }
+  if (isNewSession) {
+    resetChartZoom(); resetTrackZoom(); clearAiReport();
+    state.aiHistory = []; state.aiHistoryLoading = false; state.aiHistoryError = "";
+  }
   const session = state.sessions.find((item) => String(item.id) === String(id));
   state.selectedSession = session;
   if (session?.source === "cloud" && !session.points) {
@@ -1090,6 +1196,7 @@ async function selectSession(id) {
   elements.copyStatus.textContent = state.selectedSession.cloudId ? t("ai.ready") : t("ai.cloudRequired");
   elements.insightsList.innerHTML = generateLocalInsights(state.analysis, t).map((insight) => `<li>${insight}</li>`).join("");
   renderSessions(); updateLapView();
+  void refreshAiHistory();
   return true;
 }
 
@@ -1161,9 +1268,10 @@ async function applyUser(user) {
   if (!user) {
     if (!testMode && state.client) await state.client.disconnect();
     state.cloudLogs = [];
+    state.aiHistory = []; state.aiHistoryLoading = false; state.aiHistoryError = "";
     state.sessions = state.sessions.filter((session) => session.source !== "cloud");
     if (state.selectedSession?.source === "cloud") state.selectedSession = null;
-    showView("analysis", false); renderAccount(); renderSessions();
+    showView("analysis", false); renderAccount(); renderSessions(); renderAiHistory();
     return;
   }
   renderAccount();
@@ -1423,6 +1531,7 @@ onLanguageChange(async (language) => {
   selectTelemetryMetric(state.telemetryMetric);
   if (state.sessions.length) renderSessions();
   else renderAiPageContext();
+  renderAiHistory();
   if (state.selectedSession) await selectSession(state.selectedSession.id);
   else { drawTrack(); drawCharts(); }
   if (state.connected) {

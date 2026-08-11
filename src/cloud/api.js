@@ -113,5 +113,10 @@ export async function askAiFollowUp(analysisId, question) {
 }
 
 export async function loadAiAnalyses(id) {
+  if (!getToken()) return { analyses: [] };
   return request(`/api/logs/${id}/ai-analyses`);
+}
+
+export async function deleteAiAnalysis(id) {
+  await request(`/api/ai-analyses/${id}`, { method: "DELETE" });
 }
