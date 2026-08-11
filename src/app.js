@@ -296,6 +296,104 @@ function drawTrack() {
   drawTrackCanvas(elements.aiTrackCanvas);
 }
 
+function drawAiSegmentPreview(canvas, item, index) {
+  const series = distancePoints(lapPoints(state.selectedLapNumber), 700);
+  const { context, width, height } = canvasContext(canvas);
+  context.fillStyle = "#0b1117";
+  context.fillRect(0, 0, width, height);
+  if (series.length < 2 || width < 2 || height < 2) return;
+
+  context.strokeStyle = "rgba(151,166,181,.08)";
+  context.lineWidth = 1;
+  const grid = 28;
+  for (let x = grid; x < width; x += grid) {
+    context.beginPath(); context.moveTo(x, 0); context.lineTo(x, height); context.stroke();
+  }
+  for (let y = grid; y < height; y += grid) {
+    context.beginPath(); context.moveTo(0, y); context.lineTo(width, y); context.stroke();
+  }
+
+  const points = series.map((entry) => entry.point);
+  const lats = points.map((point) => point.latitude);
+  const lons = points.map((point) => point.longitude);
+  const minLat = Math.min(...lats); const maxLat = Math.max(...lats);
+  const minLon = Math.min(...lons); const maxLon = Math.max(...lons);
+  const padding = 12;
+  const scale = Math.min(
+    (width - padding * 2) / Math.max(maxLon - minLon, 1e-9),
+    (height - padding * 2) / Math.max(maxLat - minLat, 1e-9),
+  );
+  const offsetX = (width - (maxLon - minLon) * scale) / 2;
+  const offsetY = (height - (maxLat - minLat) * scale) / 2;
+  const project = (point) => [
+    offsetX + (point.longitude - minLon) * scale,
+    offsetY + (maxLat - point.latitude) * scale,
+  ];
+  const drawSeries = (entries, color, lineWidth) => {
+    if (entries.length < 2) return;
+    context.strokeStyle = color;
+    context.lineWidth = lineWidth;
+    context.lineCap = "round";
+    context.lineJoin = "round";
+    context.beginPath();
+    entries.forEach((entry, pointIndex) => {
+      const [x, y] = project(entry.point);
+      if (pointIndex) context.lineTo(x, y); else context.moveTo(x, y);
+    });
+    context.stroke();
+  };
+
+  drawSeries(series, "rgba(156,170,184,.32)", 3);
+  const focus = Math.max(0, Math.min(1, Number(item.distancePercent) / 100));
+  let start = Number(item.startPercent) / 100;
+  let end = Number(item.endPercent) / 100;
+  if (!Number.isFinite(start) || !Number.isFinite(end)) {
+    start = Math.max(0, focus - .035);
+    end = Math.min(1, focus + .035);
+  }
+  start = Math.max(0, Math.min(1, start));
+  end = Math.max(0, Math.min(1, end));
+  const ranges = start <= end ? [[start, end]] : [[start, 1], [0, end]];
+  const highlighted = ranges.map(([rangeStart, rangeEnd]) => {
+    const inside = series.filter((entry) => entry.progress >= rangeStart && entry.progress <= rangeEnd);
+    const first = pointAtProgress(series, rangeStart);
+    const last = pointAtProgress(series, rangeEnd);
+    return [first, ...inside, last].filter(Boolean);
+  });
+  context.save();
+  context.shadowColor = "rgba(201,255,55,.75)";
+  context.shadowBlur = 10;
+  highlighted.forEach((segment) => drawSeries(segment, "#c9ff37", 6));
+  context.restore();
+  highlighted.forEach((segment) => drawSeries(segment, "#f5f7fa", 2));
+
+  const marker = pointAtProgress(series, focus)?.point;
+  if (!marker) return;
+  const [markerX, markerY] = project(marker);
+  context.save();
+  context.shadowColor = "rgba(255,116,56,.9)";
+  context.shadowBlur = 12;
+  context.fillStyle = "#ff7438";
+  context.beginPath(); context.arc(markerX, markerY, 9, 0, Math.PI * 2); context.fill();
+  context.restore();
+  context.strokeStyle = "#ffffff";
+  context.lineWidth = 1.5;
+  context.beginPath(); context.arc(markerX, markerY, 11.5, 0, Math.PI * 2); context.stroke();
+  context.fillStyle = "#080b10";
+  context.font = "900 10px ui-monospace, monospace";
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.fillText(String(index + 1), markerX, markerY + .5);
+}
+
+function drawAiSegmentPreviews() {
+  elements.aiReport.querySelectorAll("[data-ai-segment]").forEach((canvas) => {
+    const index = Number(canvas.dataset.aiSegment);
+    const item = state.aiReport?.timeLosses?.[index];
+    if (item) drawAiSegmentPreview(canvas, item, index);
+  });
+}
+
 function openAiRecommendation(index, progress) {
   state.aiSelectedIndex = index;
   state.cursorProgress = progress;
@@ -753,6 +851,7 @@ function renderAiReport(report, analysisId, reportLanguage = getLanguage()) {
     return `
     <button class="ai-report-card" type="button" data-ai-index="${index}" data-ai-progress="${Number(item.distancePercent) / 100}">
       <i class="ai-marker-index">${index + 1}</i>
+      <canvas class="ai-segment-preview" data-ai-segment="${index}" aria-hidden="true"></canvas>
       <strong>${escapeHtml(locationLabel)}</strong>
       <small class="ai-phase">${escapeHtml(item.zoneId || "ZONE")}${phaseLabel ? ` · ${escapeHtml(phaseLabel)}` : ""}</small>
       <span>${escapeHtml(item.observation)}</span>
@@ -784,7 +883,7 @@ function renderAiReport(report, analysisId, reportLanguage = getLanguage()) {
       openAiRecommendation(Number(card.dataset.aiIndex), progress);
     });
   });
-  requestAnimationFrame(drawTrack);
+  requestAnimationFrame(() => { drawTrack(); drawAiSegmentPreviews(); });
 }
 
 async function runAiAnalysis() {
@@ -1197,7 +1296,7 @@ elements.aiPrimaryLapSelect.addEventListener("change", () => changePrimaryLap(el
 elements.aiComparisonLapSelect.addEventListener("change", () => changeComparisonLap(elements.aiComparisonLapSelect.value));
 elements.telemetryMetricSelect.addEventListener("change", () => selectTelemetryMetric(elements.telemetryMetricSelect.value));
 document.querySelectorAll("[data-metric]").forEach((button) => button.addEventListener("click", () => selectTelemetryMetric(button.dataset.metric)));
-window.addEventListener("resize", () => { drawTrack(); drawCharts(); });
+window.addEventListener("resize", () => { drawTrack(); drawCharts(); drawAiSegmentPreviews(); });
 window.addEventListener("hashchange", () => {
   const view = viewFromHash();
   if ((view === "logs" || view === "ai") && !(state.user || testMode)) showView("analysis", false);

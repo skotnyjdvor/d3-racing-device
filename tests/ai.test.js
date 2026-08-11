@@ -75,6 +75,8 @@ test("grounds AI loss positions and deltas in deterministic telemetry zones", ()
     observation: "Model explanation", hypothesis: "Model hypothesis", recommendation: "Model recommendation", confidence: "medium",
   }] }, snapshot);
   assert.equal(report.timeLosses[0].distancePercent, firstZone.distancePercent);
+  assert.equal(report.timeLosses[0].startPercent, firstZone.startPercent);
+  assert.equal(report.timeLosses[0].endPercent, firstZone.endPercent);
   assert.equal(report.timeLosses[0].deltaSeconds, firstZone.deltaSeconds);
   assert.deepEqual(report.timeLosses[0].gForces, firstZone.gForces);
   assert.equal(report.timeLosses[0].driverLocation, firstZone.driverLocation);
