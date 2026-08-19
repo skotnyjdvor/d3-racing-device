@@ -9,7 +9,7 @@
   --acid: #c9d0d7;
   --accent-fill: linear-gradient(135deg, #f4f7fa 0%, #c9d0d7 48%, #929da8 100%);
   --orange: #ff5f35;
-  --cyan: #37d7ff;
+  --cyan: #6288b0;
 }
 
 * { box-sizing: border-box; }
@@ -203,7 +203,7 @@ h1 .solid-title { color: var(--text); -webkit-text-stroke: 0; }
 .trajectory-legend { gap: 22px; }
 .trajectory-legend span::before { content: ""; display: inline-block; width: 26px; height: 3px; margin-right: 8px; vertical-align: middle; border-radius: 2px; }
 .trajectory-legend .trajectory-primary::before { background: var(--acid); box-shadow: 0 0 10px rgba(201,208,215,.35); }
-.trajectory-legend .trajectory-comparison::before { background: var(--cyan); box-shadow: 0 0 10px rgba(55,215,255,.3); }
+.trajectory-legend .trajectory-comparison::before { background: var(--cyan); box-shadow: 0 0 10px rgba(98,136,176,.3); }
 .trajectory-legend .trajectory-ai::before { width: 12px; height: 12px; border-radius: 50%; background: #ff7438; box-shadow: 0 0 14px rgba(255,116,56,.7); }
 .table-wrap { max-height: 500px; overflow: auto; }
 .session-list { max-height: 500px; overflow: auto; padding: 10px; display: grid; gap: 8px; }

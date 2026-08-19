@@ -356,7 +356,7 @@ function drawTrackCanvas(canvas) {
     points.forEach((point, index) => { const [x, y] = project(point); index ? context.lineTo(x, y) : context.moveTo(x, y); });
     context.stroke();
   };
-  drawTrajectory(comparisonPoints, "#37d7ff", 2.4);
+  drawTrajectory(comparisonPoints, "#6288b0", 2.6);
   drawTrajectory(primaryPoints, "#c9d0d7", 3.2);
 
   const drawCursorPoint = (series, color, shadow) => {
@@ -368,7 +368,7 @@ function drawTrackCanvas(canvas) {
     context.shadowBlur = 0; context.strokeStyle = "#ffffff"; context.lineWidth = 1.5;
     context.beginPath(); context.arc(x, y, 8, 0, Math.PI * 2); context.stroke();
   };
-  drawCursorPoint(comparisonSeries, "#37d7ff", "rgba(55,215,255,.8)");
+  drawCursorPoint(comparisonSeries, "#6288b0", "rgba(98,136,176,.8)");
   drawCursorPoint(primarySeries, "#c9d0d7", "rgba(201,208,215,.8)");
 
   const markerAreas = (state.aiReport?.timeLosses || []).map((item, index) => {
@@ -541,14 +541,14 @@ function drawAiSpeedPreview(canvas, item) {
     });
     context.stroke();
   };
-  drawLine(comparison, "#37d7ff", 1.8);
+  drawLine(comparison, "#6288b0", 2);
   drawLine(primary, "#c9d0d7", 2.4);
 
   const focusX = x(focus);
   context.strokeStyle = "rgba(255,255,255,.55)";
   context.lineWidth = 1;
   context.beginPath(); context.moveTo(focusX, padding.top); context.lineTo(focusX, height - padding.bottom); context.stroke();
-  [{ series: primary, color: "#c9d0d7" }, { series: comparison, color: "#37d7ff" }].forEach(({ series, color }) => {
+  [{ series: primary, color: "#c9d0d7" }, { series: comparison, color: "#6288b0" }].forEach(({ series, color }) => {
     const point = pointAtProgress(series, focus)?.point;
     if (!point) return;
     context.fillStyle = color;
@@ -559,7 +559,7 @@ function drawAiSpeedPreview(canvas, item) {
   context.textBaseline = "middle";
   const legends = [
     { x: 10, color: "#c9d0d7", label: t("laps.legend", { lap: state.selectedLapNumber }) },
-    { x: Math.min(width / 2, 116), color: "#37d7ff", label: t("laps.legend", { lap: state.comparisonLapNumber }) },
+    { x: Math.min(width / 2, 116), color: "#6288b0", label: t("laps.legend", { lap: state.comparisonLapNumber }) },
   ];
   legends.forEach((legend) => {
     context.fillStyle = legend.color; context.fillRect(legend.x, 10, 12, 2);
@@ -645,7 +645,7 @@ function drawComparisonChart(canvas, key, { speed = false } = {}) {
     context.stroke();
     context.restore();
   };
-  draw(comparison, "#37d7ff", 1.6);
+  draw(comparison, "#6288b0", 1.9);
   draw(primary, "#c9d0d7", 2.2);
 
   if (state.cursorProgress !== null && state.cursorProgress >= state.chartView.start && state.cursorProgress <= state.chartView.end) {
@@ -654,7 +654,7 @@ function drawComparisonChart(canvas, key, { speed = false } = {}) {
     context.beginPath(); context.moveTo(xPosition, padding.top); context.lineTo(xPosition, height - padding.bottom); context.stroke();
     const markers = [
       { item: pointAtProgress(primary, state.cursorProgress), color: "#c9d0d7", side: -1 },
-      { item: pointAtProgress(comparison, state.cursorProgress), color: "#37d7ff", side: 1 },
+      { item: pointAtProgress(comparison, state.cursorProgress), color: "#6288b0", side: 1 },
     ];
     markers.forEach(({ item, color, side }) => {
       if (!item || !Number.isFinite(item.value)) return;
