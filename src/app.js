@@ -357,7 +357,7 @@ function drawTrackCanvas(canvas) {
     context.stroke();
   };
   drawTrajectory(comparisonPoints, "#37d7ff", 2.4);
-  drawTrajectory(primaryPoints, "#c9ff37", 3.2);
+  drawTrajectory(primaryPoints, "#c9d0d7", 3.2);
 
   const drawCursorPoint = (series, color, shadow) => {
     const cursorPoint = pointAtProgress(series, state.cursorProgress)?.point;
@@ -369,7 +369,7 @@ function drawTrackCanvas(canvas) {
     context.beginPath(); context.arc(x, y, 8, 0, Math.PI * 2); context.stroke();
   };
   drawCursorPoint(comparisonSeries, "#37d7ff", "rgba(55,215,255,.8)");
-  drawCursorPoint(primarySeries, "#c9ff37", "rgba(201,255,55,.8)");
+  drawCursorPoint(primarySeries, "#c9d0d7", "rgba(201,208,215,.8)");
 
   const markerAreas = (state.aiReport?.timeLosses || []).map((item, index) => {
     const progress = Math.max(0, Math.min(1, Number(item.distancePercent) / 100));
@@ -462,9 +462,9 @@ function drawAiSegmentPreview(canvas, item, index) {
     return [first, ...inside, last].filter(Boolean);
   });
   context.save();
-  context.shadowColor = "rgba(201,255,55,.75)";
+  context.shadowColor = "rgba(201,208,215,.75)";
   context.shadowBlur = 10;
-  highlighted.forEach((segment) => drawSeries(segment, "#c9ff37", 6));
+  highlighted.forEach((segment) => drawSeries(segment, "#c9d0d7", 6));
   context.restore();
   highlighted.forEach((segment) => drawSeries(segment, "#f5f7fa", 2));
 
@@ -542,13 +542,13 @@ function drawAiSpeedPreview(canvas, item) {
     context.stroke();
   };
   drawLine(comparison, "#37d7ff", 1.8);
-  drawLine(primary, "#c9ff37", 2.4);
+  drawLine(primary, "#c9d0d7", 2.4);
 
   const focusX = x(focus);
   context.strokeStyle = "rgba(255,255,255,.55)";
   context.lineWidth = 1;
   context.beginPath(); context.moveTo(focusX, padding.top); context.lineTo(focusX, height - padding.bottom); context.stroke();
-  [{ series: primary, color: "#c9ff37" }, { series: comparison, color: "#37d7ff" }].forEach(({ series, color }) => {
+  [{ series: primary, color: "#c9d0d7" }, { series: comparison, color: "#37d7ff" }].forEach(({ series, color }) => {
     const point = pointAtProgress(series, focus)?.point;
     if (!point) return;
     context.fillStyle = color;
@@ -558,7 +558,7 @@ function drawAiSpeedPreview(canvas, item) {
   context.font = "700 9px ui-monospace, monospace";
   context.textBaseline = "middle";
   const legends = [
-    { x: 10, color: "#c9ff37", label: t("laps.legend", { lap: state.selectedLapNumber }) },
+    { x: 10, color: "#c9d0d7", label: t("laps.legend", { lap: state.selectedLapNumber }) },
     { x: Math.min(width / 2, 116), color: "#37d7ff", label: t("laps.legend", { lap: state.comparisonLapNumber }) },
   ];
   legends.forEach((legend) => {
@@ -646,14 +646,14 @@ function drawComparisonChart(canvas, key, { speed = false } = {}) {
     context.restore();
   };
   draw(comparison, "#37d7ff", 1.6);
-  draw(primary, "#c9ff37", 2.2);
+  draw(primary, "#c9d0d7", 2.2);
 
   if (state.cursorProgress !== null && state.cursorProgress >= state.chartView.start && state.cursorProgress <= state.chartView.end) {
     const xPosition = chartX(state.cursorProgress, padding, plotWidth);
     context.strokeStyle = "rgba(255,255,255,.55)"; context.lineWidth = 1;
     context.beginPath(); context.moveTo(xPosition, padding.top); context.lineTo(xPosition, height - padding.bottom); context.stroke();
     const markers = [
-      { item: pointAtProgress(primary, state.cursorProgress), color: "#c9ff37", side: -1 },
+      { item: pointAtProgress(primary, state.cursorProgress), color: "#c9d0d7", side: -1 },
       { item: pointAtProgress(comparison, state.cursorProgress), color: "#37d7ff", side: 1 },
     ];
     markers.forEach(({ item, color, side }) => {
@@ -719,8 +719,8 @@ function drawDeltaChart() {
   context.beginPath(); context.moveTo(chartX(delta[0].progress, padding, plotWidth), zeroY);
   delta.forEach((item) => context.lineTo(chartX(item.progress, padding, plotWidth), y(item.value)));
   context.lineTo(chartX(delta.at(-1).progress, padding, plotWidth), zeroY); context.closePath();
-  context.fillStyle = "rgba(201,255,55,.08)"; context.fill();
-  context.strokeStyle = "#c9ff37"; context.lineWidth = 2.2; context.beginPath();
+  context.fillStyle = "rgba(201,208,215,.08)"; context.fill();
+  context.strokeStyle = "#c9d0d7"; context.lineWidth = 2.2; context.beginPath();
   delta.forEach((item, index) => {
     const xPosition = chartX(item.progress, padding, plotWidth);
     const yPosition = y(item.value);
@@ -734,13 +734,13 @@ function drawDeltaChart() {
     const xPosition = chartX(state.cursorProgress, padding, plotWidth);
     context.strokeStyle = "rgba(255,255,255,.55)"; context.lineWidth = 1;
     context.beginPath(); context.moveTo(xPosition, padding.top); context.lineTo(xPosition, height - padding.bottom); context.stroke();
-    context.fillStyle = "#c9ff37"; context.beginPath(); context.arc(xPosition, y(item.value), 4.5, 0, Math.PI * 2); context.fill();
+    context.fillStyle = "#c9d0d7"; context.beginPath(); context.arc(xPosition, y(item.value), 4.5, 0, Math.PI * 2); context.fill();
     const label = `${item.value >= 0 ? "+" : ""}${item.value.toFixed(3)} s`;
     context.font = "bold 11px ui-monospace, monospace";
     const labelWidth = context.measureText(label).width + 10;
     const labelX = Math.min(width - padding.right - labelWidth, Math.max(padding.left, xPosition + 8));
     context.fillStyle = "rgba(12,17,23,.92)"; context.fillRect(labelX, y(item.value) - 21, labelWidth, 17);
-    context.fillStyle = "#c9ff37"; context.fillText(label, labelX + 5, y(item.value) - 9);
+    context.fillStyle = "#c9d0d7"; context.fillText(label, labelX + 5, y(item.value) - 9);
   }
 }
 
