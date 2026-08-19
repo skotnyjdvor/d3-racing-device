@@ -10,6 +10,7 @@
   --accent-fill: linear-gradient(135deg, #f4f7fa 0%, #c9d0d7 48%, #929da8 100%);
   --orange: #ff5f35;
   --cyan: #6288b0;
+  --comparison: #e05252;
 }
 
 * { box-sizing: border-box; }
@@ -62,7 +63,7 @@ main { width: min(1480px, calc(100% - 40px)); margin: 0 auto; }
 .ai-lap-controls { display: grid; grid-template-columns: minmax(0,1fr) 30px minmax(0,1fr); align-items: end; gap: 7px; }
 .ai-lap-controls .lap-vs { width: 30px; height: 30px; margin-bottom: 3px; }
 .ai-lap-controls label:first-child select { color: var(--acid); }
-.ai-lap-controls label:last-child select { color: var(--cyan); }
+.ai-lap-controls label:last-child select { color: var(--comparison); }
 .ai-page-context button { margin-top: 8px; }
 .logs-page-head { margin-bottom: 28px; display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 32px; }
 .logs-page-head h1 { max-width: 900px; margin: 8px 0 14px; font-size: clamp(50px, 7vw, 100px); }
@@ -109,8 +110,8 @@ main { width: min(1480px, calc(100% - 40px)); margin: 0 auto; }
 .demo-chart svg { height: 430px; padding: 55px 20px 35px; }
 .demo-badge { color: var(--acid); border: 1px solid rgba(201,208,215,.35); padding: 6px 9px; font: 10px ui-monospace,monospace; letter-spacing: .1em; }
 .track-shadow { fill: none; stroke: rgba(255,255,255,.08); stroke-width: 18; stroke-linecap: round; stroke-linejoin: round; }.track-line { fill: none; stroke: url(#trackGradient); stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; }.track-point { fill: var(--acid); }.track-point-ring { fill: none; stroke: white; stroke-width: 2; }.turn-labels text,.chart-labels text { fill: #6f7c89; font: 11px ui-monospace,monospace; }
-.chart-grid path { fill: none; stroke: #202a34; stroke-width: 1; }.chart-primary,.chart-secondary { fill: none; stroke-linecap: round; stroke-linejoin: round; }.chart-primary { stroke: var(--acid); stroke-width: 4; }.chart-secondary { stroke: var(--cyan); stroke-width: 3; }.chart-cursor { stroke: rgba(255,255,255,.4); stroke-dasharray: 4 4; }.chart-dot-primary { fill: var(--acid); }.chart-dot-secondary { fill: var(--cyan); }
-.demo-legend { padding: 0 25px 22px; display: flex; gap: 25px; color: var(--muted); font-size: 11px; }.demo-legend span::before { content:""; display:inline-block; width:24px; height:3px; margin-right:8px; vertical-align:middle; }.lap-six::before { background:var(--acid); }.lap-five::before { background:var(--cyan); }
+.chart-grid path { fill: none; stroke: #202a34; stroke-width: 1; }.chart-primary,.chart-secondary { fill: none; stroke-linecap: round; stroke-linejoin: round; }.chart-primary { stroke: var(--acid); stroke-width: 4; }.chart-secondary { stroke: var(--comparison); stroke-width: 3; }.chart-cursor { stroke: rgba(255,255,255,.4); stroke-dasharray: 4 4; }.chart-dot-primary { fill: var(--acid); }.chart-dot-secondary { fill: var(--comparison); }
+.demo-legend { padding: 0 25px 22px; display: flex; gap: 25px; color: var(--muted); font-size: 11px; }.demo-legend span::before { content:""; display:inline-block; width:24px; height:3px; margin-right:8px; vertical-align:middle; }.lap-six::before { background:var(--acid); }.lap-five::before { background:var(--comparison); }
 .demo-scrubber { padding: 0 25px 25px; display: grid; grid-template-columns: 38px 1fr 42px; align-items: center; gap: 12px; }
 .demo-scrubber button { width: 38px; height: 38px; padding: 0; color: #080b10; background: var(--accent-fill); border: 0; font-weight: 900; }
 .demo-scrubber input { width: 100%; height: 5px; margin: 0; appearance: none; background: linear-gradient(90deg,var(--acid) var(--progress,58%),#29323c var(--progress,58%)); cursor: ew-resize; }
@@ -203,7 +204,7 @@ h1 .solid-title { color: var(--text); -webkit-text-stroke: 0; }
 .trajectory-legend { gap: 22px; }
 .trajectory-legend span::before { content: ""; display: inline-block; width: 26px; height: 3px; margin-right: 8px; vertical-align: middle; border-radius: 2px; }
 .trajectory-legend .trajectory-primary::before { background: var(--acid); box-shadow: 0 0 10px rgba(201,208,215,.35); }
-.trajectory-legend .trajectory-comparison::before { background: var(--cyan); box-shadow: 0 0 10px rgba(98,136,176,.3); }
+.trajectory-legend .trajectory-comparison::before { background: var(--comparison); box-shadow: 0 0 10px rgba(224,82,82,.32); }
 .trajectory-legend .trajectory-ai::before { width: 12px; height: 12px; border-radius: 50%; background: #ff7438; box-shadow: 0 0 14px rgba(255,116,56,.7); }
 .table-wrap { max-height: 500px; overflow: auto; }
 .session-list { max-height: 500px; overflow: auto; padding: 10px; display: grid; gap: 8px; }
@@ -249,13 +250,13 @@ tr.best td:nth-child(2) { color: var(--acid); font-weight: 800; }
 .lap-selectors label { display: grid; gap: 6px; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
 .lap-selectors select { min-width: 0; width: 100%; color: var(--text); background: #0c1016; border: 1px solid var(--line); padding: 11px 12px; outline: none; font-size: 17px; font-weight: 800; }
 .primary-lap-control select { color: var(--acid); }
-.comparison-lap-control select { color: var(--cyan); }
+.comparison-lap-control select { color: var(--comparison); }
 .lap-vs { width: 36px; height: 36px; margin-bottom: 2px; display: grid; place-items: center; color: var(--muted); border: 1px solid var(--line); border-radius: 50%; font-size: 10px; font-weight: 800; }
 .lap-selectors select:focus { border-color: var(--acid); }
 .comparison-legend { min-height: 38px; padding: 8px 16px; display: flex; align-items: center; gap: 22px; color: var(--muted); font-size: 11px; }
 .comparison-legend span::before { content: ""; display: inline-block; width: 24px; height: 3px; margin-right: 8px; vertical-align: middle; }
 .comparison-legend .primary-line::before { background: var(--acid); }
-.comparison-legend .comparison-line::before { background: var(--cyan); }
+.comparison-legend .comparison-line::before { background: var(--comparison); }
 .chart-unit, .local-badge { color: var(--muted); font-size: 11px; }
 .local-badge { border: 1px solid #3b4652; padding: 5px 8px; letter-spacing: .12em; }
 .insight-panel { grid-area: insights; }
