@@ -1522,6 +1522,12 @@ window.addEventListener("hashchange", () => {
   else showView(view, false);
 });
 elements.languageSelect.addEventListener("change", () => setLanguage(elements.languageSelect.value));
+const languageButtons = document.querySelectorAll(".lang-switch [data-lang]");
+const syncLanguageButtons = () => languageButtons.forEach((button) => button.classList.toggle("active", button.dataset.lang === getLanguage()));
+languageButtons.forEach((button) => button.addEventListener("click", () => setLanguage(button.dataset.lang)));
+onLanguageChange(syncLanguageButtons);
+syncLanguageButtons();
+elements.subbarBetaButton.addEventListener("click", () => openAccountDialog("register"));
 onLanguageChange(async (language) => {
   const refreshGeneratedReport = Boolean(state.aiReport && state.aiReportLanguage !== language);
   if (state.aiReport) renderAiReport(state.aiReport, state.aiAnalysisId, state.aiReportLanguage);
@@ -1551,15 +1557,23 @@ drawTrack(); drawCharts();
 function startLandingTelemetry() {
   const sessionTime = document.getElementById("heroSessionTime");
   const lapTime = document.getElementById("heroLapTime");
-  const lean = document.getElementById("heroLean");
   const throttle = document.getElementById("heroThrottle");
   const brake = document.getElementById("heroBrake");
   const speed = document.getElementById("heroSpeed");
-  const trackPath = document.getElementById("lonatoMotionPath");
-  const trackDot = document.getElementById("lonatoDot");
-  if (!sessionTime || !lapTime || !lean || !throttle || !brake || !speed) return;
+  const lapNumber = document.getElementById("heroLapNumber");
+  if (!sessionTime || !lapTime || !throttle || !brake || !speed) return;
+  // One lap as [seconds, throttle %, brake %]; speed is integrated from the pedals in real time.
+  const lapProfile = [
+    [3.6, 100, 0], [1.1, 0, 92], [2.2, 35, 0], [1.4, 85, 0], [2.8, 100, 0], [.8, 0, 70], [1.9, 25, 0],
+    [1.2, 70, 0], [2.4, 100, 0], [1.3, 0, 96], [2.6, 20, 0], [1.6, 80, 0], [3.4, 100, 0], [.9, 0, 64],
+    [1.8, 40, 0], [2.2, 100, 0], [1, 0, 85], [2.3, 30, 0], [1.5, 90, 0], [4.2, 100, 0],
+  ];
+  const lapSeconds = lapProfile.reduce((total, [seconds]) => total + seconds, 0);
+  const sessionOffsetMs = 12 * 60_000;
   const startedAt = performance.now();
-  const trackLength = trackPath?.getTotalLength?.() ?? 0;
+  let lastFrame = startedAt;
+  let lastPaint = 0;
+  let speedKmh = 92;
   const formatClock = (milliseconds) => {
     const minutes = Math.floor(milliseconds / 60_000);
     const seconds = Math.floor(milliseconds / 1000) % 60;
@@ -1567,33 +1581,43 @@ function startLandingTelemetry() {
     return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.<i>${String(millis).padStart(3, "0")}</i>`;
   };
   const updateChannel = (element, value, suffix, maximum = 100) => {
-    element.textContent = `${value}${suffix}`;
+    element.innerHTML = `${value}<i>${suffix}</i>`;
     element.closest(".race-channel")?.style.setProperty("--value", `${Math.min(100, Math.max(2, value / maximum * 100))}%`);
   };
-  setInterval(() => {
-    if (document.hidden) return;
-    const elapsed = performance.now() - startedAt;
-    const phase = elapsed / 2200;
-    const leanValue = Math.round(Math.abs(Math.sin(phase * .92)) * 48);
-    const throttleValue = Math.round(Math.max(0, 54 + Math.sin(phase * .73 + 1.2) * 48));
-    const brakeValue = Math.round(Math.pow(Math.max(0, Math.sin(phase * 1.37 - .8)), 5) * 94);
-    const speedValue = Math.round(88 + Math.sin(phase * .66 + .4) * 42 + Math.sin(phase * 1.51) * 14);
-    sessionTime.innerHTML = formatClock(elapsed + 12 * 60_000);
-    lapTime.innerHTML = formatClock(elapsed % 46_800);
-    updateChannel(lean, leanValue, `° ${Math.sin(phase * .92) >= 0 ? "R" : "L"}`, 60);
-    updateChannel(throttle, throttleValue, "%");
-    updateChannel(brake, brakeValue, "%");
-    updateChannel(speed, Math.max(42, speedValue), " km/h", 190);
-  }, 80);
-  const animateTrackDot = (now) => {
-    if (trackPath && trackDot && trackLength) {
-      const point = trackPath.getPointAtLength((now % 9000) / 9000 * trackLength);
-      trackDot.setAttribute("cx", point.x.toFixed(2));
-      trackDot.setAttribute("cy", point.y.toFixed(2));
+  const pedalsAt = (lapPosition) => {
+    let start = 0;
+    for (let index = 0; index < lapProfile.length; index++) {
+      const [seconds, throttleTarget, brakeTarget] = lapProfile[index];
+      if (lapPosition < start + seconds) {
+        const [, previousThrottle, previousBrake] = lapProfile[(index + lapProfile.length - 1) % lapProfile.length];
+        const blend = Math.min(1, (lapPosition - start) / .18);
+        return [previousThrottle + (throttleTarget - previousThrottle) * blend, previousBrake + (brakeTarget - previousBrake) * blend];
+      }
+      start += seconds;
     }
-    requestAnimationFrame(animateTrackDot);
+    return [lapProfile[0][1], lapProfile[0][2]];
   };
-  requestAnimationFrame(animateTrackDot);
+  const frame = (now) => {
+    const dt = Math.min(.1, (now - lastFrame) / 1000);
+    lastFrame = now;
+    const elapsedMs = now - startedAt;
+    const lapPosition = (elapsedMs / 1000) % lapSeconds;
+    const jitter = Math.sin(now / 37) * 1.5 + Math.sin(now / 13) * .8;
+    const [throttleValue, brakeValue] = pedalsAt(lapPosition);
+    const acceleration = throttleValue / 100 * 26 - brakeValue / 100 * 62 - speedKmh * speedKmh * .0011 - 1.5;
+    speedKmh = Math.min(128, Math.max(38, speedKmh + acceleration * dt));
+    sessionTime.innerHTML = formatClock(elapsedMs + sessionOffsetMs);
+    lapTime.innerHTML = formatClock(lapPosition * 1000);
+    if (lapNumber) lapNumber.textContent = `LAP_${String(3 + Math.floor(elapsedMs / 1000 / lapSeconds) % 10).padStart(2, "0")}`;
+    if (now - lastPaint > 40) {
+      lastPaint = now;
+      updateChannel(throttle, Math.round(Math.max(0, Math.min(100, throttleValue + (throttleValue > 5 && throttleValue < 100 ? jitter : 0)))), "%");
+      updateChannel(brake, Math.round(Math.max(0, brakeValue + (brakeValue > 5 ? jitter : 0))), "%");
+      updateChannel(speed, Math.round(speedKmh), "km/h", 130);
+    }
+    requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
 }
 
 startLandingTelemetry();
