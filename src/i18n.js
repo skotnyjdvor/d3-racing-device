@@ -1,3 +1,5 @@
+import featureTranslations from "./features-i18n.js";
+
 export const SUPPORTED_LANGUAGES = ["ru", "en", "pl"];
 
 const translations = {
@@ -101,6 +103,7 @@ const translations = {
     "insight.fastest": "Najszybsze okrążenie: #{lap}; różnica do najwolniejszego wynosi {delta} s.", "insight.braking": "Najsilniejsze opóźnienie wzdłużne na okrążeniu #{lap}: {value} g. Znak zależy od orientacji urządzenia.", "insight.lateral": "Maksymalne przeciążenie boczne: {value} g na okrążeniu #{lap}.", "insight.qualityGood": "Stabilny strumień: {hz} Hz, bez przerw dłuższych niż {gap} ms.", "insight.qualityBad": "Wykryto {count} przerw w strumieniu; sprawdź jakość nagrania.",
   },
 };
+for (const [lang, entries] of Object.entries(featureTranslations)) Object.assign(translations[lang], entries);
 
 let language = "ru";
 try {

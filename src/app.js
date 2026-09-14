@@ -1528,6 +1528,18 @@ languageButtons.forEach((button) => button.addEventListener("click", () => setLa
 onLanguageChange(syncLanguageButtons);
 syncLanguageButtons();
 elements.subbarBetaButton.addEventListener("click", () => openAccountDialog("register"));
+elements.featuresAccountButton.addEventListener("click", () => openAccountDialog("register"));
+const landingNavLinks = document.querySelectorAll(".landing-nav a, .subbar-nav a");
+function syncGuestPage() {
+  const showFeatures = location.hash === "#features" || location.hash.startsWith("#fx");
+  const wasFeatures = document.body.classList.contains("guest-features");
+  document.body.classList.toggle("guest-features", showFeatures);
+  landingNavLinks.forEach((link) => link.classList.toggle("active", link.hash === (showFeatures ? "#features" : "#analysis")));
+  if (location.hash === "#features") window.scrollTo(0, 0);
+  if (location.hash === "#demo" && wasFeatures) requestAnimationFrame(() => document.getElementById("demo")?.scrollIntoView());
+}
+window.addEventListener("hashchange", syncGuestPage);
+syncGuestPage();
 onLanguageChange(async (language) => {
   const refreshGeneratedReport = Boolean(state.aiReport && state.aiReportLanguage !== language);
   if (state.aiReport) renderAiReport(state.aiReport, state.aiAnalysisId, state.aiReportLanguage);
