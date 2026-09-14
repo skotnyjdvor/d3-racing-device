@@ -56,18 +56,27 @@
             <span><b>BLE</b><small data-i18n="landing.proofSync"></small></span>
           </div>
         </div>
-        <div class="device-orbit" aria-hidden="true">
-          <div class="orbit-line"></div>
-          <div class="device-glow"></div>
-          <img class="landing-device-image" src="/assets/laptrace-device.png" alt="" />
-          <span class="orbit-label orbit-gps"><i>⌖</i><b data-i18n="spec.gpsTitle"></b><small data-i18n="spec.gpsCopy"></small></span>
-          <span class="orbit-label orbit-ble"><i>ᛒ</i><b>Bluetooth 5.2</b><small data-i18n="spec.bleCopy"></small></span>
-          <span class="orbit-label orbit-battery"><i>▥</i><b>1100 mAh</b><small data-i18n="spec.batteryCopy"></small></span>
-          <span class="orbit-label orbit-usb"><i>↯</i><b>USB Type-C</b><small data-i18n="spec.usbCopy"></small></span>
-          <span class="orbit-label orbit-accel"><i>＋</i><b data-i18n="spec.accelTitle"></b><small>± 8G</small></span>
-          <span class="orbit-label orbit-gyro"><i>◎</i><b data-i18n="spec.gyroTitle"></b><small>± 320 dps</small></span>
-          <span class="orbit-label orbit-storage"><i>▤</i><b data-i18n="spec.storageTitle"></b><small data-i18n="spec.storageCopy"></small></span>
-          <span class="orbit-label orbit-splash"><i>≋</i><b data-i18n="spec.splashTitle"></b><small data-i18n="spec.splashCopy"></small></span>
+        <div class="hero-telemetry" aria-hidden="true">
+          <span class="session-clock">SESSION_TIME <b>12:47.<i>328</i></b></span>
+          <svg class="hero-track" viewBox="0 0 720 470">
+            <defs>
+              <filter id="trackGlow"><feGaussianBlur stdDeviation="8" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            </defs>
+            <path class="hero-track-bed" d="M72 345 C155 293 170 244 237 215 C302 188 343 199 391 174 C434 151 446 108 498 98 C549 88 612 105 668 75 C621 125 606 160 620 201 C632 235 606 278 548 288 C492 298 451 272 405 298 C352 327 340 390 283 405 C226 420 168 393 116 412 C89 421 67 390 72 345Z"/>
+            <path id="heroTrackPath" class="hero-track-line" d="M72 345 C155 293 170 244 237 215 C302 188 343 199 391 174 C434 151 446 108 498 98 C549 88 612 105 668 75 C621 125 606 160 620 201 C632 235 606 278 548 288 C492 298 451 272 405 298 C352 327 340 390 283 405 C226 420 168 393 116 412 C89 421 67 390 72 345Z"/>
+            <circle r="7" class="hero-track-dot" filter="url(#trackGlow)"><animateMotion dur="7s" repeatCount="indefinite"><mpath href="#heroTrackPath"/></animateMotion></circle>
+          </svg>
+          <div class="live-card">
+            <div class="live-card-head"><span>// TELEMETRY · LIVE_FEED</span><b><i></i> REC</b></div>
+            <dl><div><dt>LEAN_ANGLE</dt><dd>8° R</dd></div><div><dt>THROTTLE</dt><dd>68%</dd></div><div class="hot"><dt>BRAKE</dt><dd>72%</dd></div><div><dt>SPEED</dt><dd>158 km/h</dd></div></dl>
+            <div class="live-lap"><span>CURRENT_LAP<strong>01:15.<i>689</i></strong></span><span>LAP_03<strong>/ 12</strong></span></div>
+          </div>
+          <div class="hero-sparklines">
+            <span><b>LEAN_ANGLE</b><svg viewBox="0 0 160 35"><path d="M0 27L8 14 17 21 26 8 34 29 44 24 53 10 62 12 72 26 82 30 94 24 105 8 115 26 127 12 136 29 146 9 160 22"/></svg></span>
+            <span><b>THROTTLE</b><svg viewBox="0 0 160 35"><path d="M0 33L8 33 8 7 18 7 20 33 34 33 37 12 48 12 51 33 68 33 70 7 82 7 84 33 99 33 102 8 115 8 117 33 134 33 139 11 151 11 154 33 160 33"/></svg></span>
+            <span><b>BRAKE</b><svg viewBox="0 0 160 35"><path d="M0 33L12 33 17 13 23 33 42 33 46 23 51 33 73 33 79 7 85 33 103 33 107 16 114 33 135 33 141 8 147 33 160 33"/></svg></span>
+            <span><b>SPEED</b><svg viewBox="0 0 160 35"><path d="M0 15L12 9 23 22 36 26 49 13 61 27 74 12 87 29 101 15 113 8 126 27 139 19 150 26 160 12"/></svg></span>
+          </div>
         </div>
       </div>
 
