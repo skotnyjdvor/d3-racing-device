@@ -96,7 +96,6 @@ body { background: var(--race-bg); font-family: var(--font-body); }
 .brand strong em { font-style: normal; }
 .auth-locked .brand strong { font: 700 24px/1 var(--font-display); letter-spacing: .1em; white-space: nowrap; }
 .auth-locked .brand strong em { color: var(--race-red); }
-.auth-locked .brand small { display: none; }
 .landing-nav, .lang-switch, .landing-subbar { display: none; }
 .header-actions { gap: 4px; }
 .auth-locked .landing-nav { display: flex; align-items: center; gap: 2px; }
@@ -108,7 +107,7 @@ body { background: var(--race-bg); font-family: var(--font-body); }
 .lang-switch button:hover { color: var(--race-text); }
 .lang-switch button.active { color: var(--race-red); }
 .lang-switch i { color: rgba(90,91,94,.5); font-style: normal; }
-.language-picker { display: none; }
+html .language-picker { display: none; }
 .auth-locked .landing-subbar { position: relative; z-index: 3; padding: 0 max(16px, calc((100% - 1280px) / 2)); height: 22px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--race-line); font: 700 9px/1 var(--font-code); letter-spacing: .32em; text-transform: uppercase; }
 .subbar-tag { display: flex; align-items: center; gap: 8px; color: var(--race-text-2); }
 .subbar-tag i { width: 12px; height: 1px; margin-right: 8px; background: var(--race-red); }
@@ -200,7 +199,10 @@ body { background: var(--race-bg); font-family: var(--font-body); }
 .spark-peaks { fill: var(--race-amber); }
 /* Signed-in app — same race-engineering language */
 body:not(.auth-locked) { background-image: linear-gradient(rgba(255,255,255,.022) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.022) 1px, transparent 1px); background-size: 64px 64px; background-attachment: fixed; }
-html .brand small { margin: 0; color: var(--race-muted); font: 400 9px/1.4 var(--font-code); letter-spacing: .25em; }
+html .brand { flex-direction: column; align-items: stretch; gap: 3px; }
+html .brand-mark-frame, html .brand-mark { width: 84px; height: 38px; }
+html .brand > span:last-child { display: block; }
+html .brand small { display: block; margin: 0; padding-top: 3px; border-top: 1px solid var(--race-red); color: var(--race-text-2); font: 700 5.6px/1 var(--font-code); letter-spacing: .06em; text-align: center; white-space: nowrap; }
 html .app-nav { margin-right: 12px; padding: 0; gap: 2px; background: none; border: 0; }
 html .app-nav button { position: relative; min-height: 36px; padding: 0 16px; color: var(--race-muted); font: 700 11px/1 var(--font-code); letter-spacing: .22em; transition: color .15s; }
 html .app-nav button:hover { color: var(--race-text); }
@@ -693,6 +695,7 @@ footer { width: min(1480px, calc(100% - 40px)); min-height: 74px; margin: 0 auto
   html .app-nav button { min-height: 40px; padding: 0 2px; font-size: 8.5px; line-height: 1.15; letter-spacing: .04em; white-space: normal; }
   html .app-nav button.active::after { left: 4px; right: 4px; bottom: 2px; }
   body:not(.auth-locked) .lang-switch { display: none; }
+  html body:not(.auth-locked) .language-picker { display: flex; }
   html .account-button { margin-left: 4px; padding: 0 6px; }
   html .language-picker select { border-color: var(--race-line-2); font-family: var(--font-code); }
   .header-actions { grid-column: 3; min-width: 0; gap: 4px; }
@@ -717,7 +720,8 @@ footer { width: min(1480px, calc(100% - 40px)); min-height: 74px; margin: 0 auto
   .auth-locked .landing { width: 100%; }
   .auth-locked .topbar { padding: 0 16px; }
   .auth-locked .brand-divider { display: none; }
-  .auth-locked .brand-mark-frame, .auth-locked .brand-mark { width: 44px; height: 28px; }
+  .auth-locked .brand-mark-frame, .auth-locked .brand-mark, html .brand-mark-frame, html .brand-mark { width: 64px; height: 29px; }
+  html .brand small { font-size: 4.2px; letter-spacing: .12em; }
   .auth-locked .lang-switch { margin-left: 0; padding-left: 0; border-left: 0; letter-spacing: .08em; }
   .lang-switch button { padding: 4px; }
   .auth-locked .account-button { margin-left: 8px; padding: 0 12px; }
