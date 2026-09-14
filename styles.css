@@ -108,7 +108,7 @@ body { background: var(--race-bg); font-family: var(--font-body); }
 .lang-switch button.active { color: var(--race-red); }
 .lang-switch i { color: rgba(90,91,94,.5); font-style: normal; }
 html .language-picker { display: none; }
-.auth-locked .landing-subbar { position: relative; z-index: 3; padding: 0 max(16px, calc((100% - 1280px) / 2)); height: 22px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--race-line); font: 700 9px/1 var(--font-code); letter-spacing: .32em; text-transform: uppercase; }
+.auth-locked .landing-subbar { position: relative; z-index: 3; padding: 0 max(16px, calc((100% - 1280px) / 2)); height: 22px; display: flex; align-items: center; justify-content: flex-end; border-bottom: 1px solid var(--race-line); font: 700 9px/1 var(--font-code); letter-spacing: .32em; text-transform: uppercase; }
 .subbar-tag { display: flex; align-items: center; gap: 8px; color: var(--race-text-2); }
 .subbar-tag i { width: 12px; height: 1px; margin-right: 8px; background: var(--race-red); }
 .subbar-tag b { color: var(--race-red); }
