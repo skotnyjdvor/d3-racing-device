@@ -35,7 +35,7 @@ In the DNS panel:
 - remove the four GitHub Pages A records;
 - remove the old `www` CNAME to `skotnyjdvor.github.io`;
 - add `A @ SERVER_IPV4`;
-- add `CNAME www d3racinglab.com`;
+- add `CNAME www d3cf.com`;
 - optionally add `AAAA @ SERVER_IPV6`.
 
 Caddy obtains and renews HTTPS certificates automatically after DNS points to the server.
@@ -53,9 +53,9 @@ Logs and health:
 
 ```bash
 docker compose logs -f app
-curl https://d3racinglab.com/api/health
+curl https://d3cf.com/api/health
 ```
 
 Database backups run daily and are retained for 14 days in the `postgres_backups` Docker volume. Copy them to separate storage regularly; a backup on the same server does not protect against full server loss.
 
-For the iPhone build, set `VITE_API_URL=https://d3racinglab.com` in `.env` on the Mac before `npm run ios:sync`.
+For the iPhone build, set `VITE_API_URL=https://d3cf.com` in `.env` on the Mac before `npm run ios:sync`.
