@@ -199,10 +199,10 @@ html .language-picker { display: none; }
 .spark-peaks { fill: var(--race-amber); }
 /* Signed-in app — same race-engineering language */
 body:not(.auth-locked) { background-image: linear-gradient(rgba(255,255,255,.022) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.022) 1px, transparent 1px); background-size: 64px 64px; background-attachment: fixed; }
-html .brand { flex-direction: column; align-items: stretch; gap: 3px; }
-html .brand-mark-frame, html .brand-mark { width: 84px; height: 38px; }
+html .brand { flex-direction: row; align-items: flex-end; gap: 12px; }
+html .brand-mark-frame, html .brand-mark { width: 64px; height: 30px; }
 html .brand > span:last-child { display: block; }
-html .brand small { display: block; margin: 0; padding-top: 3px; border-top: 1px solid var(--race-red); color: var(--race-text-2); font: 700 5.6px/1 var(--font-code); letter-spacing: .06em; text-align: center; white-space: nowrap; }
+html .brand small { display: block; margin: 0 0 1px; color: var(--race-text-2); font: 700 9px/1 var(--font-code); letter-spacing: .24em; white-space: nowrap; }
 html .app-nav { margin-right: 12px; padding: 0; gap: 2px; background: none; border: 0; }
 html .app-nav button { position: relative; min-height: 36px; padding: 0 16px; color: var(--race-muted); font: 700 11px/1 var(--font-code); letter-spacing: .22em; transition: color .15s; }
 html .app-nav button:hover { color: var(--race-text); }
@@ -720,8 +720,8 @@ footer { width: min(1480px, calc(100% - 40px)); min-height: 74px; margin: 0 auto
   .auth-locked .landing { width: 100%; }
   .auth-locked .topbar { padding: 0 16px; }
   .auth-locked .brand-divider { display: none; }
-  .auth-locked .brand-mark-frame, .auth-locked .brand-mark, html .brand-mark-frame, html .brand-mark { width: 64px; height: 29px; }
-  html .brand small { font-size: 4.2px; letter-spacing: .12em; }
+  .auth-locked .brand-mark-frame, .auth-locked .brand-mark, html .brand-mark-frame, html .brand-mark { width: 52px; height: 24px; }
+  html .brand > span:last-child { display: none; }
   .auth-locked .lang-switch { margin-left: 0; padding-left: 0; border-left: 0; letter-spacing: .08em; }
   .lang-switch button { padding: 4px; }
   .auth-locked .account-button { margin-left: 8px; padding: 0 12px; }
