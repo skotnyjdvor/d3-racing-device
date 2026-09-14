@@ -81,7 +81,7 @@ main { width: min(1480px, calc(100% - 40px)); margin: 0 auto; }
 .auth-locked .account-button span { color:#fff; background:#f21d19; }
 .auth-locked .language-picker select { border-color:#34343f; background:#111119; }
 .landing { width:min(1540px,calc(100% - 40px)); }
-.landing-hero { min-height:calc(100vh - 76px); padding:86px 0 54px; display:grid; grid-template-columns:minmax(440px,.82fr) minmax(560px,1.18fr); align-items:center; gap:26px; }
+.landing-hero { min-height:calc(100vh - 76px); padding:72px 0 48px; display:grid; grid-template-columns:minmax(500px,.9fr) minmax(620px,1.1fr); align-items:center; gap:50px; }
 .landing-copy { position:relative; z-index:4; }
 .landing-copy::before { content:"LAPTRACE_V1  //  TELEMETRY  ·  AI COACHING"; display:block; margin-bottom:34px; color:#74747f; font:700 9px/1 ui-monospace,monospace; letter-spacing:.25em; }
 .landing-copy h1 { max-width:760px; font-family:"Arial Narrow",Impact,sans-serif; font-size:clamp(70px,7vw,128px); line-height:.76; letter-spacing:-.045em; }
@@ -97,13 +97,13 @@ main { width: min(1480px, calc(100% - 40px)); margin: 0 auto; }
 .auth-locked .primary { color:#fff; background:#f21d19; box-shadow:0 0 28px rgba(242,29,25,.16); }
 .auth-locked .landing-link { border-color:#555563; background:rgba(17,17,25,.72); }
 .auth-locked .landing-proof { border-top:1px solid #292933; padding-top:20px; }
-.hero-telemetry { position:relative; min-height:650px; align-self:stretch; overflow:visible; }
+.hero-telemetry { position:relative; min-height:650px; align-self:stretch; overflow:visible; isolation:isolate; }
 .session-clock { position:absolute; z-index:3; top:5%; right:10%; color:#6f6f79; font:700 9px/1 ui-monospace,monospace; letter-spacing:.2em; }
 .session-clock b { margin-left:8px; color:#eee; }.session-clock i,.live-lap i { color:#f21d19; font-style:normal; }
-.hero-track { position:absolute; z-index:1; width:100%; height:78%; right:-4%; top:9%; overflow:visible; filter:drop-shadow(0 0 34px rgba(255,22,18,.2)); }
-.hero-track-bed,.hero-track-line { fill:none; stroke-linecap:round; stroke-linejoin:round; }
-.hero-track-bed { stroke:#393943; stroke-width:21; }.hero-track-line { stroke:#e12624; stroke-width:2; }.hero-track-dot { fill:#ff251f; }
-.live-card { position:absolute; z-index:3; width:min(370px,53%); left:2%; top:35%; padding:18px 20px 17px; border:1px solid #3d3d49; background:rgba(20,19,28,.92); box-shadow:0 18px 50px rgba(0,0,0,.38); font-family:ui-monospace,monospace; }
+.hero-track-image { position:absolute; z-index:0; width:118%; height:auto; right:-14%; top:18%; opacity:.78; object-fit:contain; filter:drop-shadow(0 0 12px rgba(255,26,20,.5)) drop-shadow(0 0 60px rgba(255,26,20,.22)); }
+.hero-track-marker { position:absolute; z-index:2; width:12px; height:12px; right:18%; top:42%; border-radius:50%; background:#ff2a24; box-shadow:0 0 0 6px rgba(255,42,36,.13),0 0 22px #ff2a24; animation:markerPulse 1.3s ease-in-out infinite; }
+@keyframes markerPulse { 50% { transform:scale(.72); opacity:.7; } }
+.live-card { position:absolute; z-index:3; width:min(360px,54%); right:3%; top:39%; padding:18px 20px 17px; border:1px solid #3d3d49; background:rgba(20,19,28,.94); box-shadow:0 18px 50px rgba(0,0,0,.48); font-family:ui-monospace,monospace; }
 .live-card::before,.live-card::after { content:""; position:absolute; width:13px; height:13px; border-color:#ff211d; }.live-card::before { left:-1px; top:-1px; border-left:2px solid #ff211d; border-top:2px solid #ff211d; }.live-card::after { right:-1px; bottom:-1px; border-right:2px solid #ff211d; border-bottom:2px solid #ff211d; }
 .live-card-head { display:flex; justify-content:space-between; color:#71717c; font-size:9px; letter-spacing:.16em; }.live-card-head b { color:#f4f4f6; }.live-card-head i { display:inline-block; width:6px; height:6px; margin-right:5px; border-radius:50%; background:#f3f75c; }
 .live-card dl { margin:14px 0; }.live-card dl div { display:flex; justify-content:space-between; padding:8px 0 6px; border-bottom:2px solid #343440; color:#74747f; font-size:9px; }.live-card dl div::after { content:""; position:absolute; left:20px; margin-top:16px; width:45%; border-bottom:2px solid #f21d19; }.live-card dl .hot::after { width:72%; }.live-card dd { margin:0; color:#f0f0f2; }
@@ -449,9 +449,10 @@ footer { width: min(1480px, calc(100% - 40px)); min-height: 74px; margin: 0 auto
   .landing-actions .primary, .landing-link { width: 100%; }
   .landing-proof { gap: 20px; justify-content: space-between; }
   .hero-telemetry { min-height:480px; margin-top:10px; }
-  .hero-track { width:126%; height:66%; right:-24%; top:8%; }
+  .hero-track-image { width:130%; right:-22%; top:8%; }
+  .hero-track-marker { right:14%; top:35%; }
   .session-clock { top:2%; right:0; font-size:7px; }
-  .live-card { width:74%; left:0; top:33%; padding:13px 14px; }
+  .live-card { width:78%; right:0; top:31%; padding:13px 14px; }
   .live-card dl div::after { left:14px; }
   .live-lap strong { font-size:19px; }
   .hero-sparklines { grid-template-columns:1fr 1fr; bottom:0; gap:7px; }
