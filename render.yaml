@@ -1,12 +1,14 @@
 services:
   - type: web
-    name: laptrace
+    name: D3RacingLab
     runtime: node
     plan: starter
     region: frankfurt
     buildCommand: npm ci --include=dev && npm run build
     startCommand: npm run start:render
     healthCheckPath: /api/health
+    domains:
+      - d3cf.com
     envVars:
       - key: NODE_ENV
         value: production
