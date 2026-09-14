@@ -59,7 +59,11 @@
         <div class="hero-telemetry" aria-hidden="true">
           <span class="session-clock">SESSION_TIME <b>12:47.<i>328</i></b></span>
           <img class="hero-track-image" src="/assets/viterbo-track-hero.png" alt="" />
-          <span class="hero-track-marker"></span>
+          <svg class="hero-track-motion" viewBox="0 0 531 376">
+            <path id="heroCircuitMotionPath" class="hero-motion-guide" pathLength="1000" d="M55 101 C76 106 98 116 118 116 L145 115 L297 143 C309 145 315 141 319 132 C321 126 316 122 306 120 L109 80 C82 75 65 83 60 104 C56 124 56 169 54 191 C52 215 62 233 82 252 L98 267 C108 277 121 278 135 270 L170 248 C181 241 192 242 204 247 L333 249 C349 249 361 252 378 256 L446 269 C460 271 470 266 474 255 C478 243 471 234 458 230 L393 214 C381 211 376 206 378 196 C380 185 387 181 400 184 L469 199 C482 201 489 194 491 183 C493 173 486 167 474 164 L373 141 C352 136 340 145 338 163 L337 185 C336 204 327 214 307 216 L244 215 C226 215 211 212 196 208 L163 200 C154 198 147 199 138 204 L116 214 C103 220 91 217 83 209 C76 202 76 193 78 181 L82 154 C84 143 92 139 105 141 L286 175" />
+            <path class="hero-motion-trail" pathLength="1000" d="M55 101 C76 106 98 116 118 116 L145 115 L297 143 C309 145 315 141 319 132 C321 126 316 122 306 120 L109 80 C82 75 65 83 60 104 C56 124 56 169 54 191 C52 215 62 233 82 252 L98 267 C108 277 121 278 135 270 L170 248 C181 241 192 242 204 247 L333 249 C349 249 361 252 378 256 L446 269 C460 271 470 266 474 255 C478 243 471 234 458 230 L393 214 C381 211 376 206 378 196 C380 185 387 181 400 184 L469 199 C482 201 489 194 491 183 C493 173 486 167 474 164 L373 141 C352 136 340 145 338 163 L337 185 C336 204 327 214 307 216 L244 215 C226 215 211 212 196 208 L163 200 C154 198 147 199 138 204 L116 214 C103 220 91 217 83 209 C76 202 76 193 78 181 L82 154 C84 143 92 139 105 141 L286 175" />
+            <circle r="6" class="hero-motion-dot"><animateMotion dur="8s" repeatCount="indefinite" rotate="auto"><mpath href="#heroCircuitMotionPath" /></animateMotion></circle>
+          </svg>
           <div class="live-card">
             <div class="live-card-head"><span>// TELEMETRY · LIVE_FEED</span><b><i></i> REC</b></div>
             <dl><div><dt>LEAN_ANGLE</dt><dd>8° R</dd></div><div><dt>THROTTLE</dt><dd>68%</dd></div><div class="hot"><dt>BRAKE</dt><dd>72%</dd></div><div><dt>SPEED</dt><dd>158 km/h</dd></div></dl>
