@@ -95,10 +95,10 @@ main { width: min(1480px, calc(100% - 40px)); margin: 0 auto; }
 .auth-locked .landing-actions .primary { color:#fff; background:#f02620; box-shadow:0 0 28px rgba(240,38,32,.16); }
 .auth-locked .landing-link { border-color:#555560; background:rgba(16,16,23,.72); }
 .auth-locked .landing-proof { border-top:1px solid #2b2b35; padding-top:20px; }
-.race-hero-visual { position:relative; min-height:650px; align-self:stretch; isolation:isolate; }
+.race-hero-visual { position:relative; min-height:650px; align-self:stretch; }
 .race-session-time { position:absolute; z-index:4; top:8%; right:9%; color:#666873; font:700 8px/1 ui-monospace,monospace; letter-spacing:.18em; }
 .race-session-time b { margin-left:8px; color:#f4f4f6; font-size:10px; }.race-session-time i,.race-current-lap i { color:#f02620; font-style:normal; }
-.lonato-track { position:absolute; z-index:0; width:108%; height:auto; right:-8%; top:18%; opacity:.66; object-fit:contain; filter:invert(1) hue-rotate(180deg) saturate(1.38) brightness(1.15) drop-shadow(0 0 16px rgba(240,38,32,.35)); mix-blend-mode:screen; }
+.lonato-track { position:absolute; z-index:0; width:108%; height:auto; right:-8%; top:18%; opacity:1; overflow:visible; filter:drop-shadow(0 0 3px rgba(255,45,38,.95)) drop-shadow(0 0 16px rgba(240,38,32,.62)) drop-shadow(0 0 54px rgba(240,38,32,.25)); }
 .lonato-motion { position:absolute; z-index:2; width:108%; height:auto; right:-8%; top:18%; overflow:visible; pointer-events:none; }
 .lonato-motion path { fill:none; stroke:transparent; }
 .lonato-dot { fill:#fff; stroke:#f02620; stroke-width:3; filter:drop-shadow(0 0 3px #fff) drop-shadow(0 0 10px #f02620); }

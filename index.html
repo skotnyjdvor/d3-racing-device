@@ -58,10 +58,18 @@
         </div>
         <div class="race-hero-visual" aria-hidden="true">
           <span class="race-session-time">SESSION_TIME <b id="heroSessionTime">00:00.<i>000</i></b></span>
-          <img class="lonato-track" src="/assets/lonato-track.png" alt="" />
+          <svg class="lonato-track" viewBox="0 0 531 376">
+            <defs>
+              <filter id="removeTrackWhite" color-interpolation-filters="sRGB">
+                <feColorMatrix type="matrix" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  1 -1 0 0 0" />
+                <feComponentTransfer><feFuncA type="linear" slope="2.4" intercept="0" /></feComponentTransfer>
+              </filter>
+            </defs>
+            <image href="/assets/lonato-track.png" width="531" height="376" filter="url(#removeTrackWhite)" />
+          </svg>
           <svg class="lonato-motion" viewBox="0 0 531 376">
             <path id="lonatoMotionPath" d="M55 98 C77 104 101 114 120 114 C130 114 139 112 148 114 L301 142 C314 144 321 138 324 127 C328 115 336 106 350 106 C378 109 431 121 477 133 C493 137 501 148 497 162 C493 176 483 182 468 179 L398 162 C383 159 373 166 370 179 C368 192 375 201 390 205 L462 222 C477 226 484 236 480 249 C476 263 465 269 450 266 L356 247 C343 244 333 242 319 242 L209 239 C195 239 188 237 176 245 L147 264 C130 275 112 276 97 267 C81 257 66 243 53 228 C41 215 37 200 40 181 L47 118 C49 105 50 97 55 98 Z" />
-            <circle r="5" class="lonato-dot"><animateMotion dur="9s" repeatCount="indefinite"><mpath href="#lonatoMotionPath" /></animateMotion></circle>
+            <circle id="lonatoDot" r="5" class="lonato-dot" cx="55" cy="98" />
           </svg>
           <div class="race-live-card">
             <div class="race-live-head"><span>// TELEMETRY · LIVE_FEED</span><b><i></i> REC</b></div>

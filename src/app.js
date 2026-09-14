@@ -1555,8 +1555,11 @@ function startLandingTelemetry() {
   const throttle = document.getElementById("heroThrottle");
   const brake = document.getElementById("heroBrake");
   const speed = document.getElementById("heroSpeed");
+  const trackPath = document.getElementById("lonatoMotionPath");
+  const trackDot = document.getElementById("lonatoDot");
   if (!sessionTime || !lapTime || !lean || !throttle || !brake || !speed) return;
   const startedAt = performance.now();
+  const trackLength = trackPath?.getTotalLength?.() ?? 0;
   const formatClock = (milliseconds) => {
     const minutes = Math.floor(milliseconds / 60_000);
     const seconds = Math.floor(milliseconds / 1000) % 60;
@@ -1582,6 +1585,15 @@ function startLandingTelemetry() {
     updateChannel(brake, brakeValue, "%");
     updateChannel(speed, Math.max(42, speedValue), " km/h", 190);
   }, 80);
+  const animateTrackDot = (now) => {
+    if (trackPath && trackDot && trackLength) {
+      const point = trackPath.getPointAtLength((now % 9000) / 9000 * trackLength);
+      trackDot.setAttribute("cx", point.x.toFixed(2));
+      trackDot.setAttribute("cy", point.y.toFixed(2));
+    }
+    requestAnimationFrame(animateTrackDot);
+  };
+  requestAnimationFrame(animateTrackDot);
 }
 
 startLandingTelemetry();
