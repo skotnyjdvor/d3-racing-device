@@ -1548,6 +1548,44 @@ renderAccount();
 showView(testMode ? viewFromHash() : "analysis", false);
 drawTrack(); drawCharts();
 
+function startLandingTelemetry() {
+  const sessionTime = document.getElementById("heroSessionTime");
+  const lapTime = document.getElementById("heroLapTime");
+  const lean = document.getElementById("heroLean");
+  const throttle = document.getElementById("heroThrottle");
+  const brake = document.getElementById("heroBrake");
+  const speed = document.getElementById("heroSpeed");
+  if (!sessionTime || !lapTime || !lean || !throttle || !brake || !speed) return;
+  const startedAt = performance.now();
+  const formatClock = (milliseconds) => {
+    const minutes = Math.floor(milliseconds / 60_000);
+    const seconds = Math.floor(milliseconds / 1000) % 60;
+    const millis = Math.floor(milliseconds % 1000);
+    return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.<i>${String(millis).padStart(3, "0")}</i>`;
+  };
+  const updateChannel = (element, value, suffix, maximum = 100) => {
+    element.textContent = `${value}${suffix}`;
+    element.closest(".race-channel")?.style.setProperty("--value", `${Math.min(100, Math.max(2, value / maximum * 100))}%`);
+  };
+  setInterval(() => {
+    if (document.hidden) return;
+    const elapsed = performance.now() - startedAt;
+    const phase = elapsed / 2200;
+    const leanValue = Math.round(Math.abs(Math.sin(phase * .92)) * 48);
+    const throttleValue = Math.round(Math.max(0, 54 + Math.sin(phase * .73 + 1.2) * 48));
+    const brakeValue = Math.round(Math.pow(Math.max(0, Math.sin(phase * 1.37 - .8)), 5) * 94);
+    const speedValue = Math.round(88 + Math.sin(phase * .66 + .4) * 42 + Math.sin(phase * 1.51) * 14);
+    sessionTime.innerHTML = formatClock(elapsed + 12 * 60_000);
+    lapTime.innerHTML = formatClock(elapsed % 46_800);
+    updateChannel(lean, leanValue, `° ${Math.sin(phase * .92) >= 0 ? "R" : "L"}`, 60);
+    updateChannel(throttle, throttleValue, "%");
+    updateChannel(brake, brakeValue, "%");
+    updateChannel(speed, Math.max(42, speedValue), " km/h", 190);
+  }, 80);
+}
+
+startLandingTelemetry();
+
 if (cloudConfigured) {
   currentUser().then(applyUser);
 }

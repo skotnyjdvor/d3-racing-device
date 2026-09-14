@@ -76,8 +76,15 @@ main { width: min(1480px, calc(100% - 40px)); margin: 0 auto; }
 .logs-page-actions { display: flex; align-items: center; gap: 10px; }
 .logs-page-actions button { min-height: 42px; padding: 0 16px; }
 .auth-locked .device-state { display: none; }
-.landing-hero { min-height: calc(100vh - 76px); padding: 90px 0 76px; display: grid; grid-template-columns: 1.08fr .92fr; align-items: center; gap: 40px; }
-.landing-copy h1 { max-width: 850px; font-size: clamp(62px, 7.2vw, 116px); }
+.auth-locked { background-color:#101017; background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px),radial-gradient(circle at 73% 45%,rgba(238,30,25,.12),transparent 31%); background-size:51px 51px,51px 51px,auto; }
+.auth-locked .topbar { border-top:2px solid #51515a; background:rgba(16,16,23,.94); }
+.landing { width:min(1540px,calc(100% - 40px)); }
+.landing-hero { min-height:calc(100vh - 76px); padding:72px 0 44px; display:grid; grid-template-columns:minmax(470px,.84fr) minmax(640px,1.16fr); align-items:center; gap:58px; }
+.landing-copy { position:relative; z-index:5; align-self:center; }
+.landing-copy::before { content:"LAPTRACE_V1  //  TELEMETRY  ·  AI COACHING  //  LONATO KARTING"; display:block; margin-bottom:32px; color:#6e707c; font:700 9px/1 ui-monospace,monospace; letter-spacing:.2em; white-space:nowrap; }
+.landing-copy h1 { max-width:690px; font-family:"Arial Narrow",Impact,sans-serif; font-size:clamp(68px,5.8vw,104px); line-height:.79; letter-spacing:-.045em; }
+.landing-copy h1 span { color:#f4f4f6; -webkit-text-stroke:0; }
+.landing-copy h1 span:last-child { color:#f02620; text-shadow:0 0 12px rgba(240,38,32,.24),0 0 42px rgba(240,38,32,.18); }
 .landing-copy .hero-copy { max-width: 700px; }
 .landing-actions { display: flex; gap: 12px; margin-top: 34px; }
 .landing-actions .primary, .landing-link { min-width: 205px; padding: 0 22px; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
@@ -85,6 +92,25 @@ main { width: min(1480px, calc(100% - 40px)); margin: 0 auto; }
 .landing-proof span { display: grid; gap: 4px; }
 .landing-proof b { font: 800 16px/1 ui-monospace, monospace; color: var(--text); }
 .landing-proof small { color: #9da8b3; font-size: 11px; line-height: 1.4; text-transform: uppercase; letter-spacing: .08em; }
+.auth-locked .landing-actions .primary { color:#fff; background:#f02620; box-shadow:0 0 28px rgba(240,38,32,.16); }
+.auth-locked .landing-link { border-color:#555560; background:rgba(16,16,23,.72); }
+.auth-locked .landing-proof { border-top:1px solid #2b2b35; padding-top:20px; }
+.race-hero-visual { position:relative; min-height:650px; align-self:stretch; isolation:isolate; }
+.race-session-time { position:absolute; z-index:4; top:8%; right:9%; color:#666873; font:700 8px/1 ui-monospace,monospace; letter-spacing:.18em; }
+.race-session-time b { margin-left:8px; color:#f4f4f6; font-size:10px; }.race-session-time i,.race-current-lap i { color:#f02620; font-style:normal; }
+.lonato-track { position:absolute; z-index:0; width:108%; height:auto; right:-8%; top:18%; opacity:.66; object-fit:contain; filter:invert(1) hue-rotate(180deg) saturate(1.38) brightness(1.15) drop-shadow(0 0 16px rgba(240,38,32,.35)); mix-blend-mode:screen; }
+.lonato-motion { position:absolute; z-index:2; width:108%; height:auto; right:-8%; top:18%; overflow:visible; pointer-events:none; }
+.lonato-motion path { fill:none; stroke:transparent; }
+.lonato-dot { fill:#fff; stroke:#f02620; stroke-width:3; filter:drop-shadow(0 0 3px #fff) drop-shadow(0 0 10px #f02620); }
+.race-live-card { position:absolute; z-index:3; width:min(360px,52%); left:1%; top:35%; padding:18px 20px 16px; border:1px solid #3b3b47; background:rgba(20,19,28,.94); box-shadow:0 18px 50px rgba(0,0,0,.44); font-family:ui-monospace,monospace; }
+.race-live-card::before,.race-live-card::after { content:""; position:absolute; width:12px; height:12px; }.race-live-card::before { left:-1px; top:-1px; border-left:2px solid #f02620; border-top:2px solid #f02620; }.race-live-card::after { right:-1px; bottom:-1px; border-right:2px solid #f02620; border-bottom:2px solid #f02620; }
+.race-live-head { margin-bottom:10px; display:flex; justify-content:space-between; color:#6e707a; font-size:8px; letter-spacing:.14em; }.race-live-head b { color:#f4f4f6; }.race-live-head i { display:inline-block; width:6px; height:6px; margin-right:5px; border-radius:50%; background:#f2f54d; box-shadow:0 0 8px rgba(242,245,77,.6); }
+.race-channel { --value:50%; position:relative; padding:8px 0 7px; display:flex; justify-content:space-between; color:#6f707b; border-bottom:2px solid #373741; font-size:8px; }
+.race-channel::after { content:""; position:absolute; left:0; bottom:-2px; width:var(--value); height:2px; background:#f02620; box-shadow:0 0 7px rgba(240,38,32,.35); transition:width .45s ease; }.race-channel b { color:#f4f4f6; font-weight:750; }
+.race-current-lap { margin-top:13px; padding-top:11px; display:flex; justify-content:space-between; color:#686a75; font:700 8px/1 ui-monospace,monospace; letter-spacing:.15em; text-align:right; }.race-current-lap span:first-child { text-align:left; }.race-current-lap strong { display:block; margin-top:8px; color:#f4f4f6; font-size:24px; letter-spacing:0; }
+.race-sparklines { position:absolute; z-index:4; left:0; right:0; bottom:2%; display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
+.race-sparklines span { padding-left:10px; border-left:1px solid #f02620; overflow:hidden; }.race-sparklines b { display:block; color:#696b75; font:700 7px/1 ui-monospace,monospace; letter-spacing:.16em; }.race-sparklines svg { width:112%; height:48px; }.race-sparklines path { fill:none; stroke:#f02620; stroke-width:1.5; vector-effect:non-scaling-stroke; stroke-dasharray:360; animation:sparkFlow 4s linear infinite; }.race-sparklines span:nth-child(2) path { stroke:#8db23b; animation-delay:-1s; }.race-sparklines span:nth-child(3) path { stroke:#d8971c; animation-delay:-2s; }.race-sparklines span:nth-child(4) path { stroke:#36c4d3; animation-delay:-3s; }
+@keyframes sparkFlow { from { transform:translateX(-5%); } 50% { transform:translateX(0); } to { transform:translateX(-5%); } }
 .device-orbit { width: min(620px, 100%); aspect-ratio: 1; justify-self: end; position: relative; display: grid; place-items: center; }
 .device-orbit::before, .orbit-line { content: ""; position: absolute; inset: 5%; border: 1px solid #27323d; border-radius: 50%; }
 .orbit-line { inset: 17%; border-color: rgba(201,208,215,.18); }
@@ -361,6 +387,7 @@ footer { width: min(1480px, calc(100% - 40px)); min-height: 74px; margin: 0 auto
   .ai-history-list { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(250px, 84%); overflow-x: auto; overscroll-behavior-inline: contain; scroll-snap-type: inline mandatory; padding-bottom: 5px; }
   .ai-history-item { scroll-snap-align: start; }
   .landing-hero { grid-template-columns: 1fr; padding-top: 70px; }
+  .race-hero-visual { min-height:620px; }
   .device-orbit { justify-self: center; width: min(620px, 94vw); }
   .demo-heading { grid-template-columns: 1fr; gap: 20px; }
   .demo-grid { grid-template-columns: 1fr; }
@@ -417,10 +444,18 @@ footer { width: min(1480px, calc(100% - 40px)); min-height: 74px; margin: 0 auto
   .track-panel canvas { height: 250px; }
   main, footer, .landing { width: min(100% - 24px, 1480px); }
   .landing-hero { padding: 48px 0 60px; }
-  .landing-copy h1 { font-size: 54px; }
+  .landing-copy::before { margin-bottom:23px; font-size:7px; letter-spacing:.12em; white-space:normal; line-height:1.5; }
+  .landing-copy h1 { font-size:55px; line-height:.83; }
   .landing-actions { display: grid; }
   .landing-actions .primary, .landing-link { width: 100%; }
   .landing-proof { gap: 20px; justify-content: space-between; }
+  .race-hero-visual { min-height:500px; margin-top:8px; }
+  .race-session-time { top:0; right:0; font-size:7px; }
+  .lonato-track,.lonato-motion { width:132%; right:-24%; top:7%; }
+  .race-live-card { width:80%; left:auto; right:0; top:30%; padding:13px 14px; }
+  .race-current-lap strong { font-size:19px; }
+  .race-sparklines { grid-template-columns:1fr 1fr; bottom:0; gap:7px; }
+  .race-sparklines svg { height:30px; }
   .device-orbit { width: 100%; aspect-ratio: auto; grid-template-columns: 1fr 1fr; gap: 8px; padding: 28px 0 0; }
   .device-orbit::before, .device-orbit::after, .orbit-line { top: 20px; bottom: auto; width: 100%; height: 351px; inset-inline: 0; }
   .device-orbit::after { width: 70%; height: 270px; left: 15%; }

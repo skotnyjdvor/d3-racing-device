@@ -56,18 +56,27 @@
             <span><b>BLE</b><small data-i18n="landing.proofSync"></small></span>
           </div>
         </div>
-        <div class="device-orbit" aria-hidden="true">
-          <div class="orbit-line"></div>
-          <div class="device-glow"></div>
-          <img class="landing-device-image" src="/assets/laptrace-device.png" alt="" />
-          <span class="orbit-label orbit-gps"><i>⌖</i><b data-i18n="spec.gpsTitle"></b><small data-i18n="spec.gpsCopy"></small></span>
-          <span class="orbit-label orbit-ble"><i>ᛒ</i><b>Bluetooth 5.2</b><small data-i18n="spec.bleCopy"></small></span>
-          <span class="orbit-label orbit-battery"><i>▥</i><b>1100 mAh</b><small data-i18n="spec.batteryCopy"></small></span>
-          <span class="orbit-label orbit-usb"><i>↯</i><b>USB Type-C</b><small data-i18n="spec.usbCopy"></small></span>
-          <span class="orbit-label orbit-accel"><i>＋</i><b data-i18n="spec.accelTitle"></b><small>± 8G</small></span>
-          <span class="orbit-label orbit-gyro"><i>◎</i><b data-i18n="spec.gyroTitle"></b><small>± 320 dps</small></span>
-          <span class="orbit-label orbit-storage"><i>▤</i><b data-i18n="spec.storageTitle"></b><small data-i18n="spec.storageCopy"></small></span>
-          <span class="orbit-label orbit-splash"><i>≋</i><b data-i18n="spec.splashTitle"></b><small data-i18n="spec.splashCopy"></small></span>
+        <div class="race-hero-visual" aria-hidden="true">
+          <span class="race-session-time">SESSION_TIME <b id="heroSessionTime">00:00.<i>000</i></b></span>
+          <img class="lonato-track" src="/assets/lonato-track.png" alt="" />
+          <svg class="lonato-motion" viewBox="0 0 531 376">
+            <path id="lonatoMotionPath" d="M55 98 C77 104 101 114 120 114 C130 114 139 112 148 114 L301 142 C314 144 321 138 324 127 C328 115 336 106 350 106 C378 109 431 121 477 133 C493 137 501 148 497 162 C493 176 483 182 468 179 L398 162 C383 159 373 166 370 179 C368 192 375 201 390 205 L462 222 C477 226 484 236 480 249 C476 263 465 269 450 266 L356 247 C343 244 333 242 319 242 L209 239 C195 239 188 237 176 245 L147 264 C130 275 112 276 97 267 C81 257 66 243 53 228 C41 215 37 200 40 181 L47 118 C49 105 50 97 55 98 Z" />
+            <circle r="5" class="lonato-dot"><animateMotion dur="9s" repeatCount="indefinite"><mpath href="#lonatoMotionPath" /></animateMotion></circle>
+          </svg>
+          <div class="race-live-card">
+            <div class="race-live-head"><span>// TELEMETRY · LIVE_FEED</span><b><i></i> REC</b></div>
+            <div class="race-channel" style="--value:38%"><span>LEAN_ANGLE</span><b id="heroLean">22° R</b></div>
+            <div class="race-channel" style="--value:74%"><span>THROTTLE</span><b id="heroThrottle">74%</b></div>
+            <div class="race-channel" style="--value:18%"><span>BRAKE</span><b id="heroBrake">18%</b></div>
+            <div class="race-channel" style="--value:62%"><span>SPEED</span><b id="heroSpeed">154 km/h</b></div>
+            <div class="race-current-lap"><span>CURRENT_LAP<strong id="heroLapTime">00:00.<i>000</i></strong></span><span>LAP_03<strong>/ 12</strong></span></div>
+          </div>
+          <div class="race-sparklines">
+            <span><b>LEAN_ANGLE</b><svg viewBox="0 0 180 42"><path d="M0 30L9 12 18 25 29 8 38 33 50 27 61 10 73 13 85 31 98 35 111 25 123 7 134 29 146 13 157 34 168 9 180 24"/></svg></span>
+            <span><b>THROTTLE</b><svg viewBox="0 0 180 42"><path d="M0 39L10 39 10 8 22 8 24 39 39 39 42 14 55 14 58 39 76 39 78 8 92 8 94 39 111 39 114 9 129 9 131 39 150 39 155 13 170 13 174 39 180 39"/></svg></span>
+            <span><b>BRAKE</b><svg viewBox="0 0 180 42"><path d="M0 39L14 39 19 14 26 39 47 39 52 27 58 39 82 39 89 8 96 39 116 39 121 18 128 39 151 39 158 9 165 39 180 39"/></svg></span>
+            <span><b>SPEED</b><svg viewBox="0 0 180 42"><path d="M0 18L14 10 27 27 41 31 55 15 69 32 83 14 98 34 113 18 128 9 142 31 156 22 169 30 180 13"/></svg></span>
+          </div>
         </div>
       </div>
 
