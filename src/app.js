@@ -322,7 +322,7 @@ function drawTrackCanvas(canvas) {
   const comparisonPoints = comparisonSeries.map((item) => item.point);
   const boundsPoints = [...primaryPoints, ...comparisonPoints];
   if (primaryPoints.length < 2) {
-    context.fillStyle = "#6a6b72";
+    context.fillStyle = "#8c8d93";
     context.font = "13px system-ui";
     context.fillText(t("track.canvasEmpty"), 24, 38);
     return;
@@ -481,7 +481,7 @@ function drawAiSegmentPreview(canvas, item, index) {
   context.lineWidth = 1.5;
   context.beginPath(); context.arc(markerX, markerY, 11.5, 0, Math.PI * 2); context.stroke();
   context.fillStyle = "#080b10";
-  context.font = "900 10px 'JetBrains Mono', ui-monospace, monospace";
+  context.font = "900 11px 'JetBrains Mono', ui-monospace, monospace";
   context.textAlign = "center";
   context.textBaseline = "middle";
   context.fillText(String(index + 1), markerX, markerY + .5);
@@ -620,7 +620,7 @@ function drawComparisonChart(canvas, key, { speed = false } = {}) {
   const plotWidth = width - padding.left - padding.right;
   const plotHeight = height - padding.top - padding.bottom;
   const y = (value) => padding.top + (maximum - value) / Math.max(maximum - minimum, .001) * plotHeight;
-  context.font = "10px 'JetBrains Mono', ui-monospace, monospace"; context.fillStyle = "#6a6b72"; context.strokeStyle = "#1f1f2a"; context.lineWidth = 1;
+  context.font = "11px 'JetBrains Mono', ui-monospace, monospace"; context.fillStyle = "#8c8d93"; context.strokeStyle = "#1f1f2a"; context.lineWidth = 1;
   for (let value = minimum; value <= maximum + step / 10; value += step) {
     const yPosition = y(value);
     context.beginPath(); context.moveTo(padding.left, yPosition); context.lineTo(width - padding.right, yPosition); context.stroke();
@@ -674,7 +674,7 @@ function drawDeltaChart() {
   const { context, width, height } = canvasContext(elements.deltaCanvas);
   context.fillStyle = "#08080c"; context.fillRect(0, 0, width, height);
   if (!state.selectedLapNumber || !state.comparisonLapNumber) {
-    context.fillStyle = "#6a6b72";
+    context.fillStyle = "#8c8d93";
     context.font = "13px system-ui";
     context.fillText(t("telemetry.deltaEmpty"), 24, 38);
     return;
@@ -700,7 +700,7 @@ function drawDeltaChart() {
   const plotHeight = height - padding.top - padding.bottom;
   const range = Math.max(.1, Math.ceil(Math.max(...delta.map((item) => Math.abs(item.value))) * 10) / 10);
   const y = (value) => padding.top + (range - value) / (range * 2) * plotHeight;
-  context.font = "10px 'JetBrains Mono', ui-monospace, monospace"; context.fillStyle = "#6a6b72"; context.lineWidth = 1;
+  context.font = "11px 'JetBrains Mono', ui-monospace, monospace"; context.fillStyle = "#8c8d93"; context.lineWidth = 1;
   [-range, 0, range].forEach((value) => {
     const yPosition = y(value);
     context.strokeStyle = value === 0 ? "rgba(255,255,255,.28)" : "#1f1f2a";
