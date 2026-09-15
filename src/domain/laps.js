@@ -2,7 +2,7 @@ import { distanceMeters } from "./tracks.js";
 
 const LATITUDE_METERS = 111_320;
 
-function localPoint(point, origin) {
+export function localPoint(point, origin) {
   const longitudeMeters = LATITUDE_METERS * Math.cos(origin.latitude * Math.PI / 180);
   return {
     x: (point.longitude - origin.longitude) * longitudeMeters,
@@ -14,7 +14,7 @@ function cross(a, b) {
   return a.x * b.y - a.y * b.x;
 }
 
-function segmentIntersectionRatio(a, b, c, d) {
+export function segmentIntersectionRatio(a, b, c, d) {
   const path = { x: b.x - a.x, y: b.y - a.y };
   const line = { x: d.x - c.x, y: d.y - c.y };
   const denominator = cross(path, line);

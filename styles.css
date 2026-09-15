@@ -867,7 +867,7 @@ h1 .solid-title { color: var(--text); -webkit-text-stroke: 0; }
 .metric strong { margin: auto 0 2px; font-size: clamp(36px, 4vw, 62px); letter-spacing: -.055em; line-height: .9; }
 .metric.accent strong { color: var(--acid); }
 
-.dashboard { width: 100%; display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(420px, .92fr); grid-template-areas: "laps laps" "track telemetry" "track delta" "insights insights"; gap: 10px; margin: 12px auto 0; }
+.dashboard { width: 100%; display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(420px, .92fr); grid-template-areas: "laps laps" "track telemetry" "track delta" "sectors insights"; gap: 10px; margin: 12px auto 0; }
 .panel { background: linear-gradient(145deg, rgba(18, 23, 30, .96), rgba(12, 16, 22, .96)); border: 1px solid var(--line); }
 .panel-head { min-height: 60px; padding: 13px 16px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .panel-head h2, .ai-panel h2 { margin: 0; font-size: 20px; letter-spacing: -.025em; }
@@ -1049,7 +1049,7 @@ footer { width: min(1480px, calc(100% - 40px)); min-height: 74px; margin: 0 auto
   .summary-grid { grid-template-columns: repeat(2, 1fr); }
   .metric:nth-child(2) { border-right: 0; }
   .metric:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
-  .dashboard { grid-template-columns: 1fr; grid-template-areas: "laps" "track" "telemetry" "delta" "insights"; }
+  .dashboard { grid-template-columns: 1fr; grid-template-areas: "laps" "track" "telemetry" "delta" "sectors" "insights"; }
   .logs-page-head { grid-template-columns: 1fr; align-items: stretch; }
   .ai-page-head { grid-template-columns: 1fr; align-items: stretch; gap: 24px; }
   .ai-results { grid-template-columns: 1fr; }
@@ -1181,4 +1181,49 @@ footer { width: min(1480px, calc(100% - 40px)); min-height: 74px; margin: 0 auto
   .header-actions { grid-row: 1; }
   .app-nav { grid-column: 1 / -1; grid-row: 2; height: 32px; }
   .app-nav button { min-height: 26px; font-size: 12px; }
+}
+
+/* ---------- Sectors & ideal lap ---------- */
+.sectors-panel { grid-area: sectors; min-width: 0; }
+html { --race-sector: #b36bff; --race-sector-text: #c79bff; }
+html .sectors-panel .panel-head { align-items: flex-end; flex-wrap: wrap; gap: 14px; }
+html .ideal-lap { display: flex; gap: 1px; background: var(--race-line); border: 1px solid var(--race-line); }
+html .ideal-lap-stat { display: grid; gap: 6px; min-width: 132px; padding: 9px 14px; background: var(--race-bg); }
+html .ideal-lap-stat span { color: var(--race-muted); font: 400 12px/1.2 var(--font-code); letter-spacing: .12em; text-transform: uppercase; white-space: nowrap; }
+html .ideal-lap-stat strong { color: var(--race-sector-text); font: 500 24px/1 var(--font-code); letter-spacing: -.02em; font-variant-numeric: tabular-nums; text-shadow: 0 0 18px rgba(179,107,255,.35); }
+html .ideal-lap-stat.gain strong { color: var(--race-lime); text-shadow: none; }
+html .sector-table-wrap { margin: 14px 16px 0; overflow-x: auto; border: 1px solid var(--race-line); }
+html .sector-table { width: 100%; border-collapse: collapse; font-family: var(--font-code); font-variant-numeric: tabular-nums; }
+html .sector-table th, html .sector-table td { padding: 8px 12px; border-bottom: 1px solid var(--race-line); text-align: right; white-space: nowrap; vertical-align: middle; }
+html .sector-table thead th { background: var(--race-surface); color: var(--race-muted); font-size: 12px; font-weight: 400; letter-spacing: .14em; text-transform: uppercase; }
+html .sector-table thead th:first-child, html .sector-table tbody th, html .sector-table tfoot th { text-align: left; }
+html .sector-table th { position: static; }
+html .sector-table tbody th { background: transparent; color: var(--race-text); font-size: 15px; font-weight: 500; letter-spacing: 0; text-transform: none; }
+html .sector-table td b { display: block; color: var(--race-text); font-size: 14px; font-weight: 500; }
+html .sector-table td small { display: block; margin-top: 3px; color: var(--race-muted); font-size: 12px; }
+html .sector-table td.best { background: rgba(179,107,255,.13); }
+html .sector-table td.best b, html .sector-table td.best small { color: var(--race-sector-text); }
+html .sector-table td.lap-time { border-left: 1px solid var(--race-line); }
+html .sector-table td.lap-time.fastest b { color: var(--race-sector-text); }
+html .sector-table td.empty b { color: var(--race-muted); }
+html .sector-table tbody tr { cursor: pointer; transition: background-color .15s; }
+html .sector-table tbody tr:hover { background: rgba(255,255,255,.035); }
+html .sector-table tbody tr:focus-visible { outline: 2px solid var(--race-sector); outline-offset: -2px; }
+html .sector-table tbody tr.is-primary { background: rgba(244,244,238,.05); }
+html .sector-table tbody tr.is-primary th { box-shadow: inset 3px 0 0 var(--race-curb); }
+html .sector-table tbody tr.is-compare th { box-shadow: inset 3px 0 0 var(--race-red); color: var(--race-red-text); }
+html .sector-table tfoot th, html .sector-table tfoot td { border-top: 1px solid var(--race-line-2); border-bottom: 0; background: var(--race-surface); }
+html .sector-table tfoot th { color: var(--race-sector-text); font-size: 12px; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; }
+html .sector-table tfoot td.ideal b { color: var(--race-sector-text); font-size: 15px; }
+html .sector-table tfoot td.ideal small { color: var(--race-lime); }
+html .sector-note { margin: 0; padding: 12px 16px 16px; color: var(--race-text-2); font: 400 13px/1.55 var(--font-body); }
+html .sectors-panel.is-empty .sector-table-wrap, html .sectors-panel.is-empty .ideal-lap { display: none; }
+@media (max-width: 560px) {
+  html .ideal-lap { width: 100%; }
+  html .ideal-lap-stat { flex: 1; min-width: 0; padding: 9px 12px; }
+  html .ideal-lap-stat strong { font-size: 21px; }
+  html .sector-table-wrap { margin: 12px 12px 0; }
+  html .sector-table th, html .sector-table td { padding: 8px 7px; }
+  html .sector-table td b { font-size: 13px; }
+  html .sector-note { padding: 12px 12px 14px; }
 }

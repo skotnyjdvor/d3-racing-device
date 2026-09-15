@@ -3,12 +3,13 @@ import { analyzeSession, generateLocalInsights } from "./domain/analysis.js";
 import { parseRaceBoxCsv } from "./domain/csv.js";
 import { distanceMeters, identifyTrack, loadTrackCatalog } from "./domain/tracks.js";
 import { splitSessionIntoLaps } from "./domain/laps.js";
+import { computeSectors } from "./domain/sectors.js";
 import { applyTranslations, getLanguage, onLanguageChange, setLanguage, t } from "./i18n.js";
 import { analyzeLog, askAiFollowUp, cloudConfigured, currentUser, deleteAiAnalysis, deleteLog, loadAiAnalyses, loadLog, loadLogs, renameLog, requestPasswordReset, resendVerification, resetPassword, saveLog, signIn, signOut, signUp, verifyEmail } from "./cloud/api.js";
 import "./demo.js";
 
 const elements = Object.fromEntries([...document.querySelectorAll("[id]")].map((element) => [element.id, element]));
-const state = { client: null, connected: false, deviceName: "", deviceModel: "", latestTelemetry: null, storage: null, sessions: [], selectedSession: null, analysis: null, selectedLapNumber: null, comparisonLapNumber: null, cursorProgress: null, chartView: { start: 0, end: 1 }, trackView: { scale: 1, offsetX: 0, offsetY: 0 }, telemetryMetric: "speed", track: null, user: null, cloudLogs: [], pollTimer: null, memoryBusy: false, aiReport: null, aiReportLanguage: null, aiAnalysisId: null, aiPending: false, aiHistory: [], aiHistoryLoading: false, aiHistoryError: "", aiHoverIndex: null, aiSelectedIndex: null };
+const state = { client: null, connected: false, deviceName: "", deviceModel: "", latestTelemetry: null, storage: null, sessions: [], selectedSession: null, analysis: null, sectors: null, selectedLapNumber: null, comparisonLapNumber: null, cursorProgress: null, chartView: { start: 0, end: 1 }, trackView: { scale: 1, offsetX: 0, offsetY: 0 }, telemetryMetric: "speed", track: null, user: null, cloudLogs: [], pollTimer: null, memoryBusy: false, aiReport: null, aiReportLanguage: null, aiAnalysisId: null, aiPending: false, aiHistory: [], aiHistoryLoading: false, aiHistoryError: "", aiHoverIndex: null, aiSelectedIndex: null };
 const trackAiMarkerAreas = new WeakMap();
 const testMode = new URLSearchParams(location.search).has("mock");
 let accountMode = "signin";
@@ -336,6 +337,68 @@ function interpolatedTimeAtProgress(series, progress) {
   return before.point.timeMs + (after.point.timeMs - before.point.timeMs) * ratio;
 }
 
+const SECTOR_COLOR = "#b36bff";
+const formatSectorTime = (milliseconds) => !Number.isFinite(milliseconds) ? "—" : milliseconds < 60_000 ? (milliseconds / 1000).toFixed(3) : formatLapTime(milliseconds);
+const formatGap = (milliseconds) => `${milliseconds < 0 ? "−" : "+"}${(Math.abs(milliseconds) / 1000).toFixed(3)}`;
+
+// Sector boundaries as distance fractions of the primary lap (falls back to the reference gates).
+function sectorFractions() {
+  const sectors = state.sectors;
+  if (!sectors) return [];
+  return sectors.laps.find((lap) => lap.number === state.selectedLapNumber)?.gateFractions ?? sectors.gates.map((gate) => gate.fraction);
+}
+
+function drawSectorMarkers(context, padding, plotWidth, height) {
+  const fractions = sectorFractions();
+  if (!fractions.length) return;
+  const bounds = [0, ...fractions, 1];
+  context.save();
+  context.beginPath(); context.rect(padding.left, 0, plotWidth, height); context.clip();
+  context.font = "12px 'JetBrains Mono', ui-monospace, monospace";
+  context.textBaseline = "alphabetic";
+  bounds.slice(0, -1).forEach((start, index) => {
+    const xStart = chartX(start, padding, plotWidth);
+    if (index) {
+      context.strokeStyle = "rgba(179,107,255,.55)"; context.lineWidth = 1; context.setLineDash([4, 4]);
+      context.beginPath(); context.moveTo(xStart, padding.top); context.lineTo(xStart, height - padding.bottom); context.stroke();
+      context.setLineDash([]);
+    }
+    context.fillStyle = "rgba(179,107,255,.85)";
+    context.textAlign = "left";
+    context.fillText(`S${index + 1}`, Math.max(padding.left, xStart) + 6, padding.top + 12);
+  });
+  context.restore();
+}
+
+function renderSectors() {
+  const sectors = state.sectors;
+  const available = Number.isFinite(sectors?.idealMs);
+  elements.sectorsPanel.classList.toggle("is-empty", !available);
+  elements.idealLapValue.textContent = available ? formatLapTime(sectors.idealMs) : "—";
+  elements.idealGainValue.textContent = available ? `−${(sectors.potentialMs / 1000).toFixed(3)}` : "—";
+  if (!available) {
+    elements.sectorTable.innerHTML = "";
+    elements.sectorNote.textContent = t("sectors.empty");
+    return;
+  }
+  const head = `<thead><tr><th scope="col">${t("sectors.lap")}</th>${sectors.best.map((_, index) => `<th scope="col">S${index + 1}</th>`).join("")}<th scope="col">${t("sectors.time")}</th></tr></thead>`;
+  const rows = sectors.laps.map((lap) => {
+    const classes = [lap.number === state.selectedLapNumber && "is-primary", lap.number === state.comparisonLapNumber && "is-compare"].filter(Boolean).join(" ");
+    const cells = sectors.best.map((best, index) => {
+      const value = lap.sectors?.[index];
+      if (!Number.isFinite(value)) return `<td class="empty"><b>—</b><small>&nbsp;</small></td>`;
+      const isBest = best.lap === lap.number;
+      return `<td class="${isBest ? "best" : ""}"><b>${formatSectorTime(value)}</b><small>${isBest ? t("sectors.best") : formatGap(value - best.timeMs)}</small></td>`;
+    }).join("");
+    const fastest = lap.number === sectors.referenceLap;
+    return `<tr class="${classes}" data-sector-lap="${lap.number}" tabindex="0" aria-selected="${lap.number === state.selectedLapNumber}"><th scope="row">${lap.number}</th>${cells}<td class="lap-time${fastest ? " fastest" : ""}"><b>${formatLapTime(lap.durationMs)}</b><small>${fastest ? t("sectors.best") : formatGap(lap.durationMs - sectors.bestLapMs)}</small></td></tr>`;
+  }).join("");
+  const foot = `<tfoot><tr><th scope="row">${t("sectors.idealRow")}</th>${sectors.best.map((best) => `<td class="best"><b>${formatSectorTime(best.timeMs)}</b><small>${t("sectors.fromLap", { lap: best.lap })}</small></td>`).join("")}<td class="lap-time ideal"><b>${formatLapTime(sectors.idealMs)}</b><small>−${(sectors.potentialMs / 1000).toFixed(3)}</small></td></tr></tfoot>`;
+  elements.sectorTable.innerHTML = `${head}<tbody>${rows}</tbody>${foot}`;
+  const partial = sectors.laps.some((lap) => !lap.sectors);
+  elements.sectorNote.textContent = `${t("sectors.note", { lap: sectors.referenceLap })}${partial ? ` ${t("sectors.partial")}` : ""}`;
+}
+
 function chartX(progress, padding, plotWidth) {
   const span = Math.max(state.chartView.end - state.chartView.start, 1e-6);
   return padding.left + (progress - state.chartView.start) / span * plotWidth;
@@ -439,6 +502,37 @@ function drawTrackCanvas(canvas) {
   };
   drawTrajectory(comparisonPoints, "#e10600", 2.6);
   drawTrajectory(primaryPoints, "#f4f4ee", 3.2);
+
+  if (canvas === elements.trackCanvas && state.sectors) {
+    // Sector gates as short ticks across the line, sector numbers at the middle of each sector.
+    context.save();
+    state.sectors.gates.forEach((gate) => {
+      const [ax, ay] = project(gate.a); const [bx, by] = project(gate.b); const [cx, cy] = project(gate.center);
+      const length = Math.hypot(bx - ax, by - ay) || 1;
+      const half = 11;
+      const ux = (bx - ax) / length; const uy = (by - ay) / length;
+      context.strokeStyle = "rgba(8,8,12,.9)"; context.lineWidth = 6;
+      context.beginPath(); context.moveTo(cx - ux * half, cy - uy * half); context.lineTo(cx + ux * half, cy + uy * half); context.stroke();
+      context.strokeStyle = SECTOR_COLOR; context.lineWidth = 3;
+      context.beginPath(); context.moveTo(cx - ux * half, cy - uy * half); context.lineTo(cx + ux * half, cy + uy * half); context.stroke();
+    });
+    const bounds = [0, ...sectorFractions(), 1];
+    context.font = "700 12px 'JetBrains Mono', ui-monospace, monospace";
+    context.textAlign = "center"; context.textBaseline = "middle";
+    bounds.slice(0, -1).forEach((start, index) => {
+      const middle = (start + bounds[index + 1]) / 2;
+      const here = pointAtProgress(primarySeries, middle)?.point;
+      const ahead = pointAtProgress(primarySeries, Math.min(1, middle + .01))?.point;
+      if (!here || !ahead) return;
+      const [hx, hy] = project(here); const [nx, ny] = project(ahead);
+      const length = Math.hypot(nx - hx, ny - hy) || 1;
+      const x = hx - (ny - hy) / length * 22; const y = hy + (nx - hx) / length * 22;
+      context.fillStyle = "rgba(8,8,12,.92)"; context.strokeStyle = SECTOR_COLOR; context.lineWidth = 1.5;
+      context.beginPath(); context.roundRect(x - 15, y - 10, 30, 20, 4); context.fill(); context.stroke();
+      context.fillStyle = SECTOR_COLOR; context.fillText(`S${index + 1}`, x, y + .5);
+    });
+    context.restore();
+  }
 
   const drawCursorPoint = (series, color, shadow) => {
     const cursorPoint = pointAtProgress(series, state.cursorProgress)?.point;
@@ -726,6 +820,7 @@ function drawComparisonChart(canvas, key, { speed = false } = {}) {
     context.stroke();
     context.restore();
   };
+  drawSectorMarkers(context, padding, plotWidth, height);
   draw(comparison, "#e10600", 1.9);
   draw(primary, "#f4f4ee", 2.2);
 
@@ -804,6 +899,7 @@ function drawDeltaChart() {
     context.fillText(text, right - labelWidth, baseline);
   };
 
+  drawSectorMarkers(context, padding, plotWidth, height);
   const zeroY = y(0);
   context.save();
   context.beginPath(); context.rect(padding.left, padding.top, plotWidth, plotHeight); context.clip();
@@ -1055,7 +1151,7 @@ async function deleteCloudSession(cloudId) {
     state.sessions = state.sessions.filter((item) => item !== session);
     state.cloudLogs = state.cloudLogs.filter((item) => item.cloudId !== cloudId);
     if (wasSelected) {
-      state.selectedSession = null; state.analysis = null;
+      state.selectedSession = null; state.analysis = null; state.sectors = null;
       const replacement = state.sessions[0];
       if (replacement) selectSession(replacement.id);
       else {
@@ -1091,7 +1187,7 @@ function updateLapView() {
   elements.maxSpeedValue.textContent = (lap?.maxSpeed ?? state.analysis.session.maxSpeed).toFixed(1);
   elements.sampleRateValue.textContent = state.analysis.sampleRateHz.toFixed(0);
   elements.trackTitle.textContent = `${state.track ? `${state.track.name} · ` : ""}${state.selectedSession.source === "demo" ? state.selectedSession.title : t("sessions.item", { id: state.selectedSession.displayId ?? state.selectedSession.id })}${lap ? ` · ${t("laps.legend", { lap: lap.number })}` : ""}`;
-  renderLapControls(); renderAiPageContext(); drawTrack(); drawCharts();
+  renderLapControls(); renderSectors(); renderAiPageContext(); drawTrack(); drawCharts();
 }
 
 function clearAiReport() {
@@ -1285,6 +1381,7 @@ async function selectSession(id) {
   renderSessionState();
   state.selectedSession.points = splitSessionIntoLaps(state.selectedSession.points, state.track);
   state.analysis = analyzeSession(state.selectedSession.points);
+  state.sectors = computeSectors(state.selectedSession.points, state.analysis);
   if (isNewSession || !state.analysis.laps.some((lap) => lap.number === state.selectedLapNumber)) {
     const ordered = [...state.analysis.laps].sort((a, b) => a.durationMs - b.durationMs);
     state.selectedLapNumber = ordered[0]?.number ?? null;
@@ -1697,6 +1794,17 @@ function changeComparisonLap(value) {
   updateLapView();
 }
 elements.primaryLapSelect.addEventListener("change", () => changePrimaryLap(elements.primaryLapSelect.value));
+elements.sectorTable.addEventListener("click", (event) => {
+  const row = event.target.closest("[data-sector-lap]");
+  if (row && Number(row.dataset.sectorLap) !== state.selectedLapNumber) changePrimaryLap(row.dataset.sectorLap);
+});
+elements.sectorTable.addEventListener("keydown", (event) => {
+  const row = event.target.closest("[data-sector-lap]");
+  if (!row || (event.key !== "Enter" && event.key !== " ")) return;
+  event.preventDefault();
+  if (Number(row.dataset.sectorLap) !== state.selectedLapNumber) changePrimaryLap(row.dataset.sectorLap);
+  elements.sectorTable.querySelector(`[data-sector-lap="${row.dataset.sectorLap}"]`)?.focus();
+});
 elements.comparisonLapSelect.addEventListener("change", () => changeComparisonLap(elements.comparisonLapSelect.value));
 elements.aiPrimaryLapSelect.addEventListener("change", () => changePrimaryLap(elements.aiPrimaryLapSelect.value));
 elements.aiComparisonLapSelect.addEventListener("change", () => changeComparisonLap(elements.aiComparisonLapSelect.value));
