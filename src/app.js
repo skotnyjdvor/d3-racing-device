@@ -1533,15 +1533,38 @@ elements.subbarBetaButton.addEventListener("click", () => openAccountDialog("reg
 elements.featuresAccountButton.addEventListener("click", () => openAccountDialog("register"));
 const landingNavLinks = document.querySelectorAll(".landing-nav a, .subbar-nav a");
 function syncGuestPage() {
-  const showFeatures = location.hash === "#features" || location.hash.startsWith("#fx");
-  const wasFeatures = document.body.classList.contains("guest-features");
-  document.body.classList.toggle("guest-features", showFeatures);
-  landingNavLinks.forEach((link) => link.classList.toggle("active", link.hash === (showFeatures ? "#features" : "#analysis")));
-  if (location.hash === "#features") window.scrollTo(0, 0);
-  if (location.hash === "#demo" && wasFeatures) requestAnimationFrame(() => document.getElementById("demo")?.scrollIntoView());
+  const page = location.hash === "#features" || location.hash.startsWith("#fx") ? "features" : location.hash === "#contact" ? "contact" : null;
+  const wasGuestPage = document.body.classList.contains("guest-features") || document.body.classList.contains("guest-contact");
+  document.body.classList.toggle("guest-features", page === "features");
+  document.body.classList.toggle("guest-contact", page === "contact");
+  landingNavLinks.forEach((link) => link.classList.toggle("active", link.hash === (page ? `#${page}` : "#analysis")));
+  if (location.hash === "#features" || location.hash === "#contact") window.scrollTo(0, 0);
+  if (location.hash === "#demo" && wasGuestPage) requestAnimationFrame(() => document.getElementById("demo")?.scrollIntoView());
 }
 window.addEventListener("hashchange", syncGuestPage);
 syncGuestPage();
+
+// Contact page: localized mail subjects and copy-to-clipboard.
+function renderContactLinks() {
+  document.querySelectorAll(".ct-topic[data-topic]").forEach((link, index) => {
+    link.href = `mailto:office@d3cf.com?subject=${encodeURIComponent(t(`c.t${index + 1}subject`))}`;
+  });
+}
+function renderDocumentMeta() {
+  document.title = t("meta.title");
+  document.querySelector('meta[name="description"]')?.setAttribute("content", t("meta.description"));
+}
+elements.contactCopyButton?.addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(elements.contactCopyButton.dataset.copy);
+    elements.contactCopyStatus.textContent = t("c.copied");
+  } catch {
+    elements.contactCopyStatus.textContent = t("c.copyFailed");
+  }
+});
+onLanguageChange(() => { renderContactLinks(); renderDocumentMeta(); elements.contactCopyStatus.textContent = ""; });
+renderContactLinks();
+renderDocumentMeta();
 onLanguageChange(async (language) => {
   const refreshGeneratedReport = Boolean(state.aiReport && state.aiReportLanguage !== language);
   if (state.aiReport) renderAiReport(state.aiReport, state.aiAnalysisId, state.aiReportLanguage);
@@ -1637,7 +1660,7 @@ function startLandingTelemetry() {
   const frame = (now) => {
     const dt = Math.min(.1, (now - lastFrame) / 1000);
     lastFrame = now;
-    if (document.hidden || !document.body.classList.contains("auth-locked") || document.body.classList.contains("guest-features")) { requestAnimationFrame(frame); return; }
+    if (document.hidden || !document.body.classList.contains("auth-locked") || document.body.classList.contains("guest-features") || document.body.classList.contains("guest-contact")) { requestAnimationFrame(frame); return; }
     const elapsedMs = now - startedAt;
     const lapPosition = (elapsedMs / 1000) % lapSeconds;
     const jitter = Math.sin(now / 37) * 1.5 + Math.sin(now / 13) * .8;

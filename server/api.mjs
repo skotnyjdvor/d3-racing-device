@@ -267,7 +267,9 @@ if (existsSync(dist)) {
       else if (filePath.endsWith(".html")) response.set("Cache-Control", "no-cache");
     },
   }));
-  app.get(/.*/, (_request, response) => response.set("Cache-Control", "no-cache").sendFile(join(dist, "index.html")));
+  // The app routes with #hashes, so only "/" is a real page; everything else is a proper 404.
+  app.get(["/", "/index.html"], (_request, response) => response.set("Cache-Control", "no-cache").sendFile(join(dist, "index.html")));
+  app.use((_request, response) => response.status(404).set("Cache-Control", "no-cache").sendFile(join(dist, "404.html")));
 }
 
 await migrate();

@@ -3,8 +3,28 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-    <meta name="theme-color" content="#0a0d12" />
-    <title>D3CF</title>
+    <meta name="theme-color" content="#08080c" />
+    <title>D3CF — телеметрия и AI-разбор заездов</title>
+    <meta name="description" content="Логгер LapTrace пишет GPS 25 Гц и перегрузки на трассе, приложение D3CF делит заезд на круги, показывает дельту и готовит AI-разбор с точками на карте." />
+    <link rel="canonical" href="https://d3cf.com/" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="D3CF" />
+    <meta property="og:url" content="https://d3cf.com/" />
+    <meta property="og:title" content="D3CF — телеметрия и AI-разбор заездов" />
+    <meta property="og:description" content="GPS 25 Гц, круги, дельта и AI-инженер, который объясняет, где осталось время." />
+    <meta property="og:image" content="https://d3cf.com/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:locale" content="ru_RU" />
+    <meta property="og:locale:alternate" content="en_US" />
+    <meta property="og:locale:alternate" content="pl_PL" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="D3CF — телеметрия и AI-разбор заездов" />
+    <meta name="twitter:description" content="GPS 25 Гц, круги, дельта и AI-инженер, который объясняет, где осталось время." />
+    <meta name="twitter:image" content="https://d3cf.com/og-image.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Manrope:wght@400;500;600;700&family=Oswald:wght@500;700&display=swap" />
@@ -32,6 +52,7 @@
         <nav class="landing-nav" aria-label="Landing">
           <a class="active" href="#analysis" data-i18n="nav.home"></a>
           <a href="#features" data-i18n="nav.features"></a>
+          <a href="#contact" data-i18n="nav.contact"></a>
         </nav>
         <div class="lang-switch" role="group" aria-label="Language">
           <button type="button" data-lang="ru">RU</button><i>/</i><button type="button" data-lang="en">EN</button><i>/</i><button type="button" data-lang="pl">PL</button>
@@ -55,7 +76,7 @@
       </div>
     </header>
     <div class="landing-subbar">
-      <nav class="subbar-nav" aria-label="Sections"><a href="#analysis" data-i18n="nav.home"></a><a href="#features" data-i18n="nav.features"></a></nav>
+      <nav class="subbar-nav" aria-label="Sections"><a href="#analysis" data-i18n="nav.home"></a><a href="#features" data-i18n="nav.features"></a><a href="#contact" data-i18n="nav.contact"></a></nav>
       <button type="button" id="subbarBetaButton"><i class="pulse-dot"></i><span data-i18n="landing.subbarCta"></span><span aria-hidden="true">→</span></button>
     </div>
     <section class="landing" id="authGate">
@@ -316,6 +337,40 @@
             <button class="primary" id="featuresAccountButton" type="button" data-i18n="landing.cta"></button>
             <a class="secondary landing-link" href="#demo" data-i18n="landing.demoCta"></a>
           </div>
+        </section>
+      </div>
+
+      <div class="contact-page" id="contactPage">
+        <header class="ct-hero">
+          <p class="fx-meta"><span class="pulse-dot"></span><b>D3CF</b><i>//</i><span data-i18n="c.meta"></span></p>
+          <h1><span data-i18n="c.title1"></span><span class="fx-accent" data-i18n="c.title2"></span></h1>
+          <p class="fx-lead" data-i18n="c.lead"></p>
+        </header>
+        <section class="ct-main">
+          <div class="ct-mail">
+            <p class="fx-kicker"><b>// 01</b><span data-i18n="c.mailKicker"></span></p>
+            <a class="ct-address" href="mailto:office@d3cf.com">office<wbr />@d3cf.com</a>
+            <div class="ct-actions">
+              <a class="primary ct-write" href="mailto:office@d3cf.com" data-i18n="c.write"></a>
+              <button class="secondary ct-copy" id="contactCopyButton" type="button" data-copy="office@d3cf.com"><span data-i18n="c.copy"></span></button>
+            </div>
+            <p class="ct-note" id="contactCopyStatus" role="status" aria-live="polite"></p>
+          </div>
+          <div class="ct-topics">
+            <p class="fx-kicker"><b>// 02</b><span data-i18n="c.topicsKicker"></span></p>
+            <a class="ct-topic" data-topic="beta" href="mailto:office@d3cf.com"><span class="ct-code">01</span><div><strong data-i18n="c.t1"></strong><small data-i18n="c.t1s"></small></div><i>→</i></a>
+            <a class="ct-topic" data-topic="support" href="mailto:office@d3cf.com"><span class="ct-code">02</span><div><strong data-i18n="c.t2"></strong><small data-i18n="c.t2s"></small></div><i>→</i></a>
+            <a class="ct-topic" data-topic="teams" href="mailto:office@d3cf.com"><span class="ct-code">03</span><div><strong data-i18n="c.t3"></strong><small data-i18n="c.t3s"></small></div><i>→</i></a>
+            <a class="ct-topic" data-topic="press" href="mailto:office@d3cf.com"><span class="ct-code">04</span><div><strong data-i18n="c.t4"></strong><small data-i18n="c.t4s"></small></div><i>→</i></a>
+          </div>
+        </section>
+        <section class="ct-tips">
+          <p class="fx-kicker"><b>// 03</b><span data-i18n="c.tipsKicker"></span></p>
+          <ol>
+            <li><b>A</b><span data-i18n="c.tip1"></span></li>
+            <li><b>B</b><span data-i18n="c.tip2"></span></li>
+            <li><b>C</b><span data-i18n="c.tip3"></span></li>
+          </ol>
         </section>
       </div>
     </section>
