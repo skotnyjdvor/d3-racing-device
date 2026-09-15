@@ -290,8 +290,10 @@ function downsample(points, max = 1800) {
 }
 
 function lapPoints(number) {
-  if (!state.selectedSession) return [];
-  return number ? state.selectedSession.points.filter((point) => point.lap === number) : state.selectedSession.points;
+  // Cloud sessions have no points until loadLog finishes; charts may redraw meanwhile (resize, view switch).
+  const points = state.selectedSession?.points;
+  if (!points) return [];
+  return number ? points.filter((point) => point.lap === number) : points;
 }
 
 function distancePoints(points, max = 2400) {
@@ -462,7 +464,7 @@ function drawTrackCanvas(canvas) {
     context.fillStyle = "#ffb000"; context.beginPath(); context.arc(x, y, radius, 0, Math.PI * 2); context.fill();
     context.shadowBlur = 0; context.strokeStyle = active ? "#ffffff" : "rgba(255,255,255,.8)"; context.lineWidth = active ? 2.5 : 1.5;
     context.beginPath(); context.arc(x, y, radius + 4, 0, Math.PI * 2); context.stroke();
-    context.fillStyle = "#080b10"; context.font = `900 ${active ? 13 : 11}px 'JetBrains Mono', ui-monospace, monospace`;
+    context.fillStyle = "#080b10"; context.font = `900 ${active ? 14 : 12}px 'JetBrains Mono', ui-monospace, monospace`;
     context.textAlign = "center"; context.textBaseline = "middle"; context.fillText(String(index + 1), x, y + .5);
     context.restore();
     return { x, y, radius: radius + 8, index, progress };
@@ -560,7 +562,7 @@ function drawAiSegmentPreview(canvas, item, index) {
   context.lineWidth = 1.5;
   context.beginPath(); context.arc(markerX, markerY, 11.5, 0, Math.PI * 2); context.stroke();
   context.fillStyle = "#080b10";
-  context.font = "900 11px 'JetBrains Mono', ui-monospace, monospace";
+  context.font = "900 12px 'JetBrains Mono', ui-monospace, monospace";
   context.textAlign = "center";
   context.textBaseline = "middle";
   context.fillText(String(index + 1), markerX, markerY + .5);
@@ -634,7 +636,7 @@ function drawAiSpeedPreview(canvas, item) {
     context.beginPath(); context.arc(focusX, y(point.speed), 3.5, 0, Math.PI * 2); context.fill();
   });
 
-  context.font = "700 9px 'JetBrains Mono', ui-monospace, monospace";
+  context.font = "700 12px 'JetBrains Mono', ui-monospace, monospace";
   context.textBaseline = "middle";
   const legends = [
     { x: 10, color: "#f4f4ee", label: t("laps.legend", { lap: state.selectedLapNumber }) },
@@ -699,7 +701,7 @@ function drawComparisonChart(canvas, key, { speed = false } = {}) {
   const plotWidth = width - padding.left - padding.right;
   const plotHeight = height - padding.top - padding.bottom;
   const y = (value) => padding.top + (maximum - value) / Math.max(maximum - minimum, .001) * plotHeight;
-  context.font = "11px 'JetBrains Mono', ui-monospace, monospace"; context.fillStyle = "#8c8d93"; context.strokeStyle = "#1f1f2a"; context.lineWidth = 1;
+  context.font = "12px 'JetBrains Mono', ui-monospace, monospace"; context.fillStyle = "#8c8d93"; context.strokeStyle = "#1f1f2a"; context.lineWidth = 1;
   for (let value = minimum; value <= maximum + step / 10; value += step) {
     const yPosition = y(value);
     context.beginPath(); context.moveTo(padding.left, yPosition); context.lineTo(width - padding.right, yPosition); context.stroke();
@@ -740,7 +742,7 @@ function drawComparisonChart(canvas, key, { speed = false } = {}) {
       const yPosition = y(item.value);
       context.fillStyle = color; context.beginPath(); context.arc(xPosition, yPosition, 4.5, 0, Math.PI * 2); context.fill();
       const label = speed ? `${item.value.toFixed(1)}` : `${item.value.toFixed(2)} g`;
-      context.font = "bold 11px 'JetBrains Mono', ui-monospace, monospace";
+      context.font = "bold 12px 'JetBrains Mono', ui-monospace, monospace";
       const labelWidth = context.measureText(label).width + 10;
       const labelX = Math.max(padding.left, Math.min(width - padding.right - labelWidth, xPosition + side * 8 - (side < 0 ? labelWidth : 0)));
       context.fillStyle = "rgba(8,8,12,.92)"; context.fillRect(labelX, yPosition - 20, labelWidth, 17);
@@ -779,7 +781,7 @@ function drawDeltaChart() {
   const plotHeight = height - padding.top - padding.bottom;
   const range = Math.max(.1, Math.ceil(Math.max(...delta.map((item) => Math.abs(item.value))) * 10) / 10);
   const y = (value) => padding.top + (range - value) / (range * 2) * plotHeight;
-  context.font = "11px 'JetBrains Mono', ui-monospace, monospace"; context.fillStyle = "#8c8d93"; context.lineWidth = 1;
+  context.font = "12px 'JetBrains Mono', ui-monospace, monospace"; context.fillStyle = "#8c8d93"; context.lineWidth = 1;
   [-range, 0, range].forEach((value) => {
     const yPosition = y(value);
     context.strokeStyle = value === 0 ? "rgba(255,255,255,.28)" : "#1f1f2a";
@@ -827,7 +829,7 @@ function drawDeltaChart() {
     context.beginPath(); context.moveTo(xPosition, padding.top); context.lineTo(xPosition, height - padding.bottom); context.stroke();
     context.fillStyle = "#f4f4ee"; context.beginPath(); context.arc(xPosition, y(item.value), 4.5, 0, Math.PI * 2); context.fill();
     const label = `${item.value >= 0 ? "+" : ""}${item.value.toFixed(3)} s`;
-    context.font = "bold 11px 'JetBrains Mono', ui-monospace, monospace";
+    context.font = "bold 12px 'JetBrains Mono', ui-monospace, monospace";
     const labelWidth = context.measureText(label).width + 10;
     const labelX = Math.min(width - padding.right - labelWidth, Math.max(padding.left, xPosition + 8));
     context.fillStyle = "rgba(8,8,12,.92)"; context.fillRect(labelX, y(item.value) - 21, labelWidth, 17);
@@ -1276,7 +1278,7 @@ async function selectSession(id) {
       return false;
     }
   }
-  if (!state.selectedSession?.points.length) return false;
+  if (!state.selectedSession?.points?.length) return false;
   const trackCatalog = await loadTrackCatalog().catch(() => undefined);
   if (!state.selectedSession?.points?.length) return false;
   state.track = identifyTrack(state.selectedSession.points, trackCatalog);
