@@ -5,13 +5,15 @@ import { fileURLToPath } from "node:url";
 import bcrypt from "bcryptjs";
 import cors from "cors";
 import express from "express";
-import { rateLimit } from "express-rate-limit";
+import { ipKeyGenerator, rateLimit } from "express-rate-limit";
 import jwt from "jsonwebtoken";
 import { migrate, requireDatabase } from "./db.mjs";
 import { AI_MODEL, buildTelemetrySnapshot, generateAiFollowUp, generateAiReport, getOpenAiApiKey, groundAiReport, snapshotCacheKey } from "./ai.mjs";
 
 const app = express();
 app.disable("x-powered-by");
+// Render sits behind its own proxy (and Cloudflare in front of the custom domain): trust one hop so req.ip is the client.
+app.set("trust proxy", 1);
 const port = Number(process.env.PORT || 10000);
 const jwtSecret = process.env.JWT_SECRET || (process.env.NODE_ENV === "production" ? "" : "laptrace-local-development-secret");
 if (!jwtSecret) throw new Error("JWT_SECRET is required");
@@ -19,10 +21,28 @@ if (!jwtSecret) throw new Error("JWT_SECRET is required");
 const allowedOrigins = (process.env.APP_ORIGIN || "http://127.0.0.1:4173,http://localhost:4173")
   .split(",").map((origin) => origin.trim()).filter(Boolean);
 app.use(cors({ origin: (origin, callback) => callback(null, !origin || allowedOrigins.includes(origin)) }));
-app.use(express.json({ limit: "30mb" }));
+app.use((request, response, next) => {
+  response.set({
+    "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=(), bluetooth=(self)",
+    "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'",
+  });
+  next();
+});
+const largeJson = express.json({ limit: "30mb" });
+const smallJson = express.json({ limit: "200kb" });
+app.use((request, response, next) => (request.method === "POST" && request.path === "/api/logs" ? largeJson : smallJson)(request, response, next));
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+app.param("id", (request, response, next, id) => (uuidPattern.test(id) ? next() : response.status(404).json({ error: "Not found" })));
 
-const authLimiter = rateLimit({ windowMs: 15 * 60_000, limit: 30, standardHeaders: true, legacyHeaders: false });
-const aiLimiter = rateLimit({ windowMs: 60 * 60_000, limit: 10, standardHeaders: true, legacyHeaders: false });
+// Cloudflare overwrites CF-Connecting-IP with the real visitor address; fall back to the proxied req.ip.
+const clientKey = (request) => ipKeyGenerator(String(request.headers["cf-connecting-ip"] || request.ip || ""));
+const authLimiter = rateLimit({ windowMs: 15 * 60_000, limit: 30, standardHeaders: true, legacyHeaders: false, keyGenerator: clientKey });
+// AI calls are authenticated, so budget them per account rather than per network.
+const aiLimiter = rateLimit({ windowMs: 60 * 60_000, limit: 10, standardHeaders: true, legacyHeaders: false, keyGenerator: (request) => request.auth?.sub || clientKey(request) });
 const normalizeEmail = (email) => String(email || "").trim().toLowerCase();
 const validEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 const publicUser = (row) => ({ id: row.id, email: row.email });
@@ -46,7 +66,7 @@ app.get("/api/health", async (_request, response) => {
       revision: process.env.RENDER_GIT_COMMIT?.slice(0, 7) || null,
     });
   }
-  catch (error) { response.status(error.status || 500).json({ ok: false, error: error.message }); }
+  catch (error) { console.error(error); response.status(503).json({ ok: false }); }
 });
 
 app.post("/api/auth/register", authLimiter, async (request, response, next) => {
@@ -229,8 +249,13 @@ app.use((error, _request, response, _next) => {
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const dist = join(root, "dist");
 if (existsSync(dist)) {
-  app.use(express.static(dist));
-  app.get(/.*/, (_request, response) => response.sendFile(join(dist, "index.html")));
+  app.use(express.static(dist, {
+    setHeaders(response, filePath) {
+      if (/[\\/]assets[\\/]/.test(filePath)) response.set("Cache-Control", "public, max-age=31536000, immutable");
+      else if (filePath.endsWith(".html")) response.set("Cache-Control", "no-cache");
+    },
+  }));
+  app.get(/.*/, (_request, response) => response.set("Cache-Control", "no-cache").sendFile(join(dist, "index.html")));
 }
 
 await migrate();

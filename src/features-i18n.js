@@ -1,6 +1,7 @@
 // Copy for the guest "Features" page, merged into the main translation table.
 export default {
   ru: {
+    "error.bluetoothUnknown": "Неизвестная ошибка Bluetooth", "footer.deviceMemory": "{name} · память устройства", "state.recordRejected": "{name} · команда записи отклонена", "error.noRecords": "В памяти не найдено записей телеметрии", "state.downloadFailed": "{name} · ошибка загрузки", "memory.wrongCode": "Неверный код памяти", "memory.unlocked": "Память разблокирована.",
     "nav.features": "Возможности",
     "f.meta": "Карта системы · 4 модуля",
     "f.title1": "От трассы",
@@ -62,6 +63,7 @@ export default {
     "f.ctaCopy": "Создайте аккаунт, загрузите первый лог и получите разбор уже после ближайшей тренировки.",
   },
   en: {
+    "error.bluetoothUnknown": "Unknown Bluetooth error", "footer.deviceMemory": "{name} · device memory", "state.recordRejected": "{name} · recording command rejected", "error.noRecords": "No telemetry records found in memory", "state.downloadFailed": "{name} · download failed", "memory.wrongCode": "Wrong memory code", "memory.unlocked": "Memory unlocked.",
     "nav.features": "Features",
     "f.meta": "System map · 4 modules",
     "f.title1": "From track",
@@ -123,6 +125,7 @@ export default {
     "f.ctaCopy": "Create an account, upload your first log and get a debrief right after your next practice.",
   },
   pl: {
+    "error.bluetoothUnknown": "Nieznany błąd Bluetooth", "footer.deviceMemory": "{name} · pamięć urządzenia", "state.recordRejected": "{name} · polecenie zapisu odrzucone", "error.noRecords": "W pamięci nie znaleziono zapisów telemetrii", "state.downloadFailed": "{name} · błąd pobierania", "memory.wrongCode": "Nieprawidłowy kod pamięci", "memory.unlocked": "Pamięć odblokowana.",
     "nav.features": "Funkcje",
     "f.meta": "Mapa systemu · 4 moduły",
     "f.title1": "Od toru",

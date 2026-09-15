@@ -384,7 +384,8 @@ export async function generateAiReport(snapshot, { apiKey = getOpenAiApiKey(), m
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const error = new Error(body.error?.message || `OpenAI API error ${response.status}`);
+    console.error("OpenAI API error", response.status, body.error?.message);
+    const error = new Error(response.status === 429 ? "AI service is busy. Try again in a minute." : "AI service is temporarily unavailable");
     error.status = response.status === 429 ? 429 : 502;
     throw error;
   }
@@ -430,7 +431,8 @@ export async function generateAiFollowUp(snapshot, report, question, { apiKey = 
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const error = new Error(body.error?.message || `OpenAI API error ${response.status}`);
+    console.error("OpenAI API error", response.status, body.error?.message);
+    const error = new Error(response.status === 429 ? "AI service is busy. Try again in a minute." : "AI service is temporarily unavailable");
     error.status = response.status === 429 ? 429 : 502;
     throw error;
   }

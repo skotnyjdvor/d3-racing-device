@@ -191,7 +191,7 @@ function connectionErrorMessage(error) {
   if (error?.name === "NotFoundError" || /cancelled.*chooser/i.test(error?.message || "")) return t("error.notSelected");
   if (error?.name === "NetworkError") return t("error.network");
   if (error?.name === "SecurityError") return t("error.security");
-  return error?.message || "Неизвестная ошибка Bluetooth";
+  return error?.message || t("error.bluetoothUnknown");
 }
 
 function canvasContext(canvas) {
@@ -929,10 +929,10 @@ function renderSessions() {
   }
   elements.sessionList.innerHTML = state.sessions.map((session) => `
     <div class="session-item ${session === state.selectedSession ? "selected" : ""}">
-      <button class="session-open" data-session="${session.id}">
-        <strong>${session.title || t("sessions.item", { id: session.displayId ?? session.id })}${session.source === "cloud" ? " ☁" : ""}</strong><span>${formatDate(session.startedAt)}</span><small>${formatDuration(new Date(session.endedAt) - new Date(session.startedAt))} · ${t("sessions.points", { count: (session.points?.length ?? session.pointCount ?? 0).toLocaleString(getLanguage()) })}</small>
+      <button class="session-open" data-session="${escapeHtml(session.id)}">
+        <strong>${escapeHtml(session.title || t("sessions.item", { id: session.displayId ?? session.id }))}${session.source === "cloud" ? " ☁" : ""}</strong><span>${formatDate(session.startedAt)}</span><small>${formatDuration(new Date(session.endedAt) - new Date(session.startedAt))} · ${t("sessions.points", { count: (session.points?.length ?? session.pointCount ?? 0).toLocaleString(getLanguage()) })}</small>
       </button>
-      ${session.source === "cloud" ? `<div class="session-actions"><button data-rename="${session.cloudId}" title="${t("sessions.rename")}">✎</button><button data-delete="${session.cloudId}" title="${t("sessions.delete")}">×</button></div>` : ""}
+      ${session.source === "cloud" ? `<div class="session-actions"><button data-rename="${escapeHtml(session.cloudId)}" title="${escapeHtml(t("sessions.rename"))}">✎</button><button data-delete="${escapeHtml(session.cloudId)}" title="${escapeHtml(t("sessions.delete"))}">×</button></div>` : ""}
     </div>`).join("");
   elements.sessionList.querySelectorAll("[data-session]").forEach((button) => button.addEventListener("click", async () => {
     if (await selectSession(button.dataset.session)) showView("analysis");
@@ -1191,7 +1191,7 @@ async function selectSession(id) {
     state.selectedLapNumber = ordered[0]?.number ?? null;
     state.comparisonLapNumber = ordered[1]?.number ?? null;
   }
-  elements.sourceLabel.textContent = `${state.deviceName} · память устройства`;
+  elements.sourceLabel.textContent = t("footer.deviceMemory", { name: state.deviceName });
   elements.analyzeAiButton.disabled = !state.selectedSession.cloudId || !state.analysis.laps.length;
   elements.copyStatus.textContent = state.selectedSession.cloudId ? t("ai.ready") : t("ai.cloudRequired");
   elements.insightsList.innerHTML = generateLocalInsights(state.analysis, t).map((insight) => `<li>${insight}</li>`).join("");
@@ -1391,7 +1391,7 @@ async function toggleRecording() {
     setStatus(t(wasRecording ? "state.stopped" : "state.recording", { name: state.deviceName }), true);
   } catch (error) {
     setHint(error.message, true);
-    setStatus(`${state.deviceName} · команда записи отклонена`, true);
+    setStatus(t("state.recordRejected", { name: state.deviceName }), true);
   } finally {
     elements.recordButton.disabled = !state.client?.supportsStandaloneRecording || state.storage?.securityEnabled && !state.storage?.unlocked;
   }
@@ -1406,14 +1406,14 @@ async function downloadHistory() {
       elements.progressBar.value = percent;
       elements.progressLabel.textContent = expected ? t("progress.records", { received: received.toLocaleString(getLanguage()), expected: expected.toLocaleString(getLanguage()) }) : t("progress.preparing");
     });
-    if (!sessions.length) throw new Error("В памяти не найдено записей телеметрии");
+    if (!sessions.length) throw new Error(t("error.noRecords"));
     state.sessions = sessions; state.selectedSession = sessions.at(-1);
     renderSessions(); selectSession(state.selectedSession.id);
     await saveDownloadedLogs(sessions);
     elements.progressBar.value = 100; elements.progressLabel.textContent = t("progress.done", { count: sessions.length });
     elements.cancelButton.hidden = true;
     setStatus(t("state.loaded", { name: state.deviceName }), true); setHint(t("state.loaded", { name: state.deviceName }));
-  } catch (error) { elements.cancelButton.hidden = true; setStatus(`${state.deviceName} · ошибка загрузки`, true); setHint(error.message, true); }
+  } catch (error) { elements.cancelButton.hidden = true; setStatus(t("state.downloadFailed", { name: state.deviceName }), true); setHint(error.message, true); }
   finally { elements.downloadButton.disabled = false; }
 }
 
@@ -1484,8 +1484,8 @@ elements.unlockForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   try {
     const ok = await state.client.unlockMemory(Number(elements.securityCode.value));
-    if (!ok) throw new Error("Неверный код памяти");
-    renderStorage(await state.client.readStorageStatus()); setHint("Память разблокирована.");
+    if (!ok) throw new Error(t("memory.wrongCode"));
+    renderStorage(await state.client.readStorageStatus()); setHint(t("memory.unlocked"));
   } catch (error) { setHint(error.message, true); }
 });
 elements.analyzeAiButton.addEventListener("click", runAiAnalysis);
@@ -1612,6 +1612,7 @@ function startLandingTelemetry() {
   const frame = (now) => {
     const dt = Math.min(.1, (now - lastFrame) / 1000);
     lastFrame = now;
+    if (document.hidden || !document.body.classList.contains("auth-locked") || document.body.classList.contains("guest-features")) { requestAnimationFrame(frame); return; }
     const elapsedMs = now - startedAt;
     const lapPosition = (elapsedMs / 1000) % lapSeconds;
     const jitter = Math.sin(now / 37) * 1.5 + Math.sin(now / 13) * .8;
