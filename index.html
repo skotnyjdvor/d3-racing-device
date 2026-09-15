@@ -21,6 +21,7 @@
     <meta property="og:locale" content="ru_RU" />
     <meta property="og:locale:alternate" content="en_US" />
     <meta property="og:locale:alternate" content="pl_PL" />
+    <meta property="og:locale:alternate" content="it_IT" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="D3CF Technology — телеметрия и AI-разбор заездов" />
     <meta name="twitter:description" content="GPS 25 Гц, круги, дельта и AI-инженер, который объясняет, где осталось время." />
@@ -54,21 +55,22 @@
           <a href="#features" data-i18n="nav.features"></a>
           <a href="#contact" data-i18n="nav.contact"></a>
         </nav>
-        <div class="lang-switch" role="group" aria-label="Language">
-          <button type="button" data-lang="ru">RU</button><i>/</i><button type="button" data-lang="en">EN</button><i>/</i><button type="button" data-lang="pl">PL</button>
+        <div class="lang-menu" id="langMenu">
+          <button class="lang-menu-toggle" id="langMenuToggle" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="langMenuList" aria-label="Language"
+            ><svg class="lang-menu-globe" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.25" /><path d="M1.75 8h12.5M8 1.75c1.8 1.7 2.7 3.8 2.7 6.25S9.8 12.55 8 14.25M8 1.75C6.2 3.45 5.3 5.55 5.3 8s.9 4.55 2.7 6.25" /></svg
+            ><b id="langMenuCurrent">RU</b><i class="lang-menu-caret" aria-hidden="true"></i
+          ></button>
+          <ul class="lang-menu-list" id="langMenuList" role="menu" aria-label="Language">
+            <li role="none" style="--i: 0"><button type="button" role="menuitemradio" aria-checked="false" data-lang="ru" lang="ru"><b>RU</b><span>Русский</span></button></li>
+            <li role="none" style="--i: 1"><button type="button" role="menuitemradio" aria-checked="false" data-lang="en" lang="en"><b>EN</b><span>English</span></button></li>
+            <li role="none" style="--i: 2"><button type="button" role="menuitemradio" aria-checked="false" data-lang="pl" lang="pl"><b>PL</b><span>Polski</span></button></li>
+            <li role="none" style="--i: 3"><button type="button" role="menuitemradio" aria-checked="false" data-lang="it" lang="it"><b>IT</b><span>Italiano</span></button></li>
+          </ul>
         </div>
         <button class="account-button" id="accountButton" type="button">
           <span id="accountAvatar">?</span
           ><b id="accountLabel" data-i18n="account.signIn"></b>
         </button>
-        <label class="language-picker"
-          ><span>Language</span
-          ><select id="languageSelect" aria-label="Language">
-            <option value="ru">RU</option>
-            <option value="en">EN</option>
-            <option value="pl">PL</option>
-          </select></label
-        >
         <div class="device-state">
           <span class="status-dot" id="statusDot"></span
           ><span id="deviceStatus" data-i18n="status.disconnected"></span>

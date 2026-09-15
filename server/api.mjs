@@ -49,7 +49,7 @@ const validEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 const publicUser = (row) => ({ id: row.id, email: row.email, emailVerified: Boolean(row.email_verified_at) });
 const issueToken = (row) => jwt.sign({ sub: row.id, email: row.email, tv: row.token_version ?? 0 }, jwtSecret, { expiresIn: "30d", issuer: "laptrace" });
 const userColumns = "id, email, email_verified_at, token_version";
-const normalizeLanguage = (language) => (["ru", "en", "pl"].includes(language) ? language : "ru");
+const normalizeLanguage = (language) => (["ru", "en", "pl", "it"].includes(language) ? language : "ru");
 const hashToken = (token) => createHash("sha256").update(token).digest("hex");
 const tokenPattern = /^[A-Za-z0-9_-]{32,128}$/;
 

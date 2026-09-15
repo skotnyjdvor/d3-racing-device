@@ -97,7 +97,7 @@ function renderAiHistory() {
     const pair = Number.isFinite(comparison) && comparison > 0
       ? t("ai.historyPair", { primary, comparison })
       : `${t("laps.legend", { lap: primary })} · ${t("laps.none")}`;
-    const language = ["ru", "en", "pl"].includes(item.language) ? item.language.toUpperCase() : "RU";
+    const language = ["ru", "en", "pl", "it"].includes(item.language) ? item.language.toUpperCase() : "RU";
     const current = item.id === state.aiAnalysisId ? " current" : "";
     return `<article class="ai-history-item${current}">
       <div class="ai-history-meta"><span>${escapeHtml(formatDate(item.created_at))}</span><b>${escapeHtml(language)}</b></div>
@@ -1816,10 +1816,43 @@ window.addEventListener("hashchange", () => {
   if ((view === "logs" || view === "ai") && !(state.user || testMode)) showView("analysis", false);
   else showView(view, false);
 });
-elements.languageSelect.addEventListener("change", () => setLanguage(elements.languageSelect.value));
-const languageButtons = document.querySelectorAll(".lang-switch [data-lang]");
-const syncLanguageButtons = () => languageButtons.forEach((button) => button.classList.toggle("active", button.dataset.lang === getLanguage()));
-languageButtons.forEach((button) => button.addEventListener("click", () => setLanguage(button.dataset.lang)));
+// Language dropdown: rows slide out one after another; arrow keys, Home/End and Escape work like a menu.
+const languageOptions = [...elements.langMenuList.querySelectorAll("[data-lang]")];
+function setLanguageMenu(open, focusCurrent = false) {
+  elements.langMenu.classList.toggle("open", open);
+  elements.langMenuToggle.setAttribute("aria-expanded", String(open));
+  if (open && focusCurrent) (languageOptions.find((button) => button.dataset.lang === getLanguage()) ?? languageOptions[0]).focus({ preventScroll: true });
+}
+const syncLanguageButtons = () => {
+  const current = getLanguage();
+  elements.langMenuCurrent.textContent = current.toUpperCase();
+  languageOptions.forEach((button) => button.setAttribute("aria-checked", String(button.dataset.lang === current)));
+};
+elements.langMenuToggle.addEventListener("click", (event) => setLanguageMenu(!elements.langMenu.classList.contains("open"), event.detail === 0));
+elements.langMenuToggle.addEventListener("keydown", (event) => {
+  if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+  event.preventDefault();
+  setLanguageMenu(true, true);
+});
+languageOptions.forEach((button) => button.addEventListener("click", () => {
+  setLanguageMenu(false);
+  elements.langMenuToggle.focus({ preventScroll: true });
+  if (button.dataset.lang !== getLanguage()) setLanguage(button.dataset.lang);
+}));
+elements.langMenuList.addEventListener("keydown", (event) => {
+  const index = languageOptions.indexOf(document.activeElement);
+  const move = { ArrowDown: index + 1, ArrowUp: index - 1, Home: 0, End: languageOptions.length - 1 }[event.key];
+  if (move !== undefined) {
+    event.preventDefault();
+    languageOptions[(move + languageOptions.length) % languageOptions.length].focus();
+  } else if (event.key === "Escape") {
+    event.preventDefault();
+    setLanguageMenu(false);
+    elements.langMenuToggle.focus();
+  } else if (event.key === "Tab") setLanguageMenu(false);
+});
+document.addEventListener("pointerdown", (event) => { if (!elements.langMenu.contains(event.target)) setLanguageMenu(false); });
+document.addEventListener("keydown", (event) => { if (event.key === "Escape" && elements.langMenu.classList.contains("open")) setLanguageMenu(false); });
 onLanguageChange(syncLanguageButtons);
 syncLanguageButtons();
 elements.subbarBetaButton.addEventListener("click", () => openAccountDialog("register"));

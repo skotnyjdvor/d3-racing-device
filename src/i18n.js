@@ -1,6 +1,7 @@
 import featureTranslations from "./features-i18n.js";
+import italianTranslations from "./i18n-it.js";
 
-export const SUPPORTED_LANGUAGES = ["ru", "en", "pl"];
+export const SUPPORTED_LANGUAGES = ["ru", "en", "pl", "it"];
 
 const translations = {
   ru: {
@@ -104,6 +105,7 @@ const translations = {
   },
 };
 for (const [lang, entries] of Object.entries(featureTranslations)) Object.assign(translations[lang], entries);
+translations.it = italianTranslations;
 
 let language = "ru";
 try {
@@ -123,8 +125,6 @@ export function applyTranslations(root = typeof document !== "undefined" ? docum
   document.documentElement.lang = language;
   root.querySelectorAll("[data-i18n]").forEach((element) => { element.textContent = t(element.dataset.i18n); });
   root.querySelectorAll("[data-i18n-placeholder]").forEach((element) => { element.placeholder = t(element.dataset.i18nPlaceholder); });
-  const selector = root.querySelector("#languageSelect");
-  if (selector) selector.value = language;
 }
 export function setLanguage(next) {
   if (!SUPPORTED_LANGUAGES.includes(next)) return;

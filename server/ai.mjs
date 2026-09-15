@@ -251,7 +251,7 @@ export function buildTelemetrySnapshot(points, options = {}) {
   return {
     schema: "laptrace-telemetry-snapshot/v9",
     analysisMode: "standard-report/v4-quality-aware-compact-advice",
-    language: ["ru", "en", "pl"].includes(options.language) ? options.language : "ru",
+    language: ["ru", "en", "pl", "it"].includes(options.language) ? options.language : "ru",
     question: String(options.question || "").trim().slice(0, 500),
     track: track ? { id: track.id, name: track.name } : null,
     session: {
@@ -299,6 +299,9 @@ export function groundAiReport(report, snapshot) {
   const fallback = snapshot.language === "ru" ? {
     observation: () => "На этом участке сравниваемый круг теряет время относительно основного.",
     hypothesis: "По доступным данным нельзя уверенно назвать причину.", recommendation: "На следующем круге сравнить момент торможения, скорость в повороте и начало разгона.",
+  } : snapshot.language === "it" ? {
+    observation: () => "In questo tratto il giro di confronto perde tempo rispetto al giro principale.",
+    hypothesis: "I dati disponibili non permettono di stabilire con certezza la causa.", recommendation: "Nel prossimo giro confronta il punto di frenata, la velocità in curva e l'inizio dell'accelerazione.",
   } : snapshot.language === "pl" ? {
     observation: () => "Na tym odcinku okrążenie porównawcze traci czas do głównego.",
     hypothesis: "Dostępne dane nie pozwalają pewnie określić przyczyny.", recommendation: "Na kolejnym okrążeniu porównaj moment hamowania, prędkość w zakręcie i początek przyspieszania.",

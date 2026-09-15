@@ -40,6 +40,17 @@ const copy = {
     verifyButton: "Potwierdź e-mail",
     ignore: "Jeśli nie prosiłeś o tę wiadomość, po prostu ją zignoruj.",
   },
+  it: {
+    resetSubject: "Reimposta la password D3CF",
+    resetTitle: "Nuova password",
+    resetText: "Abbiamo ricevuto una richiesta di modifica della password per il tuo account D3CF. Il link è valido per 1 ora.",
+    resetButton: "Imposta una nuova password",
+    verifySubject: "Conferma la tua email per D3CF",
+    verifyTitle: "Conferma la tua email",
+    verifyText: "Conferma l'indirizzo per proteggere l'account e ricevere le email di recupero dell'accesso. Il link è valido per 24 ore.",
+    verifyButton: "Conferma email",
+    ignore: "Se non hai richiesto questa email, puoi semplicemente ignorarla.",
+  },
 };
 
 const escape = (value) => String(value).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
