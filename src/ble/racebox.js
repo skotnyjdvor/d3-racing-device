@@ -193,7 +193,7 @@ export class RaceBoxBleClient {
   }
 
   async connect() {
-    if (!navigator.bluetooth) throw new Error("Web Bluetooth недоступен. Используйте Chrome или Edge на localhost.");
+    if (!navigator.bluetooth) throw Object.assign(new Error("Web Bluetooth is not available in this browser"), { code: "no-web-bluetooth" });
     // Some RaceBox firmware/OS combinations do not expose advertised services
     // early enough for Web Bluetooth filtering. Show every nearby BLE device,
     // then verify RaceBox by requesting its UART service after connection.
@@ -208,7 +208,7 @@ export class RaceBoxBleClient {
       service = await server.getPrimaryService(RACEBOX_UART_SERVICE);
     } catch {
       this.device.gatt.disconnect();
-      throw new Error(`Устройство «${this.device.name || "без имени"}» не предоставляет UART service LapTrace`);
+      throw Object.assign(new Error("Selected device is not a LapTrace"), { code: "not-laptrace", deviceName: this.device.name || "" });
     }
     this.tx = await service.getCharacteristic(RACEBOX_TX);
     this.rx = await service.getCharacteristic(RACEBOX_RX);

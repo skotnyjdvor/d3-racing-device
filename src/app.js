@@ -187,7 +187,47 @@ function showView(view, updateHash = true) {
   else if (!logs) requestAnimationFrame(() => { drawTrack(); drawCharts(); });
 }
 
+// Web Bluetooth exists only in Chromium browsers; iOS Safari and Firefox need the native app or a CSV import.
+const bluetoothAvailable = () => testMode || Boolean(globalThis.Capacitor?.isNativePlatform?.()) || Boolean(globalThis.navigator?.bluetooth);
+
+function renderBluetoothSupport() {
+  const available = bluetoothAvailable();
+  elements.bluetoothNotice.hidden = available;
+  elements.connectButton.disabled = !available && !state.client;
+  elements.onboardConnectButton.classList.toggle("unavailable", !available);
+  document.body.classList.toggle("bt-unavailable", !available);
+  elements.onboardConnectText.textContent = t(available ? "onboard.connectText" : "onboard.connectUnsupported");
+}
+
+function renderSessionState() {
+  document.body.classList.toggle("no-session", !state.sessions.length);
+  document.body.classList.toggle("has-session", Boolean(state.selectedSession?.points?.length));
+}
+
+async function openDemoSession() {
+  elements.onboardDemoButton.disabled = true;
+  elements.onboardStatus.textContent = t("account.working");
+  try {
+    const { default: demoUrl } = await import("./fixtures/viterbo-session-2026-07-10.csv?url");
+    const response = await fetch(demoUrl);
+    if (!response.ok) throw new Error(t("landing.demoError"));
+    const points = parseRaceBoxCsv(await response.text());
+    // Kept local on purpose: the example is never uploaded to the user's cloud library.
+    const session = { id: "demo-viterbo", title: t("onboard.demoSession"), source: "demo", deviceName: "LapTrace", startedAt: points[0].time, endedAt: points.at(-1).time, points };
+    state.sessions = [session, ...state.sessions.filter((item) => item.id !== session.id)];
+    renderSessions();
+    await selectSession(session.id);
+    elements.onboardStatus.textContent = "";
+  } catch (error) {
+    elements.onboardStatus.textContent = error.message;
+  } finally {
+    elements.onboardDemoButton.disabled = false;
+  }
+}
+
 function connectionErrorMessage(error) {
+  if (error?.code === "no-web-bluetooth") return t("bt.copy");
+  if (error?.code === "not-laptrace") return t("error.notLapTrace", { name: error.deviceName || "—" });
   if (error?.name === "NotFoundError" || /cancelled.*chooser/i.test(error?.message || "")) return t("error.notSelected");
   if (error?.name === "NetworkError") return t("error.network");
   if (error?.name === "SecurityError") return t("error.security");
@@ -917,6 +957,7 @@ async function refreshStorage() {
 }
 
 function renderSessions() {
+  renderSessionState();
   elements.sessionsValue.textContent = String(state.sessions.length);
   const totalPoints = state.sessions.reduce((sum, session) => sum + (session.points?.length ?? session.pointCount ?? 0), 0);
   elements.sessionsMeta.textContent = t("progress.records", { received: totalPoints.toLocaleString(getLanguage()), expected: totalPoints.toLocaleString(getLanguage()) });
@@ -994,7 +1035,7 @@ function updateLapView() {
   elements.durationMeta.textContent = lap ? t("laps.legend", { lap: lap.number }) : formatDate(state.selectedSession.startedAt);
   elements.maxSpeedValue.textContent = (lap?.maxSpeed ?? state.analysis.session.maxSpeed).toFixed(1);
   elements.sampleRateValue.textContent = state.analysis.sampleRateHz.toFixed(0);
-  elements.trackTitle.textContent = `${state.track ? `${state.track.name} · ` : ""}${t("sessions.item", { id: state.selectedSession.displayId ?? state.selectedSession.id })}${lap ? ` · ${t("laps.legend", { lap: lap.number })}` : ""}`;
+  elements.trackTitle.textContent = `${state.track ? `${state.track.name} · ` : ""}${state.selectedSession.source === "demo" ? state.selectedSession.title : t("sessions.item", { id: state.selectedSession.displayId ?? state.selectedSession.id })}${lap ? ` · ${t("laps.legend", { lap: lap.number })}` : ""}`;
   renderLapControls(); renderAiPageContext(); drawTrack(); drawCharts();
 }
 
@@ -1186,6 +1227,7 @@ async function selectSession(id) {
   const trackCatalog = await loadTrackCatalog().catch(() => undefined);
   if (!state.selectedSession?.points?.length) return false;
   state.track = identifyTrack(state.selectedSession.points, trackCatalog);
+  renderSessionState();
   state.selectedSession.points = splitSessionIntoLaps(state.selectedSession.points, state.track);
   state.analysis = analyzeSession(state.selectedSession.points);
   if (isNewSession || !state.analysis.laps.some((lap) => lap.number === state.selectedLapNumber)) {
@@ -1195,7 +1237,7 @@ async function selectSession(id) {
   }
   elements.sourceLabel.textContent = t("footer.deviceMemory", { name: state.deviceName });
   elements.analyzeAiButton.disabled = !state.selectedSession.cloudId || !state.analysis.laps.length;
-  elements.copyStatus.textContent = state.selectedSession.cloudId ? t("ai.ready") : t("ai.cloudRequired");
+  elements.copyStatus.textContent = state.selectedSession.cloudId ? t("ai.ready") : t(state.selectedSession.source === "demo" ? "onboard.demoAi" : "ai.cloudRequired");
   elements.insightsList.innerHTML = generateLocalInsights(state.analysis, t).map((insight) => `<li>${insight}</li>`).join("");
   renderSessions(); updateLapView();
   void refreshAiHistory();
@@ -1511,6 +1553,19 @@ async function eraseDeviceMemory() {
 }
 
 elements.connectButton.addEventListener("click", connect);
+elements.onboardConnectButton.addEventListener("click", () => {
+  if (!bluetoothAvailable()) { elements.bluetoothNotice.scrollIntoView({ behavior: "smooth", block: "center" }); return; }
+  elements.connectButton.scrollIntoView({ behavior: "smooth", block: "center" });
+  void connect();
+});
+elements.onboardImportButton.addEventListener("click", () => {
+  if (!state.user && !testMode) { openAccountDialog("signin"); return; }
+  elements.importLogInput.click();
+});
+elements.onboardDemoButton.addEventListener("click", openDemoSession);
+onLanguageChange(renderBluetoothSupport);
+renderBluetoothSupport();
+renderSessionState();
 elements.recordButton.addEventListener("click", toggleRecording);
 elements.downloadButton.addEventListener("click", downloadHistory);
 elements.eraseButton.addEventListener("click", eraseDeviceMemory);

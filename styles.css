@@ -465,6 +465,42 @@ html { overflow-x: clip; }
 }
 /* Range inputs: keep the thin visual track but give the thumb a 44px hit area. */
 
+/* First-run: Bluetooth support, onboarding and compact header */
+.bt-support { padding: 14px 16px; display: grid; gap: 6px; border: 1px solid rgba(255,176,0,.45); border-left: 3px solid var(--race-amber); background: rgba(255,176,0,.06); }
+.bt-support[hidden], .onboarding[hidden] { display: none; }
+.bt-support strong { color: var(--race-text); font: 700 15px/1.2 var(--font-display); letter-spacing: .04em; text-transform: uppercase; }
+.bt-support p { margin: 0; color: var(--race-text-2); font: 400 13px/1.5 var(--font-body); letter-spacing: 0; }
+.onboarding { display: none; margin: 8px 0 40px; }
+.no-session .onboarding { display: block; }
+.no-session .summary-grid, .no-session .dashboard { display: none; }
+.onboarding-head { margin-bottom: 20px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: end; gap: 12px 48px; }
+.onboarding-head .eyebrow { grid-column: 1 / -1; margin: 0; }
+.onboarding-head h2 { margin: 0; color: var(--race-text); font: 700 clamp(30px, 3.6vw, 48px)/.95 var(--font-display); letter-spacing: .01em; text-transform: uppercase; }
+.onboarding-head > p:last-child { margin: 0; color: var(--race-text-2); font: 400 16px/1.55 var(--font-body); }
+.onboarding-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.onboarding-card { position: relative; min-height: 180px; padding: 22px; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; color: var(--race-text); text-align: left; background: var(--race-bg); border: 1px solid var(--race-line-2); cursor: pointer; transition: border-color .2s, background-color .2s, transform .2s; }
+.onboarding-card::after { content: "→"; position: absolute; right: 22px; top: 20px; color: var(--race-muted); font: 400 18px/1 var(--font-code); transition: color .2s, translate .2s; }
+.onboarding-card:hover:not(:disabled) { border-color: var(--race-red); background: rgba(225,6,0,.06); transform: translateY(-2px); }
+.onboarding-card:hover:not(:disabled)::after { color: var(--race-red); translate: 4px 0; }
+.onboarding-card:focus-visible { outline: 2px solid var(--race-red); outline-offset: 2px; }
+.onboarding-code { color: var(--race-red-text); font: 700 26px/1 var(--font-display); }
+.onboarding-card strong { margin-top: auto; font: 700 22px/1.05 var(--font-display); letter-spacing: .04em; text-transform: uppercase; }
+.onboarding-card small { color: var(--race-text-2); font: 400 14px/1.5 var(--font-body); letter-spacing: 0; text-transform: none; }
+.onboarding-card.unavailable { border-style: dashed; }
+.onboarding-card.unavailable .onboarding-code, .onboarding-card.unavailable strong { color: var(--race-muted); }
+.onboarding-card.unavailable small { color: var(--race-amber); }
+.onboarding-status { min-height: 1.5em; margin: 12px 0 0; color: var(--race-text-2); font: 400 13px/1.5 var(--font-code); }
+/* Without Web Bluetooth the device controls cannot work: show only the explanation. */
+.bt-unavailable .device-panel { align-self: center; }
+.bt-unavailable #connectButton, .bt-unavailable #recordButton, .bt-unavailable #downloadButton, .bt-unavailable #eraseButton, .bt-unavailable #actionHint { display: none; }
+html .has-session .device-hero { min-height: 0; padding: 32px 0 24px; align-items: start; gap: 32px; }
+html .has-session .device-hero h1 { font-size: clamp(34px, 4vw, 56px); }
+html .has-session .device-hero .hero-copy { display: none; }
+@media (max-width: 900px) {
+  .onboarding-head, .onboarding-grid { grid-template-columns: 1fr; }
+  .onboarding-card { min-height: 0; }
+}
+
 /* Account recovery */
 .account-links { margin-top: 14px; display: flex; justify-content: space-between; gap: 12px; }
 .account-links[hidden], .account-link[hidden], .account-verify[hidden], .account-tabs[hidden] { display: none; }

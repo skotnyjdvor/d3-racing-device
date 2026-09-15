@@ -1,6 +1,12 @@
 // Copy for the guest "Features" page, merged into the main translation table.
 export default {
   ru: {
+    "onboard.demoAi": "AI-рапорт доступен для ваших логов: подключите LapTrace или загрузите CSV.",
+    "bt.title": "Bluetooth в этом браузере недоступен", "bt.copy": "Подключение к LapTrace работает в Chrome или Edge на компьютере и Android. На iPhone используйте приложение D3CF, а лог можно загрузить CSV-файлом в «Базе логов».", "error.notLapTrace": "Устройство «{name}» не похоже на LapTrace. Выберите LapTrace в списке Bluetooth-устройств.",
+    "onboard.kicker": "С чего начать", "onboard.title": "Первый разбор за минуту", "onboard.copy": "Выберите, откуда взять данные. Графики, карта трассы и сравнение кругов появятся сразу после загрузки.",
+    "onboard.connectTitle": "Подключить LapTrace", "onboard.connectText": "Включите устройство рядом и скачайте сессии из его памяти.", "onboard.connectUnsupported": "Нужен Chrome или Edge на компьютере или Android, либо приложение D3CF на iPhone.",
+    "onboard.importTitle": "Загрузить CSV", "onboard.importText": "Лог LapTrace или RaceBox в формате CSV сохранится в вашем аккаунте.",
+    "onboard.demoTitle": "Открыть пример", "onboard.demoText": "Реальный заезд на Circuito di Viterbo — 7 кругов, чтобы посмотреть, как всё работает.", "onboard.demoSession": "Пример · Viterbo",
     "account.forgot": "Забыли пароль?", "account.backToSignIn": "← Вернуться ко входу", "account.forgotTitle": "Восстановление доступа", "account.forgotCopy": "Укажите email аккаунта — мы пришлём ссылку для нового пароля.", "account.sendLink": "Отправить ссылку", "account.linkSent": "Если аккаунт с таким email существует, письмо со ссылкой уже в пути. Проверьте папку «Спам».", "account.resetTitle": "Новый пароль", "account.resetCopy": "Придумайте новый пароль. После сохранения все старые сессии будут завершены.", "account.savePassword": "Сохранить пароль", "account.unverified": "Email ещё не подтверждён. Без подтверждения восстановить доступ к аккаунту не получится.", "account.resend": "Отправить письмо ещё раз", "account.verifySent": "Письмо с подтверждением отправлено.", "account.verified": "Email подтверждён.",
     "nav.contact": "Контакты", "meta.title": "D3CF Technology — телеметрия и AI-разбор заездов", "meta.description": "Логгер LapTrace пишет GPS 25 Гц и перегрузки на трассе, приложение D3CF делит заезд на круги, показывает дельту и готовит AI-разбор с точками на карте.",
     "c.meta": "Связь с командой", "c.title1": "На связи", "c.title2": "с боксами.",
@@ -77,6 +83,12 @@ export default {
     "f.ctaCopy": "Создайте аккаунт, загрузите первый лог и получите разбор уже после ближайшей тренировки.",
   },
   en: {
+    "onboard.demoAi": "AI debriefs are available for your own logs: connect LapTrace or upload a CSV.",
+    "bt.title": "Bluetooth is not available in this browser", "bt.copy": "Connecting to LapTrace works in Chrome or Edge on desktop and Android. On iPhone use the D3CF app, or upload a CSV log in the Log database.", "error.notLapTrace": "“{name}” does not look like a LapTrace. Pick LapTrace from the Bluetooth device list.",
+    "onboard.kicker": "Getting started", "onboard.title": "Your first analysis in a minute", "onboard.copy": "Choose where the data comes from. Charts, the track map and lap comparison appear as soon as it loads.",
+    "onboard.connectTitle": "Connect LapTrace", "onboard.connectText": "Turn the device on nearby and download sessions from its memory.", "onboard.connectUnsupported": "Needs Chrome or Edge on desktop or Android, or the D3CF app on iPhone.",
+    "onboard.importTitle": "Upload a CSV", "onboard.importText": "A LapTrace or RaceBox CSV log is saved to your account.",
+    "onboard.demoTitle": "Open an example", "onboard.demoText": "A real session at Circuito di Viterbo — 7 laps to see how everything works.", "onboard.demoSession": "Example · Viterbo",
     "account.forgot": "Forgot password?", "account.backToSignIn": "← Back to sign in", "account.forgotTitle": "Recover access", "account.forgotCopy": "Enter your account email and we will send a link to set a new password.", "account.sendLink": "Send link", "account.linkSent": "If an account with this email exists, the link is on its way. Check your spam folder.", "account.resetTitle": "New password", "account.resetCopy": "Choose a new password. Saving it signs out every other session.", "account.savePassword": "Save password", "account.unverified": "Your email is not confirmed yet. Without it you won't be able to recover access to the account.", "account.resend": "Resend confirmation", "account.verifySent": "Confirmation email sent.", "account.verified": "Email confirmed.",
     "nav.contact": "Contact", "meta.title": "D3CF Technology — telemetry and AI debriefs for track days", "meta.description": "The LapTrace logger records 25 Hz GPS and G-forces on track; the D3CF app splits the run into laps, shows the delta and builds an AI debrief with map points.",
     "c.meta": "Talk to the team", "c.title1": "Radio check", "c.title2": "with the pits.",
@@ -153,6 +165,12 @@ export default {
     "f.ctaCopy": "Create an account, upload your first log and get a debrief right after your next practice.",
   },
   pl: {
+    "onboard.demoAi": "Raport AI jest dostępny dla Twoich logów: połącz LapTrace lub wgraj CSV.",
+    "bt.title": "Bluetooth nie jest dostępny w tej przeglądarce", "bt.copy": "Połączenie z LapTrace działa w Chrome lub Edge na komputerze i Androidzie. Na iPhonie użyj aplikacji D3CF albo wgraj log CSV w Bazie logów.", "error.notLapTrace": "Urządzenie „{name}” nie wygląda na LapTrace. Wybierz LapTrace z listy urządzeń Bluetooth.",
+    "onboard.kicker": "Od czego zacząć", "onboard.title": "Pierwsza analiza w minutę", "onboard.copy": "Wybierz źródło danych. Wykresy, mapa toru i porównanie okrążeń pojawią się od razu po wczytaniu.",
+    "onboard.connectTitle": "Połącz LapTrace", "onboard.connectText": "Włącz urządzenie w pobliżu i pobierz sesje z jego pamięci.", "onboard.connectUnsupported": "Wymaga Chrome lub Edge na komputerze lub Androidzie albo aplikacji D3CF na iPhonie.",
+    "onboard.importTitle": "Wgraj CSV", "onboard.importText": "Log LapTrace lub RaceBox w formacie CSV zapisze się na Twoim koncie.",
+    "onboard.demoTitle": "Otwórz przykład", "onboard.demoText": "Prawdziwa sesja na Circuito di Viterbo — 7 okrążeń, aby zobaczyć, jak to działa.", "onboard.demoSession": "Przykład · Viterbo",
     "account.forgot": "Nie pamiętasz hasła?", "account.backToSignIn": "← Wróć do logowania", "account.forgotTitle": "Odzyskiwanie dostępu", "account.forgotCopy": "Podaj e-mail konta — wyślemy link do ustawienia nowego hasła.", "account.sendLink": "Wyślij link", "account.linkSent": "Jeśli konto z tym adresem istnieje, link jest już w drodze. Sprawdź folder spam.", "account.resetTitle": "Nowe hasło", "account.resetCopy": "Ustaw nowe hasło. Po zapisaniu wszystkie inne sesje zostaną zakończone.", "account.savePassword": "Zapisz hasło", "account.unverified": "E-mail nie jest jeszcze potwierdzony. Bez tego nie odzyskasz dostępu do konta.", "account.resend": "Wyślij potwierdzenie ponownie", "account.verifySent": "Wiadomość z potwierdzeniem wysłana.", "account.verified": "E-mail potwierdzony.",
     "nav.contact": "Kontakt", "meta.title": "D3CF Technology — telemetria i analiza AI przejazdów", "meta.description": "Rejestrator LapTrace zapisuje GPS 25 Hz i przeciążenia na torze, aplikacja D3CF dzieli przejazd na okrążenia, pokazuje deltę i przygotowuje analizę AI z punktami na mapie.",
     "c.meta": "Kontakt z zespołem", "c.title1": "Łączność", "c.title2": "z boksem.",

@@ -421,6 +421,10 @@
             id="connectButton"
             data-i18n="action.connect"
           ></button>
+          <div class="bt-support" id="bluetoothNotice" role="note" hidden>
+            <strong data-i18n="bt.title"></strong>
+            <p data-i18n="bt.copy"></p>
+          </div>
           <div class="device-health" id="deviceHealth" hidden>
             <div>
               <span data-i18n="device.gps"></span><strong id="gpsFix">—</strong
@@ -494,6 +498,31 @@
           </div>
           <p id="actionHint" data-i18n="hint.initial"></p>
         </div>
+      </section>
+      <section class="onboarding" id="onboarding" aria-labelledby="onboardingTitle">
+        <div class="onboarding-head">
+          <p class="eyebrow" data-i18n="onboard.kicker"></p>
+          <h2 id="onboardingTitle" data-i18n="onboard.title"></h2>
+          <p data-i18n="onboard.copy"></p>
+        </div>
+        <div class="onboarding-grid">
+          <button class="onboarding-card" id="onboardConnectButton" type="button">
+            <span class="onboarding-code">01</span>
+            <strong data-i18n="onboard.connectTitle"></strong>
+            <small id="onboardConnectText"></small>
+          </button>
+          <button class="onboarding-card" id="onboardImportButton" type="button">
+            <span class="onboarding-code">02</span>
+            <strong data-i18n="onboard.importTitle"></strong>
+            <small data-i18n="onboard.importText"></small>
+          </button>
+          <button class="onboarding-card" id="onboardDemoButton" type="button">
+            <span class="onboarding-code">03</span>
+            <strong data-i18n="onboard.demoTitle"></strong>
+            <small data-i18n="onboard.demoText"></small>
+          </button>
+        </div>
+        <p class="onboarding-status" id="onboardStatus" role="status" aria-live="polite"></p>
       </section>
       <section class="summary-grid">
         <article class="metric">
