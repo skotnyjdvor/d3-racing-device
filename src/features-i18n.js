@@ -1,6 +1,7 @@
 // Copy for the guest "Features" page, merged into the main translation table.
 export default {
   ru: {
+    "mtab.track": "Трасса", "mtab.charts": "Графики", "mtab.sectors": "Сектора", "mtab.insights": "Разбор", "mobile.device": "Устройство", "laps.optionShort": "К{lap} · {time}", "telemetry.speedShort": "Скорость", "telemetry.longitudinalShort": "Прод. G", "telemetry.lateralShort": "Бок. G",
     "sectors.kicker": "СЕКТОРА", "sectors.title": "Сектора и идеальный круг", "sectors.ideal": "Идеальный круг", "sectors.potential": "Запас, с", "sectors.lap": "Круг", "sectors.time": "Время", "sectors.best": "лучший", "sectors.idealRow": "Идеал", "sectors.fromLap": "круг {lap}", "sectors.note": "Трасса поделена на три равных по дистанции сектора по лучшему кругу {lap}. Фиолетовым отмечены лучшие сектора, их сумма и есть идеальный круг. Нажмите на строку, чтобы выбрать круг.", "sectors.empty": "Для секторов нужен хотя бы один полный круг с распознанной линией старта.", "sectors.partial": "На части кругов граница сектора не найдена, они не участвуют в идеальном круге.",
     "dialog.cancel": "Отмена", "dialog.delete": "Удалить", "dialog.save": "Сохранить", "sessions.renameTitle": "Переименовать сессию", "sessions.deleteTitle": "Удалить сессию?", "erase.title": "Очистить память LapTrace?", "ai.historyDeleteTitle": "Удалить AI-рапорт?", "unit.seconds": "с", "delta.behind": "+ круг {lap} позади", "delta.ahead": "− круг {lap} впереди",
     "onboard.demoAi": "AI-рапорт доступен для ваших логов: подключите LapTrace или загрузите CSV.",
@@ -85,6 +86,7 @@ export default {
     "f.ctaCopy": "Создайте аккаунт, загрузите первый лог и получите разбор уже после ближайшей тренировки.",
   },
   en: {
+    "mtab.track": "Track", "mtab.charts": "Charts", "mtab.sectors": "Sectors", "mtab.insights": "Review", "mobile.device": "Device", "laps.optionShort": "L{lap} · {time}", "telemetry.speedShort": "Speed", "telemetry.longitudinalShort": "Long. G", "telemetry.lateralShort": "Lat. G",
     "sectors.kicker": "SECTORS", "sectors.title": "Sectors & ideal lap", "sectors.ideal": "Ideal lap", "sectors.potential": "Potential, s", "sectors.lap": "Lap", "sectors.time": "Time", "sectors.best": "best", "sectors.idealRow": "Ideal", "sectors.fromLap": "lap {lap}", "sectors.note": "The track is split into three equal-distance sectors based on fastest lap {lap}. Purple marks the best sectors, and their sum is the ideal lap. Click a row to select that lap.", "sectors.empty": "Sectors need at least one complete lap with a detected start line.", "sectors.partial": "Some laps missed a sector boundary and are left out of the ideal lap.",
     "dialog.cancel": "Cancel", "dialog.delete": "Delete", "dialog.save": "Save", "sessions.renameTitle": "Rename session", "sessions.deleteTitle": "Delete this session?", "erase.title": "Erase LapTrace memory?", "ai.historyDeleteTitle": "Delete this AI debrief?", "unit.seconds": "s", "delta.behind": "+ lap {lap} behind", "delta.ahead": "− lap {lap} ahead",
     "onboard.demoAi": "AI debriefs are available for your own logs: connect LapTrace or upload a CSV.",
@@ -169,6 +171,7 @@ export default {
     "f.ctaCopy": "Create an account, upload your first log and get a debrief right after your next practice.",
   },
   pl: {
+    "mtab.track": "Tor", "mtab.charts": "Wykresy", "mtab.sectors": "Sektory", "mtab.insights": "Analiza", "mobile.device": "Urządzenie", "laps.optionShort": "O{lap} · {time}", "telemetry.speedShort": "Prędkość", "telemetry.longitudinalShort": "G wzdł.", "telemetry.lateralShort": "G poprz.",
     "sectors.kicker": "SEKTORY", "sectors.title": "Sektory i idealne okrążenie", "sectors.ideal": "Idealne okrążenie", "sectors.potential": "Zapas, s", "sectors.lap": "Okr.", "sectors.time": "Czas", "sectors.best": "najl.", "sectors.idealRow": "Ideał", "sectors.fromLap": "okr. {lap}", "sectors.note": "Tor podzielono na trzy sektory o równej długości według najszybszego okrążenia {lap}. Fioletem oznaczono najlepsze sektory, a ich suma to idealne okrążenie. Kliknij wiersz, aby wybrać okrążenie.", "sectors.empty": "Sektory wymagają co najmniej jednego pełnego okrążenia z wykrytą linią startu.", "sectors.partial": "Na części okrążeń nie wykryto granicy sektora, więc nie liczą się do idealnego okrążenia.",
     "dialog.cancel": "Anuluj", "dialog.delete": "Usuń", "dialog.save": "Zapisz", "sessions.renameTitle": "Zmień nazwę sesji", "sessions.deleteTitle": "Usunąć sesję?", "erase.title": "Wyczyścić pamięć LapTrace?", "ai.historyDeleteTitle": "Usunąć raport AI?", "unit.seconds": "s", "delta.behind": "+ okrążenie {lap} z tyłu", "delta.ahead": "− okrążenie {lap} z przodu",
     "onboard.demoAi": "Raport AI jest dostępny dla Twoich logów: połącz LapTrace lub wgraj CSV.",

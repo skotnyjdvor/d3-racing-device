@@ -32,7 +32,7 @@
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body class="auth-locked">
-    <header class="topbar">
+    <header class="topbar" id="topbar">
       <a class="brand" href="#analysis" aria-label="D3"
         ><span class="brand-mark-frame"
           ><svg class="brand-mark" viewBox="60 80 1565 735" aria-hidden="true"
@@ -417,7 +417,12 @@
           </h1>
           <p class="hero-copy" data-i18n="hero.copy"></p>
         </div>
-        <div class="action-panel device-panel">
+        <div class="action-panel device-panel" id="devicePanel">
+          <button class="device-summary" id="deviceSummaryButton" type="button" aria-expanded="false" aria-controls="devicePanel"
+            ><i class="status-dot" id="deviceSummaryDot"></i
+            ><span id="deviceSummaryStatus" data-i18n="status.disconnected"></span
+            ><b data-i18n="mobile.device"></b><i class="device-summary-caret" aria-hidden="true"></i
+          ></button>
           <button
             class="primary"
             id="connectButton"
@@ -548,7 +553,7 @@
           ><small data-i18n="unit.hz"></small>
         </article>
       </section>
-      <section class="dashboard">
+      <section class="dashboard" id="dashboard" data-tab="track">
         <article class="panel lap-controls-panel">
           <div class="panel-head">
             <div class="lap-panel-heading">
@@ -573,6 +578,12 @@
             <span class="primary-line" id="primaryLapLegend">—</span
             ><span class="comparison-line" id="comparisonLapLegend">—</span>
           </div>
+          <div class="analysis-tabs" id="analysisTabs" role="tablist" aria-label="Analysis">
+            <button type="button" role="tab" data-analysis-tab="track" aria-selected="true" data-i18n="mtab.track"></button>
+            <button type="button" role="tab" data-analysis-tab="charts" aria-selected="false" data-i18n="mtab.charts"></button>
+            <button type="button" role="tab" data-analysis-tab="sectors" aria-selected="false" data-i18n="mtab.sectors"></button>
+            <button type="button" role="tab" data-analysis-tab="insights" aria-selected="false" data-i18n="mtab.insights"></button>
+          </div>
         </article>
         <article class="panel track-panel">
           <div class="panel-head">
@@ -581,6 +592,9 @@
               <h2 id="trackTitle" data-i18n="track.empty"></h2>
             </div>
             <button class="chart-zoom-reset" id="trackZoomReset" type="button" title="Reset zoom" aria-label="Reset zoom">⤢ 100%</button>
+          </div>
+          <div class="track-stats">
+            <b id="trackStatTime">—</b><span id="trackStatGap">Δ —</span><span id="trackStatSpeed">—</span>
           </div>
           <canvas id="trackCanvas"></canvas>
           <div class="legend trajectory-legend">
@@ -608,9 +622,9 @@
           </div>
           <canvas id="telemetryCanvas"></canvas>
           <div class="telemetry-tabs" role="group" aria-label="Telemetry chart">
-            <button class="active" type="button" data-metric="speed" data-i18n="telemetry.speed"></button>
-            <button type="button" data-metric="gForceX" data-i18n="telemetry.longitudinal"></button>
-            <button type="button" data-metric="gForceY" data-i18n="telemetry.lateral"></button>
+            <button class="active" type="button" data-metric="speed" data-i18n="telemetry.speedShort"></button>
+            <button type="button" data-metric="gForceX" data-i18n="telemetry.longitudinalShort"></button>
+            <button type="button" data-metric="gForceY" data-i18n="telemetry.lateralShort"></button>
           </div>
         </article>
         <article class="panel chart-panel delta-panel">

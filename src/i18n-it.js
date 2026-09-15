@@ -1,5 +1,14 @@
 // Italian translation table (app, landing, features, contact). Keys mirror the ru/en/pl tables.
 export default {
+  "mtab.track": "Pista",
+  "mtab.charts": "Grafici",
+  "mtab.sectors": "Settori",
+  "mtab.insights": "Analisi",
+  "mobile.device": "Dispositivo",
+  "laps.optionShort": "G{lap} · {time}",
+  "telemetry.speedShort": "Velocità",
+  "telemetry.longitudinalShort": "G long.",
+  "telemetry.lateralShort": "G lat.",
   "ai.analyze": "Genera report pilota",
   "ai.analyzing": "L'AI sta preparando il report…",
   "ai.ready": "Pronto per generare il report",

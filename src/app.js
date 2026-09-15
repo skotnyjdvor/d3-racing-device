@@ -43,7 +43,12 @@ const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character
 function setStatus(text, active = false) {
   elements.deviceStatus.textContent = text;
   elements.statusDot.classList.toggle("live", active);
+  elements.deviceSummaryStatus.textContent = text;
+  elements.deviceSummaryDot.classList.toggle("live", active);
 }
+
+// Phones: the analysis screen shows one tab at a time and short lap labels.
+const compactLayout = window.matchMedia("(max-width: 700px)");
 
 function setHint(text, isError = false) {
   elements.actionHint.textContent = text;
@@ -1168,7 +1173,8 @@ async function deleteCloudSession(cloudId) {
 
 function renderLapControls() {
   const laps = state.analysis?.laps ?? [];
-  const options = laps.map((lap) => `<option value="${lap.number}">${t("laps.option", { lap: lap.number, time: formatLapTime(lap.durationMs) })}</option>`).join("");
+  const optionKey = compactLayout.matches ? "laps.optionShort" : "laps.option";
+  const options = laps.map((lap) => `<option value="${lap.number}">${t(optionKey, { lap: lap.number, time: formatLapTime(lap.durationMs) })}</option>`).join("");
   elements.primaryLapSelect.innerHTML = options;
   elements.comparisonLapSelect.innerHTML = `<option value="">${t("laps.none")}</option>${options}`;
   elements.primaryLapSelect.disabled = !laps.length;
@@ -1186,6 +1192,13 @@ function updateLapView() {
   elements.durationMeta.textContent = lap ? t("laps.legend", { lap: lap.number }) : formatDate(state.selectedSession.startedAt);
   elements.maxSpeedValue.textContent = (lap?.maxSpeed ?? state.analysis.session.maxSpeed).toFixed(1);
   elements.sampleRateValue.textContent = state.analysis.sampleRateHz.toFixed(0);
+  const comparisonLap = state.analysis.laps.find((item) => item.number === state.comparisonLapNumber);
+  const gapMs = lap && comparisonLap ? lap.durationMs - comparisonLap.durationMs : null;
+  elements.trackStatTime.textContent = lap ? formatLapTime(lap.durationMs) : "—";
+  elements.trackStatGap.textContent = gapMs === null ? "Δ —" : `Δ ${formatGap(gapMs)} ${t("unit.seconds")}`;
+  elements.trackStatGap.classList.toggle("ahead", gapMs !== null && gapMs < 0);
+  elements.trackStatGap.classList.toggle("behind", gapMs !== null && gapMs > 0);
+  elements.trackStatSpeed.textContent = `${(lap?.maxSpeed ?? state.analysis.session.maxSpeed).toFixed(1)} ${t("unit.speed")}`;
   elements.trackTitle.textContent = `${state.track ? `${state.track.name} · ` : ""}${state.selectedSession.source === "demo" ? state.selectedSession.title : t("sessions.item", { id: state.selectedSession.displayId ?? state.selectedSession.id })}${lap ? ` · ${t("laps.legend", { lap: lap.number })}` : ""}`;
   renderLapControls(); renderSectors(); renderAiPageContext(); drawTrack(); drawCharts();
 }
@@ -1778,6 +1791,39 @@ elements.aiQuestion.addEventListener("input", () => {
   elements.askAiButton.disabled = !state.aiAnalysisId || elements.aiQuestion.value.trim().length < 3;
 });
 elements.aiReportJumpButton.addEventListener("click", () => showView("ai"));
+elements.aiReportJumpButton.setAttribute("aria-label", t("ai.reportButton"));
+onLanguageChange(() => elements.aiReportJumpButton.setAttribute("aria-label", t("ai.reportButton")));
+
+const analysisTabButtons = [...elements.analysisTabs.querySelectorAll("[data-analysis-tab]")];
+function selectAnalysisTab(tab, focus = false) {
+  elements.dashboard.dataset.tab = tab;
+  analysisTabButtons.forEach((button) => {
+    const active = button.dataset.analysisTab === tab;
+    button.setAttribute("aria-selected", String(active));
+    button.tabIndex = active ? 0 : -1;
+    if (active && focus) button.focus();
+  });
+  // Keep the sticky lap bar in place: if the page was scrolled past the dashboard, return to its top.
+  const top = elements.dashboard.getBoundingClientRect().top + window.scrollY - elements.topbar.getBoundingClientRect().height;
+  if (window.scrollY > top) window.scrollTo({ top });
+  requestAnimationFrame(() => { drawTrack(); drawCharts(); });
+}
+analysisTabButtons.forEach((button) => button.addEventListener("click", () => selectAnalysisTab(button.dataset.analysisTab)));
+elements.analysisTabs.addEventListener("keydown", (event) => {
+  const index = analysisTabButtons.findIndex((button) => button.dataset.analysisTab === elements.dashboard.dataset.tab);
+  const next = { ArrowRight: index + 1, ArrowLeft: index - 1, Home: 0, End: analysisTabButtons.length - 1 }[event.key];
+  if (next === undefined) return;
+  event.preventDefault();
+  selectAnalysisTab(analysisTabButtons[(next + analysisTabButtons.length) % analysisTabButtons.length].dataset.analysisTab, true);
+});
+analysisTabButtons.forEach((button) => { button.tabIndex = button.getAttribute("aria-selected") === "true" ? 0 : -1; });
+compactLayout.addEventListener("change", () => { renderLapControls(); requestAnimationFrame(() => { drawTrack(); drawCharts(); }); });
+
+elements.deviceSummaryButton.addEventListener("click", () => {
+  const open = !elements.devicePanel.classList.contains("device-open");
+  elements.devicePanel.classList.toggle("device-open", open);
+  elements.deviceSummaryButton.setAttribute("aria-expanded", String(open));
+});
 elements.aiSessionSelect.addEventListener("change", async () => {
   if (elements.aiSessionSelect.value) await selectSession(elements.aiSessionSelect.value);
 });

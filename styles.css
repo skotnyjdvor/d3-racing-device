@@ -1243,3 +1243,95 @@ html .sectors-panel.is-empty .sector-table-wrap, html .sectors-panel.is-empty .i
   html .sector-table td b { font-size: 13px; }
   html .sector-note { padding: 12px 12px 14px; }
 }
+
+/* ---------- Compact analysis on phones ---------- */
+.analysis-tabs, .track-stats, .device-summary { display: none; }
+@media (max-width: 700px) {
+  html body { --topbar-h: 64px; }
+  /* Device panel folds into one status row once a session is open. */
+  html body.has-session .device-hero { padding: 12px 0 0; gap: 0; }
+  html body.has-session .device-hero > div:first-child { display: none; }
+  html body.has-session .device-panel { padding: 0; gap: 0; }
+  html body.has-session .device-panel::before, html body.has-session .device-panel::after { display: none; }
+  html body.has-session .device-panel:not(.device-open) > :not(.device-summary) { display: none; }
+  html body.has-session .device-panel.device-open { padding: 0 14px 14px; gap: 10px; }
+  html body.has-session .device-summary { width: 100%; min-height: 48px; display: flex; align-items: center; gap: 10px; padding: 0 14px; color: var(--race-text-2); background: transparent; border: 0; font: 400 12px/1.2 var(--font-code); letter-spacing: .08em; text-transform: uppercase; text-align: left; cursor: pointer; }
+  html body.has-session .device-panel.device-open .device-summary { margin: 0 -14px; width: calc(100% + 28px); border-bottom: 1px solid var(--race-line); }
+  html .device-summary span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  html .device-summary b { color: var(--race-text); font-weight: 700; letter-spacing: .12em; }
+  html .device-summary .status-dot { flex: none; }
+  html .device-summary-caret { width: 7px; height: 7px; border-right: 1.5px solid var(--race-muted); border-bottom: 1.5px solid var(--race-muted); transform: translateY(-2px) rotate(45deg); transition: transform .25s; }
+  html .device-open .device-summary-caret { transform: translateY(2px) rotate(-135deg); }
+
+  html body.has-session .dashboard { gap: 8px; margin-top: 8px; }
+  html body.has-session .summary-grid { display: none; }
+
+  /* Sticky lap bar: two pickers, AI button, tabs. */
+  html body .lap-controls-panel { position: sticky; top: var(--topbar-h); z-index: 15; background: rgba(8,8,12,.96); backdrop-filter: blur(14px); }
+  html body .lap-controls-panel .panel-head { min-height: 0; padding: 8px; display: block; border-bottom: 0; }
+  html body .lap-controls-panel .lap-panel-heading, html body .lap-controls-panel .comparison-legend { display: none; }
+  html body .lap-controls-panel .lap-selectors { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 6px; }
+  html body .lap-controls-panel .lap-selectors label { display: block; min-width: 0; }
+  html body .lap-controls-panel .lap-selectors label > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  html body .lap-controls-panel .lap-selectors .lap-vs { display: none; }
+  html body .lap-controls-panel .lap-selectors select { height: 44px; padding: 0 22px 0 10px; font-size: 14px; letter-spacing: 0; background-position: right 7px center; }
+  html body .lap-controls-panel .primary-lap-control select { box-shadow: inset 3px 0 0 var(--race-curb); }
+  html body .lap-controls-panel .comparison-lap-control select { box-shadow: inset 3px 0 0 var(--race-red); }
+  /* AI report button sits at the end of the tab row. */
+  html body .lap-controls-panel .ai-report-jump { position: absolute; right: 0; bottom: 0; z-index: 1; width: 48px; min-height: 42px; height: 42px; margin: 0; padding: 0; justify-content: center; gap: 0; border: 0; border-left: 1px solid var(--race-line); background: rgba(225,6,0,.08); }
+  html body .lap-controls-panel .ai-report-jump b { display: none; }
+  html body .lap-controls-panel .ai-report-jump span { font-size: 18px; }
+  html body.has-session .analysis-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); padding-right: 48px; border-top: 1px solid var(--race-line); }
+  html .analysis-tabs button { position: relative; min-height: 42px; padding: 0 2px; color: var(--race-muted); background: none; border: 0; font: 700 12px/1 var(--font-code); letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; transition: color .15s; }
+  html .analysis-tabs button::after { content: ""; position: absolute; left: 10%; right: 10%; bottom: 0; height: 2px; background: var(--race-red); transform: scaleX(0); transition: transform .22s cubic-bezier(.2,.8,.2,1); }
+  html .analysis-tabs button[aria-selected="true"] { color: var(--race-text); }
+  html .analysis-tabs button[aria-selected="true"]::after { transform: scaleX(1); }
+  html .analysis-tabs button:focus-visible { outline: 1px solid var(--race-red); outline-offset: -3px; }
+
+  /* One tab at a time. */
+  html body .dashboard[data-tab="track"] > :is(.telemetry-panel, .sectors-panel, .insight-panel),
+  html body .dashboard[data-tab="charts"] > :is(.track-panel, .sectors-panel, .insight-panel),
+  html body .dashboard[data-tab="sectors"] > :is(.track-panel, .telemetry-panel, .delta-panel, .insight-panel),
+  html body .dashboard[data-tab="insights"] > :is(.track-panel, .telemetry-panel, .delta-panel, .sectors-panel) { display: none; }
+
+  /* Compact panel heads. */
+  html body .dashboard .panel-head { min-height: 0; padding: 8px 12px; }
+  html body .dashboard .panel-head .eyebrow { display: none; }
+  html body .dashboard .panel-head h2 { font: 700 12px/1.3 var(--font-code); letter-spacing: .12em; color: var(--race-text-2); }
+  html body .track-panel .panel-head > div { min-width: 0; }
+  html body .track-panel .panel-head h2 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  html body .dashboard .chart-zoom-reset { min-width: 52px; min-height: 32px; padding: 0 8px; }
+  html body .track-stats { display: flex; align-items: baseline; gap: 14px; padding: 8px 12px 0; font: 400 12px/1 var(--font-code); color: var(--race-text-2); font-variant-numeric: tabular-nums; }
+  html body .track-stats b { color: var(--race-text); font-size: 18px; font-weight: 500; letter-spacing: -.01em; }
+  html body .track-stats .ahead { color: var(--race-lime); }
+  html body .track-stats .behind { color: var(--race-red-text); }
+  html body .track-stats span:last-child { margin-left: auto; }
+  html body .track-panel canvas { height: clamp(220px, 36vh, 320px); }
+  html body .track-panel .trajectory-legend { display: none; }
+
+  html body .telemetry-panel { position: relative; }
+  html body .telemetry-panel .panel-head { position: absolute; top: 0; right: 0; z-index: 1; padding: 8px 8px 0; border: 0; background: none; }
+  html body .telemetry-panel .panel-head > div, html body .telemetry-panel .telemetry-selector, html body .telemetry-panel .chart-unit { display: none; }
+  html body .telemetry-panel { display: flex; flex-direction: column; }
+  html body .dashboard[data-tab="track"] > .telemetry-panel, html body .dashboard[data-tab="sectors"] > .telemetry-panel, html body .dashboard[data-tab="insights"] > .telemetry-panel { display: none; }
+  html body .telemetry-panel .telemetry-tabs { order: -1; display: flex; gap: 6px; padding: 8px 68px 4px 8px; overflow-x: auto; }
+  html body .telemetry-panel .telemetry-tabs button { min-height: 32px; padding: 0 10px; font-size: 12px; }
+  html body .telemetry-panel canvas { height: clamp(200px, 32vh, 280px); }
+  html body .delta-panel canvas { height: clamp(110px, 17vh, 150px); }
+
+  html body .sectors-panel .panel-head { padding: 8px; }
+  html body .sectors-panel .panel-head > div:first-child { display: none; }
+  html body .sectors-panel .ideal-lap-stat { padding: 7px 10px; gap: 4px; }
+  html body .sectors-panel .ideal-lap-stat strong { font-size: 19px; }
+  html body .sectors-panel .sector-table-wrap { margin: 0 8px 8px; }
+  html body .sectors-panel .sector-table th, html body .sectors-panel .sector-table td { padding: 6px 6px; }
+  html body .sectors-panel .sector-table td small { margin-top: 1px; }
+  html body .sectors-panel .sector-note { display: none; }
+  html body .sectors-panel .ideal-lap-stat span { letter-spacing: .06em; white-space: normal; }
+  html body .sectors-panel .sector-table thead th, html body .sectors-panel .sector-table tfoot th { letter-spacing: .04em; }
+  html body .sectors-panel .sector-table-wrap { border-left: 0; border-right: 0; }
+
+  html body .insight-panel .insights { padding: 4px 12px 10px 34px; }
+  html body .insight-panel .insights li { padding: 8px 0 9px 4px; font-size: 14px; }
+}
+@media (max-width: 340px) { html body { --topbar-h: 88px; } }
