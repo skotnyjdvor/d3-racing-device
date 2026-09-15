@@ -1586,18 +1586,41 @@ function startLandingTelemetry() {
   const sessionOffsetMs = 12 * 60_000;
   const startedAt = performance.now();
   let lastFrame = startedAt;
-  let lastPaint = 0;
   let speedKmh = 92;
-  const formatClock = (milliseconds) => {
-    const minutes = Math.floor(milliseconds / 60_000);
-    const seconds = Math.floor(milliseconds / 1000) % 60;
-    const millis = Math.floor(milliseconds % 1000);
-    return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.<i>${String(millis).padStart(3, "0")}</i>`;
+  // Build text nodes once and only touch them when the visible value changes: no innerHTML or layout work per frame.
+  const clock = (element) => {
+    element.textContent = "";
+    const main = document.createTextNode("00:00.");
+    const millis = document.createElement("i");
+    millis.textContent = "000";
+    element.append(main, millis);
+    let last = "";
+    return (milliseconds) => {
+      const whole = `${String(Math.floor(milliseconds / 60_000)).padStart(2, "0")}:${String(Math.floor(milliseconds / 1000) % 60).padStart(2, "0")}.`;
+      if (whole !== last) { main.nodeValue = whole; last = whole; }
+      millis.textContent = String(Math.floor(milliseconds % 1000)).padStart(3, "0");
+    };
   };
-  const updateChannel = (element, value, suffix, maximum = 100) => {
-    element.innerHTML = `${value}<i>${suffix}</i>`;
-    element.closest(".race-channel")?.style.setProperty("--value", `${Math.min(100, Math.max(2, value / maximum * 100))}%`);
+  const channel = (element, suffix, maximum = 100) => {
+    const row = element.closest(".race-channel");
+    element.textContent = "";
+    const value = document.createTextNode("0");
+    const unit = document.createElement("i");
+    unit.textContent = suffix;
+    element.append(value, unit);
+    let lastValue = -1;
+    return (next, updateText) => {
+      if (updateText && next !== lastValue) { value.nodeValue = String(next); lastValue = next; }
+      row?.style.setProperty("--scale", Math.min(1, Math.max(.02, next / maximum)).toFixed(3));
+    };
   };
+  const setSessionClock = clock(sessionTime);
+  const setLapClock = clock(lapTime);
+  const setThrottle = channel(throttle, "%");
+  const setBrake = channel(brake, "%");
+  const setSpeed = channel(speed, "km/h", 130);
+  let lastLapLabel = "";
+  let lastTextPaint = 0;
   const pedalsAt = (lapPosition) => {
     let start = 0;
     for (let index = 0; index < lapProfile.length; index++) {
@@ -1621,15 +1644,14 @@ function startLandingTelemetry() {
     const [throttleValue, brakeValue] = pedalsAt(lapPosition);
     const acceleration = throttleValue / 100 * 26 - brakeValue / 100 * 62 - speedKmh * speedKmh * .0011 - 1.5;
     speedKmh = Math.min(128, Math.max(38, speedKmh + acceleration * dt));
-    sessionTime.innerHTML = formatClock(elapsedMs + sessionOffsetMs);
-    lapTime.innerHTML = formatClock(lapPosition * 1000);
-    if (lapNumber) lapNumber.textContent = `LAP_${String(3 + Math.floor(elapsedMs / 1000 / lapSeconds) % 10).padStart(2, "0")}`;
-    if (now - lastPaint > 40) {
-      lastPaint = now;
-      updateChannel(throttle, Math.round(Math.max(0, Math.min(100, throttleValue + (throttleValue > 5 && throttleValue < 100 ? jitter : 0)))), "%");
-      updateChannel(brake, Math.round(Math.max(0, brakeValue + (brakeValue > 5 ? jitter : 0))), "%");
-      updateChannel(speed, Math.round(speedKmh), "km/h", 130);
-    }
+    const textFrame = now - lastTextPaint >= 32;
+    if (textFrame) { lastTextPaint = now; setSessionClock(elapsedMs + sessionOffsetMs); setLapClock(lapPosition * 1000); }
+    const lapLabel = `LAP_${String(3 + Math.floor(elapsedMs / 1000 / lapSeconds) % 10).padStart(2, "0")}`;
+    if (lapNumber && lapLabel !== lastLapLabel) { lapNumber.textContent = lapLabel; lastLapLabel = lapLabel; }
+    // Bars move every frame (compositor-only transform); digits refresh at ~30 fps to keep repaints cheap on phones.
+    setThrottle(Math.round(Math.max(0, Math.min(100, throttleValue + (throttleValue > 5 && throttleValue < 100 ? jitter : 0)))), textFrame);
+    setBrake(Math.round(Math.max(0, brakeValue + (brakeValue > 5 ? jitter : 0))), textFrame);
+    setSpeed(Math.round(speedKmh), textFrame);
     requestAnimationFrame(frame);
   };
   requestAnimationFrame(frame);
