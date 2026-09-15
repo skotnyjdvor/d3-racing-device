@@ -1,7 +1,7 @@
 // Copy for the guest "Features" page, merged into the main translation table.
 export default {
   ru: {
-    "nav.contact": "Контакты", "meta.title": "D3CF — телеметрия и AI-разбор заездов", "meta.description": "Логгер LapTrace пишет GPS 25 Гц и перегрузки на трассе, приложение D3CF делит заезд на круги, показывает дельту и готовит AI-разбор с точками на карте.",
+    "nav.contact": "Контакты", "meta.title": "D3CF Technology — телеметрия и AI-разбор заездов", "meta.description": "Логгер LapTrace пишет GPS 25 Гц и перегрузки на трассе, приложение D3CF делит заезд на круги, показывает дельту и готовит AI-разбор с точками на карте.",
     "c.meta": "Связь с командой", "c.title1": "На связи", "c.title2": "с боксами.",
     "c.lead": "Вопросы по бете, устройству LapTrace, разбору логов или сотрудничеству — напишите нам на почту.",
     "c.mailKicker": "Почта", "c.write": "Написать письмо", "c.copy": "Скопировать адрес", "c.copied": "Адрес скопирован", "c.copyFailed": "Не удалось скопировать — выделите адрес вручную",
@@ -76,7 +76,7 @@ export default {
     "f.ctaCopy": "Создайте аккаунт, загрузите первый лог и получите разбор уже после ближайшей тренировки.",
   },
   en: {
-    "nav.contact": "Contact", "meta.title": "D3CF — telemetry and AI debriefs for track days", "meta.description": "The LapTrace logger records 25 Hz GPS and G-forces on track; the D3CF app splits the run into laps, shows the delta and builds an AI debrief with map points.",
+    "nav.contact": "Contact", "meta.title": "D3CF Technology — telemetry and AI debriefs for track days", "meta.description": "The LapTrace logger records 25 Hz GPS and G-forces on track; the D3CF app splits the run into laps, shows the delta and builds an AI debrief with map points.",
     "c.meta": "Talk to the team", "c.title1": "Radio check", "c.title2": "with the pits.",
     "c.lead": "Questions about the beta, the LapTrace device, log analysis or partnerships — drop us an email.",
     "c.mailKicker": "Email", "c.write": "Write an email", "c.copy": "Copy address", "c.copied": "Address copied", "c.copyFailed": "Could not copy — select the address manually",
@@ -151,7 +151,7 @@ export default {
     "f.ctaCopy": "Create an account, upload your first log and get a debrief right after your next practice.",
   },
   pl: {
-    "nav.contact": "Kontakt", "meta.title": "D3CF — telemetria i analiza AI przejazdów", "meta.description": "Rejestrator LapTrace zapisuje GPS 25 Hz i przeciążenia na torze, aplikacja D3CF dzieli przejazd na okrążenia, pokazuje deltę i przygotowuje analizę AI z punktami na mapie.",
+    "nav.contact": "Kontakt", "meta.title": "D3CF Technology — telemetria i analiza AI przejazdów", "meta.description": "Rejestrator LapTrace zapisuje GPS 25 Hz i przeciążenia na torze, aplikacja D3CF dzieli przejazd na okrążenia, pokazuje deltę i przygotowuje analizę AI z punktami na mapie.",
     "c.meta": "Kontakt z zespołem", "c.title1": "Łączność", "c.title2": "z boksem.",
     "c.lead": "Pytania o betę, urządzenie LapTrace, analizę logów lub współpracę — napisz do nas maila.",
     "c.mailKicker": "E-mail", "c.write": "Napisz wiadomość", "c.copy": "Kopiuj adres", "c.copied": "Adres skopiowany", "c.copyFailed": "Nie udało się skopiować — zaznacz adres ręcznie",
