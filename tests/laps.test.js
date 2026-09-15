@@ -5,6 +5,7 @@ import { splitSessionIntoLaps } from "../src/domain/laps.js";
 import { parseRaceBoxCsv } from "../src/domain/csv.js";
 import { analyzeSession } from "../src/domain/analysis.js";
 import { identifyTrack } from "../src/domain/tracks.js";
+import { TRACKS } from "../src/domain/track-catalog.js";
 
 function point(latitude, longitude, seconds) {
   return { latitude, longitude, timeMs: seconds * 1000, time: new Date(seconds * 1000).toISOString(), lap: 0 };
@@ -62,7 +63,7 @@ test("preserves laps supplied by the logger", () => {
 test("recovers the seven Viterbo laps when logger lap numbers are absent", () => {
   const csv = fs.readFileSync(new URL("../src/fixtures/viterbo-session-2026-07-10.csv", import.meta.url), "utf8");
   const points = parseRaceBoxCsv(csv).map((item) => ({ ...item, lap: 0 }));
-  const track = identifyTrack(points);
+  const track = identifyTrack(points, TRACKS);
   const analysis = analyzeSession(splitSessionIntoLaps(points, track));
   assert.equal(track?.name, "Circuito Internazionale Viterbo");
   assert.equal(analysis.laps.length, 7);

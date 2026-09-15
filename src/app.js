@@ -1,7 +1,7 @@
 import { RaceBoxBleClient } from "./ble/racebox.js";
 import { analyzeSession, generateLocalInsights } from "./domain/analysis.js";
 import { parseRaceBoxCsv } from "./domain/csv.js";
-import { distanceMeters, identifyTrack } from "./domain/tracks.js";
+import { distanceMeters, identifyTrack, loadTrackCatalog } from "./domain/tracks.js";
 import { splitSessionIntoLaps } from "./domain/laps.js";
 import { applyTranslations, getLanguage, onLanguageChange, setLanguage, t } from "./i18n.js";
 import { analyzeLog, askAiFollowUp, cloudConfigured, currentUser, deleteAiAnalysis, deleteLog, loadAiAnalyses, loadLog, loadLogs, renameLog, saveLog, signIn, signOut, signUp } from "./cloud/api.js";
@@ -1183,7 +1183,9 @@ async function selectSession(id) {
     }
   }
   if (!state.selectedSession?.points.length) return false;
-  state.track = identifyTrack(state.selectedSession.points);
+  const trackCatalog = await loadTrackCatalog().catch(() => undefined);
+  if (!state.selectedSession?.points?.length) return false;
+  state.track = identifyTrack(state.selectedSession.points, trackCatalog);
   state.selectedSession.points = splitSessionIntoLaps(state.selectedSession.points, state.track);
   state.analysis = analyzeSession(state.selectedSession.points);
   if (isNewSession || !state.analysis.laps.some((lap) => lap.number === state.selectedLapNumber)) {

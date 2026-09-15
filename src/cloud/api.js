@@ -69,7 +69,18 @@ export async function saveLog(session, deviceName) {
 
 export async function loadLogs() {
   if (!getToken()) return [];
-  const { logs } = await request("/api/logs");
+  const logs = [];
+  let cursor = null;
+  for (let page = 0; page < 50; page++) {
+    const query = new URLSearchParams({ limit: "200" });
+    if (cursor) { query.set("before", cursor.before); query.set("beforeId", cursor.beforeId); }
+    const data = await request(`/api/logs?${query}`);
+    const seen = new Set(logs.map((log) => log.id));
+    const fresh = data.logs.filter((log) => !seen.has(log.id));
+    logs.push(...fresh);
+    cursor = data.nextCursor;
+    if (!cursor || !fresh.length) break;
+  }
   return logs.map((record, index) => ({
     id: `cloud-${record.id}`,
     cloudId: record.id,

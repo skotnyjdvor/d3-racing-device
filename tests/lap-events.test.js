@@ -5,9 +5,10 @@ import { parseRaceBoxCsv } from "../src/domain/csv.js";
 import { splitSessionIntoLaps } from "../src/domain/laps.js";
 import { extractLapEvents } from "../src/domain/lap-events.js";
 import { identifyTrack } from "../src/domain/tracks.js";
+import { TRACKS } from "../src/domain/track-catalog.js";
 
 const session = parseRaceBoxCsv(fs.readFileSync(new URL("../src/fixtures/viterbo-session-2026-07-10.csv", import.meta.url), "utf8"));
-const prepared = splitSessionIntoLaps(session, identifyTrack(session));
+const prepared = splitSessionIntoLaps(session, identifyTrack(session, TRACKS));
 const events = extractLapEvents(prepared.filter((point) => point.lap === 4));
 
 test("detects driving phases in the Viterbo reference lap", () => {

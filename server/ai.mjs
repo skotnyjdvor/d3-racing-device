@@ -3,6 +3,7 @@ import { analyzeSession } from "../src/domain/analysis.js";
 import { splitSessionIntoLaps } from "../src/domain/laps.js";
 import { extractLapEvents } from "../src/domain/lap-events.js";
 import { detectDeltaLossZones } from "../src/domain/delta-losses.js";
+import { TRACKS } from "../src/domain/track-catalog.js";
 import { distanceMeters, identifyTrack } from "../src/domain/tracks.js";
 
 export const AI_MODEL = process.env.OPENAI_MODEL || "gpt-5.6-sol";
@@ -204,7 +205,7 @@ function locationAroundCorner(corners, distancePercent) {
 }
 
 export function buildTelemetrySnapshot(points, options = {}) {
-  const track = identifyTrack(points);
+  const track = identifyTrack(points, TRACKS);
   const prepared = splitSessionIntoLaps(points, track);
   const analysis = analyzeSession(prepared);
   const available = analysis.laps.map((lap) => lap.number);

@@ -128,11 +128,29 @@ if (progress && path && marker && playButton) {
   });
   onLanguageChange(renderDemo);
 
-  fetch(demoLogUrl).then((response) => {
-    if (!response.ok) throw new Error(`Demo log HTTP ${response.status}`);
-    return response.text();
-  }).then((text) => {
-    const points = parseRaceBoxCsv(text);
-    renderStaticLog(points, analyzeSession(points));
-  }).catch(() => { elements.demoInsight.textContent = t("landing.demoError"); });
+  // The 1.2 MB demo log is only fetched and parsed once the demo section approaches the viewport.
+  let demoRequested = false;
+  const loadDemoLog = () => {
+    if (demoRequested) return;
+    demoRequested = true;
+    fetch(demoLogUrl).then((response) => {
+      if (!response.ok) throw new Error(`Demo log HTTP ${response.status}`);
+      return response.text();
+    }).then((text) => {
+      const points = parseRaceBoxCsv(text);
+      renderStaticLog(points, analyzeSession(points));
+    }).catch(() => { demoRequested = false; elements.demoInsight.textContent = t("landing.demoError"); });
+  };
+  const demoSection = document.querySelector("#demo");
+  if (demoSection && "IntersectionObserver" in window) {
+    const observer = new IntersectionObserver((entries) => {
+      if (!entries.some((entry) => entry.isIntersecting)) return;
+      observer.disconnect();
+      loadDemoLog();
+    }, { threshold: .05 });
+    observer.observe(demoSection);
+  } else {
+    loadDemoLog();
+  }
+  playButton.addEventListener("click", loadDemoLog);
 }

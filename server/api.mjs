@@ -104,12 +104,24 @@ app.get("/api/auth/me", authenticate, async (request, response, next) => {
 
 app.get("/api/logs", authenticate, async (request, response, next) => {
   try {
-    const result = await requireDatabase().query(`select id, title, device_name, started_at, ended_at, point_count, created_at, updated_at
-      from telemetry_logs where user_id = $1 order by started_at desc limit 20`, [request.auth.sub]);
-    response.json({ logs: result.rows.map((row) => ({
-      id: row.id, title: row.title, deviceName: row.device_name, startedAt: row.started_at, endedAt: row.ended_at,
-      pointCount: row.point_count, createdAt: row.created_at, updatedAt: row.updated_at,
-    })) });
+    // Keyset pagination over (started_at desc, id desc): ?limit=1..200&before=<ISO date>&beforeId=<uuid>.
+    const limit = Math.min(200, Math.max(1, Number.parseInt(request.query.limit, 10) || 100));
+    const before = String(request.query.before || "");
+    const beforeId = uuidPattern.test(String(request.query.beforeId || "")) ? request.query.beforeId : null;
+    const cursor = Number.isFinite(Date.parse(before)) && beforeId;
+    const result = await requireDatabase().query(`select id, title, device_name, started_at, started_at::text as cursor_at, ended_at, point_count, created_at, updated_at
+      from telemetry_logs where user_id = $1 ${cursor ? "and (started_at, id) < ($3::timestamptz, $4::uuid)" : ""}
+      order by started_at desc, id desc limit $2`,
+    cursor ? [request.auth.sub, limit + 1, before, beforeId] : [request.auth.sub, limit + 1]);
+    const rows = result.rows.slice(0, limit);
+    const last = rows.at(-1);
+    response.json({
+      logs: rows.map((row) => ({
+        id: row.id, title: row.title, deviceName: row.device_name, startedAt: row.started_at, endedAt: row.ended_at,
+        pointCount: row.point_count, createdAt: row.created_at, updatedAt: row.updated_at,
+      })),
+      nextCursor: result.rows.length > limit && last ? { before: last.cursor_at, beforeId: last.id } : null,
+    });
   } catch (error) { next(error); }
 });
 
