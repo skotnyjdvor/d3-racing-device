@@ -1,7 +1,0 @@
-.git
-.env
-dist
-ios
-node_modules
-tmp
-npm-debug.log*

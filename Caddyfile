@@ -1,8 +1,0 @@
-{$DOMAIN} {
-  encode zstd gzip
-  reverse_proxy app:10000
-}
-
-{$WWW_DOMAIN} {
-  redir https://{$DOMAIN}{uri} permanent
-}
