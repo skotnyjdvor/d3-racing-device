@@ -617,7 +617,7 @@
               <p class="eyebrow" data-i18n="telemetry.alwaysVisible"></p>
               <h2 data-i18n="telemetry.delta"></h2>
             </div>
-            <span class="chart-unit">s</span>
+            <span class="chart-unit" data-i18n="unit.seconds"></span>
           </div>
           <canvas id="deltaCanvas"></canvas>
         </article>
@@ -706,6 +706,18 @@
       <span>© 2026 D3CF Technology · <a href="mailto:office@d3cf.com">office@d3cf.com</a></span
       ><span id="sourceLabel" data-i18n="footer.noData"></span>
     </footer>
+    <dialog class="confirm-dialog" id="confirmDialog" aria-labelledby="confirmTitle" aria-describedby="confirmMessage">
+      <form id="confirmForm" novalidate>
+        <p class="eyebrow" id="confirmKicker">D3CF</p>
+        <h2 id="confirmTitle"></h2>
+        <p class="dialog-copy" id="confirmMessage"></p>
+        <label class="confirm-field" id="confirmField" hidden><span id="confirmFieldLabel"></span><input id="confirmInput" type="text" maxlength="100" autocomplete="off" /></label>
+        <div class="confirm-actions">
+          <button class="secondary" id="confirmCancel" type="button" data-i18n="dialog.cancel"></button>
+          <button class="primary" id="confirmSubmit" type="submit"></button>
+        </div>
+      </form>
+    </dialog>
     <dialog class="account-dialog" id="accountDialog">
       <button class="dialog-close" id="accountClose" type="button" aria-label="Close">×</button>
       <div id="accountGuest">

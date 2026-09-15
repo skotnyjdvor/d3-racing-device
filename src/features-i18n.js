@@ -1,6 +1,7 @@
 // Copy for the guest "Features" page, merged into the main translation table.
 export default {
   ru: {
+    "dialog.cancel": "Отмена", "dialog.delete": "Удалить", "dialog.save": "Сохранить", "sessions.renameTitle": "Переименовать сессию", "sessions.deleteTitle": "Удалить сессию?", "erase.title": "Очистить память LapTrace?", "ai.historyDeleteTitle": "Удалить AI-рапорт?", "unit.seconds": "с", "delta.behind": "+ круг {lap} позади", "delta.ahead": "− круг {lap} впереди",
     "onboard.demoAi": "AI-рапорт доступен для ваших логов: подключите LapTrace или загрузите CSV.",
     "bt.title": "Bluetooth в этом браузере недоступен", "bt.copy": "Подключение к LapTrace работает в Chrome или Edge на компьютере и Android. На iPhone используйте приложение D3CF, а лог можно загрузить CSV-файлом в «Базе логов».", "error.notLapTrace": "Устройство «{name}» не похоже на LapTrace. Выберите LapTrace в списке Bluetooth-устройств.",
     "onboard.kicker": "С чего начать", "onboard.title": "Первый разбор за минуту", "onboard.copy": "Выберите, откуда взять данные. Графики, карта трассы и сравнение кругов появятся сразу после загрузки.",
@@ -83,6 +84,7 @@ export default {
     "f.ctaCopy": "Создайте аккаунт, загрузите первый лог и получите разбор уже после ближайшей тренировки.",
   },
   en: {
+    "dialog.cancel": "Cancel", "dialog.delete": "Delete", "dialog.save": "Save", "sessions.renameTitle": "Rename session", "sessions.deleteTitle": "Delete this session?", "erase.title": "Erase LapTrace memory?", "ai.historyDeleteTitle": "Delete this AI debrief?", "unit.seconds": "s", "delta.behind": "+ lap {lap} behind", "delta.ahead": "− lap {lap} ahead",
     "onboard.demoAi": "AI debriefs are available for your own logs: connect LapTrace or upload a CSV.",
     "bt.title": "Bluetooth is not available in this browser", "bt.copy": "Connecting to LapTrace works in Chrome or Edge on desktop and Android. On iPhone use the D3CF app, or upload a CSV log in the Log database.", "error.notLapTrace": "“{name}” does not look like a LapTrace. Pick LapTrace from the Bluetooth device list.",
     "onboard.kicker": "Getting started", "onboard.title": "Your first analysis in a minute", "onboard.copy": "Choose where the data comes from. Charts, the track map and lap comparison appear as soon as it loads.",
@@ -165,6 +167,7 @@ export default {
     "f.ctaCopy": "Create an account, upload your first log and get a debrief right after your next practice.",
   },
   pl: {
+    "dialog.cancel": "Anuluj", "dialog.delete": "Usuń", "dialog.save": "Zapisz", "sessions.renameTitle": "Zmień nazwę sesji", "sessions.deleteTitle": "Usunąć sesję?", "erase.title": "Wyczyścić pamięć LapTrace?", "ai.historyDeleteTitle": "Usunąć raport AI?", "unit.seconds": "s", "delta.behind": "+ okrążenie {lap} z tyłu", "delta.ahead": "− okrążenie {lap} z przodu",
     "onboard.demoAi": "Raport AI jest dostępny dla Twoich logów: połącz LapTrace lub wgraj CSV.",
     "bt.title": "Bluetooth nie jest dostępny w tej przeglądarce", "bt.copy": "Połączenie z LapTrace działa w Chrome lub Edge na komputerze i Androidzie. Na iPhonie użyj aplikacji D3CF albo wgraj log CSV w Bazie logów.", "error.notLapTrace": "Urządzenie „{name}” nie wygląda na LapTrace. Wybierz LapTrace z listy urządzeń Bluetooth.",
     "onboard.kicker": "Od czego zacząć", "onboard.title": "Pierwsza analiza w minutę", "onboard.copy": "Wybierz źródło danych. Wykresy, mapa toru i porównanie okrążeń pojawią się od razu po wczytaniu.",

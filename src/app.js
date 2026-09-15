@@ -160,8 +160,47 @@ function openAiHistoryReport(id) {
   requestAnimationFrame(() => elements.aiResults.scrollIntoView({ behavior: "smooth", block: "start" }));
 }
 
+// Styled replacement for window.confirm/prompt. Resolves to true / the entered text, or null when cancelled.
+function askDialog({ title, message = "", confirmLabel, danger = false, input = null }) {
+  const dialog = elements.confirmDialog;
+  elements.confirmTitle.textContent = title;
+  elements.confirmMessage.textContent = message;
+  elements.confirmMessage.hidden = !message;
+  elements.confirmSubmit.textContent = confirmLabel;
+  elements.confirmSubmit.classList.toggle("danger", danger);
+  elements.confirmField.hidden = !input;
+  elements.confirmInput.value = input?.value ?? "";
+  elements.confirmFieldLabel.textContent = input?.label ?? "";
+  return new Promise((resolve) => {
+    const finish = (result) => {
+      elements.confirmForm.removeEventListener("submit", onSubmit);
+      elements.confirmCancel.removeEventListener("click", onCancel);
+      dialog.removeEventListener("cancel", onCancel);
+      dialog.removeEventListener("click", onBackdrop);
+      if (dialog.open) dialog.close();
+      resolve(result);
+    };
+    const onSubmit = (event) => {
+      event.preventDefault();
+      if (!input) return finish(true);
+      const value = elements.confirmInput.value.trim();
+      if (!value) { elements.confirmInput.focus(); return; }
+      finish(value);
+    };
+    const onCancel = (event) => { event?.preventDefault?.(); finish(null); };
+    const onBackdrop = (event) => { if (event.target === dialog) finish(null); };
+    elements.confirmForm.addEventListener("submit", onSubmit);
+    elements.confirmCancel.addEventListener("click", onCancel);
+    dialog.addEventListener("cancel", onCancel);
+    dialog.addEventListener("click", onBackdrop);
+    dialog.showModal();
+    if (input) { elements.confirmInput.focus(); elements.confirmInput.select(); }
+    else (danger ? elements.confirmCancel : elements.confirmSubmit).focus();
+  });
+}
+
 async function removeAiHistoryReport(id) {
-  if (!confirm(t("ai.historyDeleteConfirm"))) return;
+  if (!await askDialog({ title: t("ai.historyDeleteTitle"), message: t("ai.historyDeleteConfirm"), confirmLabel: t("dialog.delete"), danger: true })) return;
   try {
     await deleteAiAnalysis(id);
     if (state.aiAnalysisId === id) clearAiReport();
@@ -753,6 +792,16 @@ function drawDeltaChart() {
     context.fillText(`${Math.round(progress * 100)}%`, xPosition - (tick === 4 ? 24 : 8), height - 9);
   }
 
+  // Sign legend on a dark plate so the delta line never crosses the text.
+  const signLabel = (text, baseline) => {
+    const labelWidth = context.measureText(text).width;
+    const right = width - padding.right - 6;
+    context.fillStyle = "rgba(8,8,12,.88)";
+    context.fillRect(right - labelWidth - 6, baseline - 12, labelWidth + 12, 17);
+    context.fillStyle = "#8c8d93";
+    context.fillText(text, right - labelWidth, baseline);
+  };
+
   const zeroY = y(0);
   context.save();
   context.beginPath(); context.rect(padding.left, padding.top, plotWidth, plotHeight); context.clip();
@@ -768,6 +817,8 @@ function drawDeltaChart() {
   });
   context.stroke();
   context.restore();
+  signLabel(t("delta.behind", { lap: state.selectedLapNumber }), padding.top + 14);
+  signLabel(t("delta.ahead", { lap: state.selectedLapNumber }), height - padding.bottom - 6);
 
   if (state.cursorProgress !== null && state.cursorProgress >= state.chartView.start && state.cursorProgress <= state.chartView.end) {
     const item = pointAtProgress(delta, state.cursorProgress);
@@ -985,7 +1036,7 @@ function renderSessions() {
 async function renameCloudSession(cloudId) {
   const session = state.sessions.find((item) => item.cloudId === cloudId);
   if (!session) return;
-  const title = prompt(t("sessions.renamePrompt"), session.title || "");
+  const title = await askDialog({ title: t("sessions.renameTitle"), confirmLabel: t("dialog.save"), input: { label: t("sessions.renamePrompt"), value: session.title || "" } });
   if (!title?.trim()) return;
   try { await renameLog(cloudId, title.trim()); session.title = title.trim(); renderSessions(); }
   catch (error) { setAccountMessage(error.message, true); }
@@ -993,7 +1044,9 @@ async function renameCloudSession(cloudId) {
 
 async function deleteCloudSession(cloudId) {
   const session = state.sessions.find((item) => item.cloudId === cloudId);
-  if (!session || !confirm(t("sessions.deleteConfirm", { title: session.title || t("sessions.item", { id: session.displayId ?? session.id }) }))) return;
+  if (!session) return;
+  const confirmed = await askDialog({ title: t("sessions.deleteTitle"), message: t("sessions.deleteConfirm", { title: session.title || t("sessions.item", { id: session.displayId ?? session.id }) }), confirmLabel: t("dialog.delete"), danger: true });
+  if (!confirmed) return;
   try {
     await deleteLog(cloudId);
     const wasSelected = session === state.selectedSession;
@@ -1527,7 +1580,7 @@ async function downloadHistory() {
 async function eraseDeviceMemory() {
   if (!state.user && !testMode) { openAccountDialog(); return; }
   if (!state.client || !state.storage || state.storage.recording || state.storage.storedMessages === 0) return;
-  if (!confirm(t("erase.confirm"))) return;
+  if (!await askDialog({ title: t("erase.title"), message: t("erase.confirm"), confirmLabel: t("action.erase"), danger: true })) return;
   elements.eraseButton.disabled = true;
   elements.downloadButton.disabled = true;
   elements.recordButton.disabled = true;
