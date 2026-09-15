@@ -693,11 +693,19 @@
           <label id="accountConfirmLabel" hidden><span data-i18n="account.confirmPassword"></span><input id="accountPasswordConfirm" type="password" autocomplete="new-password" minlength="8" /></label>
           <button class="primary" id="accountSubmitButton" type="submit" data-i18n="account.signIn"></button>
         </form>
+        <div class="account-links">
+          <button class="account-link" id="accountForgotButton" type="button" data-i18n="account.forgot"></button>
+          <button class="account-link" id="accountBackButton" type="button" data-i18n="account.backToSignIn" hidden></button>
+        </div>
       </div>
       <div id="accountMember" hidden>
         <p class="eyebrow" data-i18n="account.kicker"></p>
         <h2 data-i18n="account.profile"></h2>
         <p class="account-email" id="accountUserEmail"></p>
+        <div class="account-verify" id="accountVerifyNotice" hidden>
+          <p data-i18n="account.unverified"></p>
+          <button class="secondary" id="accountResendButton" type="button" data-i18n="account.resend"></button>
+        </div>
         <p class="dialog-copy" id="cloudLogStatus"></p>
         <button class="secondary" id="logoutButton" type="button" data-i18n="account.signOut"></button>
       </div>

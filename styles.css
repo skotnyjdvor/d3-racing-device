@@ -452,6 +452,14 @@ html { overflow-x: clip; }
   .auth-locked .fx-cta .landing-actions .primary, .auth-locked .fx-cta .landing-link { width: 100%; }
 }
 
+/* Account recovery */
+.account-links { margin-top: 14px; display: flex; justify-content: space-between; gap: 12px; }
+.account-links[hidden], .account-link[hidden], .account-verify[hidden], .account-tabs[hidden] { display: none; }
+.account-link { padding: 4px 0; color: var(--race-text-2, #a8a9ac); background: none; border: 0; font: 400 12px/1.4 var(--font-code, monospace); letter-spacing: .08em; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.account-link:hover { color: var(--race-red, #e10600); }
+.account-verify { margin: 14px 0; padding: 14px; display: grid; gap: 10px; border: 1px solid rgba(255,176,0,.45); border-left: 3px solid var(--race-amber, #ffb000); background: rgba(255,176,0,.06); }
+.account-verify p { margin: 0; color: var(--race-text, #fff); font-size: 13px; line-height: 1.5; }
+
 /* Guest contact page */
 .contact-page { display: none; width: min(1280px, calc(100% - 32px)); margin: 0 auto; padding-bottom: 96px; }
 .auth-locked.guest-contact .contact-page { display: block; }

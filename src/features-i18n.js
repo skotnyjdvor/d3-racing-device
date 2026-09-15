@@ -1,6 +1,7 @@
 // Copy for the guest "Features" page, merged into the main translation table.
 export default {
   ru: {
+    "account.forgot": "Забыли пароль?", "account.backToSignIn": "← Вернуться ко входу", "account.forgotTitle": "Восстановление доступа", "account.forgotCopy": "Укажите email аккаунта — мы пришлём ссылку для нового пароля.", "account.sendLink": "Отправить ссылку", "account.linkSent": "Если аккаунт с таким email существует, письмо со ссылкой уже в пути. Проверьте папку «Спам».", "account.resetTitle": "Новый пароль", "account.resetCopy": "Придумайте новый пароль. После сохранения все старые сессии будут завершены.", "account.savePassword": "Сохранить пароль", "account.unverified": "Email ещё не подтверждён. Без подтверждения восстановить доступ к аккаунту не получится.", "account.resend": "Отправить письмо ещё раз", "account.verifySent": "Письмо с подтверждением отправлено.", "account.verified": "Email подтверждён.",
     "nav.contact": "Контакты", "meta.title": "D3CF Technology — телеметрия и AI-разбор заездов", "meta.description": "Логгер LapTrace пишет GPS 25 Гц и перегрузки на трассе, приложение D3CF делит заезд на круги, показывает дельту и готовит AI-разбор с точками на карте.",
     "c.meta": "Связь с командой", "c.title1": "На связи", "c.title2": "с боксами.",
     "c.lead": "Вопросы по бете, устройству LapTrace, разбору логов или сотрудничеству — напишите нам на почту.",
@@ -76,6 +77,7 @@ export default {
     "f.ctaCopy": "Создайте аккаунт, загрузите первый лог и получите разбор уже после ближайшей тренировки.",
   },
   en: {
+    "account.forgot": "Forgot password?", "account.backToSignIn": "← Back to sign in", "account.forgotTitle": "Recover access", "account.forgotCopy": "Enter your account email and we will send a link to set a new password.", "account.sendLink": "Send link", "account.linkSent": "If an account with this email exists, the link is on its way. Check your spam folder.", "account.resetTitle": "New password", "account.resetCopy": "Choose a new password. Saving it signs out every other session.", "account.savePassword": "Save password", "account.unverified": "Your email is not confirmed yet. Without it you won't be able to recover access to the account.", "account.resend": "Resend confirmation", "account.verifySent": "Confirmation email sent.", "account.verified": "Email confirmed.",
     "nav.contact": "Contact", "meta.title": "D3CF Technology — telemetry and AI debriefs for track days", "meta.description": "The LapTrace logger records 25 Hz GPS and G-forces on track; the D3CF app splits the run into laps, shows the delta and builds an AI debrief with map points.",
     "c.meta": "Talk to the team", "c.title1": "Radio check", "c.title2": "with the pits.",
     "c.lead": "Questions about the beta, the LapTrace device, log analysis or partnerships — drop us an email.",
@@ -151,6 +153,7 @@ export default {
     "f.ctaCopy": "Create an account, upload your first log and get a debrief right after your next practice.",
   },
   pl: {
+    "account.forgot": "Nie pamiętasz hasła?", "account.backToSignIn": "← Wróć do logowania", "account.forgotTitle": "Odzyskiwanie dostępu", "account.forgotCopy": "Podaj e-mail konta — wyślemy link do ustawienia nowego hasła.", "account.sendLink": "Wyślij link", "account.linkSent": "Jeśli konto z tym adresem istnieje, link jest już w drodze. Sprawdź folder spam.", "account.resetTitle": "Nowe hasło", "account.resetCopy": "Ustaw nowe hasło. Po zapisaniu wszystkie inne sesje zostaną zakończone.", "account.savePassword": "Zapisz hasło", "account.unverified": "E-mail nie jest jeszcze potwierdzony. Bez tego nie odzyskasz dostępu do konta.", "account.resend": "Wyślij potwierdzenie ponownie", "account.verifySent": "Wiadomość z potwierdzeniem wysłana.", "account.verified": "E-mail potwierdzony.",
     "nav.contact": "Kontakt", "meta.title": "D3CF Technology — telemetria i analiza AI przejazdów", "meta.description": "Rejestrator LapTrace zapisuje GPS 25 Hz i przeciążenia na torze, aplikacja D3CF dzieli przejazd na okrążenia, pokazuje deltę i przygotowuje analizę AI z punktami na mapie.",
     "c.meta": "Kontakt z zespołem", "c.title1": "Łączność", "c.title2": "z boksem.",
     "c.lead": "Pytania o betę, urządzenie LapTrace, analizę logów lub współpracę — napisz do nas maila.",

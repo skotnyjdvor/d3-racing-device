@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -8,6 +8,7 @@ import express from "express";
 import { ipKeyGenerator, rateLimit } from "express-rate-limit";
 import jwt from "jsonwebtoken";
 import { migrate, requireDatabase } from "./db.mjs";
+import { sendPasswordResetEmail, sendVerificationEmail } from "./mail.mjs";
 import { AI_MODEL, buildTelemetrySnapshot, generateAiFollowUp, generateAiReport, getOpenAiApiKey, groundAiReport, snapshotCacheKey } from "./ai.mjs";
 
 const app = express();
@@ -45,14 +46,46 @@ const authLimiter = rateLimit({ windowMs: 15 * 60_000, limit: 30, standardHeader
 const aiLimiter = rateLimit({ windowMs: 60 * 60_000, limit: 10, standardHeaders: true, legacyHeaders: false, keyGenerator: (request) => request.auth?.sub || clientKey(request) });
 const normalizeEmail = (email) => String(email || "").trim().toLowerCase();
 const validEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-const publicUser = (row) => ({ id: row.id, email: row.email });
-const issueToken = (user) => jwt.sign({ sub: user.id, email: user.email }, jwtSecret, { expiresIn: "30d", issuer: "laptrace" });
+const publicUser = (row) => ({ id: row.id, email: row.email, emailVerified: Boolean(row.email_verified_at) });
+const issueToken = (row) => jwt.sign({ sub: row.id, email: row.email, tv: row.token_version ?? 0 }, jwtSecret, { expiresIn: "30d", issuer: "laptrace" });
+const userColumns = "id, email, email_verified_at, token_version";
+const normalizeLanguage = (language) => (["ru", "en", "pl"].includes(language) ? language : "ru");
+const hashToken = (token) => createHash("sha256").update(token).digest("hex");
+const tokenPattern = /^[A-Za-z0-9_-]{32,128}$/;
 
-function authenticate(request, response, next) {
+async function authenticate(request, response, next) {
   const token = request.headers.authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
   if (!token) return response.status(401).json({ error: "Authentication required" });
-  try { request.auth = jwt.verify(token, jwtSecret, { issuer: "laptrace" }); next(); }
-  catch { response.status(401).json({ error: "Session expired. Sign in again." }); }
+  let claims;
+  try { claims = jwt.verify(token, jwtSecret, { issuer: "laptrace" }); }
+  catch { return response.status(401).json({ error: "Session expired. Sign in again." }); }
+  try {
+    // Password resets bump token_version, which revokes every session issued before the reset.
+    const result = await requireDatabase().query("select token_version from users where id = $1", [claims.sub]);
+    if (!result.rows[0] || result.rows[0].token_version !== (claims.tv ?? 0)) return response.status(401).json({ error: "Session expired. Sign in again." });
+    request.auth = claims;
+    next();
+  } catch (error) { next(error); }
+}
+
+async function issueAuthToken(database, userId, kind, ttlMinutes) {
+  const token = randomBytes(32).toString("base64url");
+  await database.query("update auth_tokens set used_at = now() where user_id = $1 and kind = $2 and used_at is null", [userId, kind]);
+  await database.query("insert into auth_tokens (user_id, kind, token_hash, expires_at) values ($1, $2, $3, now() + make_interval(mins => $4))", [userId, kind, hashToken(token), ttlMinutes]);
+  return token;
+}
+
+async function consumeAuthToken(client, token, kind) {
+  if (!tokenPattern.test(String(token || ""))) return null;
+  const result = await client.query(`update auth_tokens set used_at = now()
+    where token_hash = $1 and kind = $2 and used_at is null and expires_at > now()
+    returning user_id`, [hashToken(token), kind]);
+  return result.rows[0]?.user_id ?? null;
+}
+
+async function sendVerification(database, user, language) {
+  const token = await issueAuthToken(database, user.id, "verify", 24 * 60);
+  await sendVerificationEmail(user.email, token, normalizeLanguage(language));
 }
 
 app.get("/api/health", async (_request, response) => {
@@ -74,9 +107,13 @@ app.post("/api/auth/register", authLimiter, async (request, response, next) => {
     const email = normalizeEmail(request.body.email); const password = String(request.body.password || "");
     if (!validEmail(email) || password.length < 8) return response.status(400).json({ error: "Use a valid email and a password of at least 8 characters" });
     const hash = await bcrypt.hash(password, 12);
-    const result = await requireDatabase().query("insert into users (email, password_hash) values ($1, $2) returning id, email", [email, hash]);
-    const user = publicUser(result.rows[0]);
-    response.status(201).json({ user, token: issueToken(user) });
+    const database = requireDatabase();
+    const result = await database.query(`insert into users (email, password_hash) values ($1, $2) returning ${userColumns}`, [email, hash]);
+    const row = result.rows[0];
+    // Registration must not fail because of email delivery; the user can resend the confirmation later.
+    try { await sendVerification(database, row, request.body.language); }
+    catch (error) { console.error("Verification email failed", error.message); }
+    response.status(201).json({ user: publicUser(row), token: issueToken(row) });
   } catch (error) {
     if (error.code === "23505") return response.status(409).json({ error: "An account with this email already exists" });
     next(error);
@@ -86,19 +123,79 @@ app.post("/api/auth/register", authLimiter, async (request, response, next) => {
 app.post("/api/auth/login", authLimiter, async (request, response, next) => {
   try {
     const email = normalizeEmail(request.body.email); const password = String(request.body.password || "");
-    const result = await requireDatabase().query("select id, email, password_hash from users where email = $1", [email]);
+    const result = await requireDatabase().query(`select ${userColumns}, password_hash from users where email = $1`, [email]);
     const row = result.rows[0];
     if (!row || !await bcrypt.compare(password, row.password_hash)) return response.status(401).json({ error: "Invalid email or password" });
-    const user = publicUser(row);
-    response.json({ user, token: issueToken(user) });
+    response.json({ user: publicUser(row), token: issueToken(row) });
   } catch (error) { next(error); }
 });
 
 app.get("/api/auth/me", authenticate, async (request, response, next) => {
   try {
-    const result = await requireDatabase().query("select id, email from users where id = $1", [request.auth.sub]);
+    const result = await requireDatabase().query(`select ${userColumns} from users where id = $1`, [request.auth.sub]);
     if (!result.rows[0]) return response.status(401).json({ error: "Account not found" });
     response.json({ user: publicUser(result.rows[0]) });
+  } catch (error) { next(error); }
+});
+
+app.post("/api/auth/forgot", authLimiter, async (request, response, next) => {
+  try {
+    const email = normalizeEmail(request.body.email);
+    if (!validEmail(email)) return response.status(400).json({ error: "Use a valid email" });
+    const database = requireDatabase();
+    const result = await database.query("select id, email from users where email = $1", [email]);
+    const row = result.rows[0];
+    if (row) {
+      const token = await issueAuthToken(database, row.id, "reset", 60);
+      await sendPasswordResetEmail(row.email, token, normalizeLanguage(request.body.language));
+    }
+    // Same answer whether or not the account exists, so the endpoint cannot be used to probe emails.
+    response.json({ ok: true });
+  } catch (error) { next(error); }
+});
+
+app.post("/api/auth/reset", authLimiter, async (request, response, next) => {
+  const password = String(request.body.password || "");
+  if (password.length < 8 || password.length > 200) return response.status(400).json({ error: "Use a password of at least 8 characters" });
+  let client;
+  try { client = await requireDatabase().connect(); }
+  catch (error) { return next(error); }
+  try {
+    await client.query("begin");
+    const userId = await consumeAuthToken(client, request.body.token, "reset");
+    if (!userId) { await client.query("rollback"); return response.status(400).json({ error: "The reset link is invalid or has expired" }); }
+    const hash = await bcrypt.hash(password, 12);
+    // Resetting via email also proves ownership of the address.
+    const result = await client.query(`update users set password_hash = $1, token_version = token_version + 1,
+      email_verified_at = coalesce(email_verified_at, now()) where id = $2 returning ${userColumns}`, [hash, userId]);
+    await client.query("update auth_tokens set used_at = now() where user_id = $1 and kind = 'reset' and used_at is null", [userId]);
+    await client.query("commit");
+    const row = result.rows[0];
+    response.json({ user: publicUser(row), token: issueToken(row) });
+  } catch (error) {
+    await client.query("rollback").catch(() => {});
+    next(error);
+  } finally { client.release(); }
+});
+
+app.post("/api/auth/verify", authLimiter, async (request, response, next) => {
+  try {
+    const database = requireDatabase();
+    const userId = await consumeAuthToken(database, request.body.token, "verify");
+    if (!userId) return response.status(400).json({ error: "The confirmation link is invalid or has expired" });
+    const result = await database.query(`update users set email_verified_at = coalesce(email_verified_at, now()) where id = $1 returning ${userColumns}`, [userId]);
+    response.json({ user: publicUser(result.rows[0]) });
+  } catch (error) { next(error); }
+});
+
+app.post("/api/auth/verify/resend", authenticate, authLimiter, async (request, response, next) => {
+  try {
+    const database = requireDatabase();
+    const result = await database.query(`select ${userColumns} from users where id = $1`, [request.auth.sub]);
+    const row = result.rows[0];
+    if (!row) return response.status(401).json({ error: "Account not found" });
+    if (!row.email_verified_at) await sendVerification(database, row, request.body.language);
+    response.json({ ok: true, alreadyVerified: Boolean(row.email_verified_at) });
   } catch (error) { next(error); }
 });
 

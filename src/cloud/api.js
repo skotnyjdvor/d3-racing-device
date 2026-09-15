@@ -39,8 +39,24 @@ export async function signIn(email, password) {
   return rememberAuth(await request("/api/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }));
 }
 
-export async function signUp(email, password) {
-  return rememberAuth(await request("/api/auth/register", { method: "POST", body: JSON.stringify({ email, password }) }));
+export async function signUp(email, password, language) {
+  return rememberAuth(await request("/api/auth/register", { method: "POST", body: JSON.stringify({ email, password, language }) }));
+}
+
+export async function requestPasswordReset(email, language) {
+  await request("/api/auth/forgot", { method: "POST", body: JSON.stringify({ email, language }) });
+}
+
+export async function resetPassword(token, password) {
+  return rememberAuth(await request("/api/auth/reset", { method: "POST", body: JSON.stringify({ token, password }) }));
+}
+
+export async function verifyEmail(token) {
+  return (await request("/api/auth/verify", { method: "POST", body: JSON.stringify({ token }) })).user;
+}
+
+export async function resendVerification(language) {
+  return request("/api/auth/verify/resend", { method: "POST", body: JSON.stringify({ language }) });
 }
 
 export async function signOut() {

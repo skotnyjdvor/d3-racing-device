@@ -4,7 +4,7 @@ import { parseRaceBoxCsv } from "./domain/csv.js";
 import { distanceMeters, identifyTrack, loadTrackCatalog } from "./domain/tracks.js";
 import { splitSessionIntoLaps } from "./domain/laps.js";
 import { applyTranslations, getLanguage, onLanguageChange, setLanguage, t } from "./i18n.js";
-import { analyzeLog, askAiFollowUp, cloudConfigured, currentUser, deleteAiAnalysis, deleteLog, loadAiAnalyses, loadLog, loadLogs, renameLog, saveLog, signIn, signOut, signUp } from "./cloud/api.js";
+import { analyzeLog, askAiFollowUp, cloudConfigured, currentUser, deleteAiAnalysis, deleteLog, loadAiAnalyses, loadLog, loadLogs, renameLog, requestPasswordReset, resendVerification, resetPassword, saveLog, signIn, signOut, signUp, verifyEmail } from "./cloud/api.js";
 import "./demo.js";
 
 const elements = Object.fromEntries([...document.querySelectorAll("[id]")].map((element) => [element.id, element]));
@@ -1213,19 +1213,36 @@ function updateAccess() {
   elements.authGate.hidden = unlocked;
 }
 
+const ACCOUNT_MODES = {
+  signin: { title: "account.title", copy: "account.copy", submit: "account.signIn" },
+  register: { title: "account.registerTitle", copy: "account.registerCopy", submit: "account.create" },
+  forgot: { title: "account.forgotTitle", copy: "account.forgotCopy", submit: "account.sendLink" },
+  reset: { title: "account.resetTitle", copy: "account.resetCopy", submit: "account.savePassword" },
+};
+let resetToken = "";
+
 function setAccountMode(mode) {
-  accountMode = mode === "register" ? "register" : "signin";
+  accountMode = ACCOUNT_MODES[mode] ? mode : "signin";
   const registering = accountMode === "register";
-  elements.accountSignInTab.classList.toggle("active", !registering);
+  const recovering = accountMode === "forgot" || accountMode === "reset";
+  const labels = ACCOUNT_MODES[accountMode];
+  elements.accountSignInTab.parentElement.hidden = recovering;
+  elements.accountSignInTab.classList.toggle("active", accountMode === "signin");
   elements.accountRegisterTab.classList.toggle("active", registering);
-  elements.accountSignInTab.setAttribute("aria-selected", String(!registering));
+  elements.accountSignInTab.setAttribute("aria-selected", String(accountMode === "signin"));
   elements.accountRegisterTab.setAttribute("aria-selected", String(registering));
-  elements.accountConfirmLabel.hidden = !registering;
-  elements.accountPasswordConfirm.required = registering;
-  elements.accountPassword.autocomplete = registering ? "new-password" : "current-password";
-  elements.accountDialogTitle.textContent = t(registering ? "account.registerTitle" : "account.title");
-  elements.accountDialogCopy.textContent = t(registering ? "account.registerCopy" : "account.copy");
-  elements.accountSubmitButton.textContent = t(registering ? "account.create" : "account.signIn");
+  elements.accountEmail.closest("label").hidden = accountMode === "reset";
+  elements.accountEmail.required = accountMode !== "reset";
+  elements.accountPassword.closest("label").hidden = accountMode === "forgot";
+  elements.accountPassword.required = accountMode !== "forgot";
+  elements.accountConfirmLabel.hidden = !(registering || accountMode === "reset");
+  elements.accountPasswordConfirm.required = registering || accountMode === "reset";
+  elements.accountPassword.autocomplete = accountMode === "signin" ? "current-password" : "new-password";
+  elements.accountForgotButton.hidden = accountMode !== "signin";
+  elements.accountBackButton.hidden = !recovering;
+  elements.accountDialogTitle.textContent = t(labels.title);
+  elements.accountDialogCopy.textContent = t(labels.copy);
+  elements.accountSubmitButton.textContent = t(labels.submit);
   elements.accountPassword.classList.remove("invalid");
   elements.accountPasswordConfirm.classList.remove("invalid");
   elements.accountPasswordConfirm.setCustomValidity("");
@@ -1246,6 +1263,7 @@ function renderAccount() {
   elements.accountAvatar.textContent = email ? email[0] : "?";
   elements.accountUserEmail.textContent = email;
   elements.cloudLogStatus.textContent = state.user ? t("account.logs", { count: state.cloudLogs.length }) : "";
+  elements.accountVerifyNotice.hidden = !state.user || state.user.emailVerified !== false;
   if (!cloudConfigured) {
     setAccountMessage(t("account.notConfigured"), true);
     elements.accountForm.querySelectorAll("input, button").forEach((element) => { element.disabled = true; });
@@ -1284,7 +1302,8 @@ async function applyUser(user) {
 async function submitAccount(action) {
   const email = elements.accountEmail.value.trim();
   const password = elements.accountPassword.value;
-  if (accountMode === "register" && password !== elements.accountPasswordConfirm.value) {
+  if (accountMode === "forgot") return submitPasswordResetRequest(email);
+  if ((accountMode === "register" || accountMode === "reset") && password !== elements.accountPasswordConfirm.value) {
     elements.accountPassword.classList.add("invalid");
     elements.accountPasswordConfirm.classList.add("invalid");
     elements.accountPasswordConfirm.setCustomValidity(t("account.passwordMismatch"));
@@ -1296,7 +1315,10 @@ async function submitAccount(action) {
   elements.accountSubmitButton.disabled = true;
   elements.accountSubmitButton.textContent = t("account.working");
   try {
-    const user = await action(email, password);
+    const user = accountMode === "reset" ? await resetPassword(resetToken, password)
+      : accountMode === "register" ? await action(email, password, getLanguage())
+      : await action(email, password);
+    if (accountMode === "reset") { resetToken = ""; history.replaceState(null, "", location.pathname + location.search); }
     if (user) {
       await applyUser(user);
       elements.accountForm.reset();
@@ -1306,7 +1328,48 @@ async function submitAccount(action) {
   } catch (error) { setAccountMessage(error.message, true); }
   finally {
     elements.accountSubmitButton.disabled = false;
-    elements.accountSubmitButton.textContent = t(accountMode === "register" ? "account.create" : "account.signIn");
+    elements.accountSubmitButton.textContent = t(ACCOUNT_MODES[accountMode].submit);
+  }
+}
+
+async function submitPasswordResetRequest(email) {
+  setAccountMessage("");
+  elements.accountSubmitButton.disabled = true;
+  elements.accountSubmitButton.textContent = t("account.working");
+  try {
+    await requestPasswordReset(email, getLanguage());
+    setAccountMessage(t("account.linkSent"));
+  } catch (error) { setAccountMessage(error.message, true); }
+  finally {
+    elements.accountSubmitButton.disabled = false;
+    elements.accountSubmitButton.textContent = t(ACCOUNT_MODES[accountMode].submit);
+  }
+}
+
+// Links from emails arrive as #reset=<token> or #verify=<token>.
+async function handleAuthLink() {
+  const match = location.hash.match(/^#(reset|verify)=([A-Za-z0-9_-]{32,128})$/);
+  if (!match) return;
+  const [, kind, token] = match;
+  history.replaceState(null, "", location.pathname + location.search);
+  if (kind === "reset") {
+    resetToken = token;
+    elements.accountForm.reset();
+    renderAccount();
+    elements.accountGuest.hidden = false;
+    elements.accountMember.hidden = true;
+    setAccountMode("reset");
+    if (!elements.accountDialog.open) elements.accountDialog.showModal();
+    return;
+  }
+  try {
+    const user = await verifyEmail(token);
+    if (state.user && state.user.id === user.id) { state.user = { ...state.user, emailVerified: true }; renderAccount(); }
+    openAccountDialog("signin");
+    setAccountMessage(t("account.verified"));
+  } catch (error) {
+    openAccountDialog("signin");
+    setAccountMessage(error.message, true);
   }
 }
 
@@ -1464,6 +1527,18 @@ elements.gateAccountButton.addEventListener("click", () => openAccountDialog("re
 elements.demoAccountButton.addEventListener("click", () => openAccountDialog("register"));
 elements.accountSignInTab.addEventListener("click", () => setAccountMode("signin"));
 elements.accountRegisterTab.addEventListener("click", () => setAccountMode("register"));
+elements.accountForgotButton.addEventListener("click", () => setAccountMode("forgot"));
+elements.accountBackButton.addEventListener("click", () => { resetToken = ""; setAccountMode("signin"); });
+elements.accountResendButton.addEventListener("click", async () => {
+  elements.accountResendButton.disabled = true;
+  try {
+    const result = await resendVerification(getLanguage());
+    if (result.alreadyVerified) { state.user = { ...state.user, emailVerified: true }; renderAccount(); setAccountMessage(t("account.verified")); }
+    else setAccountMessage(t("account.verifySent"));
+  } catch (error) { setAccountMessage(error.message, true); }
+  finally { elements.accountResendButton.disabled = false; }
+});
+window.addEventListener("hashchange", handleAuthLink);
 elements.accountPasswordConfirm.addEventListener("input", () => {
   elements.accountPassword.classList.remove("invalid");
   elements.accountPasswordConfirm.classList.remove("invalid");
@@ -1683,7 +1758,9 @@ function startLandingTelemetry() {
 startLandingTelemetry();
 
 if (cloudConfigured) {
-  currentUser().then(applyUser);
+  currentUser().then(applyUser).then(handleAuthLink);
+} else {
+  void handleAuthLink();
 }
 
 if (testMode) elements.actionHint.textContent = t("hint.mock");
