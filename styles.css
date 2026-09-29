@@ -1625,3 +1625,33 @@ html .profile-delete:hover { color: var(--race-curb); background: var(--race-red
 
 .auth-locked .demo-legend { flex-wrap: wrap; gap: 10px 24px; }
 .auth-locked .demo-legend span { white-space: nowrap; }
+
+/* ---------- Guest CSV trial ---------- */
+.landing-trial { margin-top: 18px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.landing-trial-button { min-height: 44px; padding: 0 16px; display: inline-flex; align-items: center; gap: 10px; color: var(--race-text); background: transparent; border: 1px dashed var(--race-line-2); font: 700 12px/1.2 var(--font-code); letter-spacing: .12em; text-transform: uppercase; cursor: pointer; transition: border-color .15s, background-color .15s, color .15s; }
+.landing-trial-button span { color: var(--race-lime); font-size: 16px; line-height: 1; }
+.landing-trial-button:hover:not(:disabled) { border-color: var(--race-lime); background: rgba(199,255,61,.06); }
+.landing-trial-button:focus-visible { outline: 1px solid var(--race-lime); outline-offset: 2px; }
+.landing-trial-button:disabled { opacity: .6; cursor: wait; }
+.landing-trial small { color: var(--race-text-2); font: 400 13px/1.4 var(--font-body); }
+.landing-trial-status { min-height: 1.4em; margin: 10px 0 0; color: var(--race-lime); font: 400 13px/1.4 var(--font-code); }
+.landing-trial-status.error { color: var(--race-red-text); }
+.trial-drop { position: absolute; inset: 12px; z-index: 30; display: none; place-items: center; border: 2px dashed var(--race-lime); background: rgba(8,8,12,.86); pointer-events: none; }
+.trial-drop span { color: var(--race-lime); font: 700 clamp(22px, 3vw, 34px)/1.2 var(--font-display); letter-spacing: .06em; text-transform: uppercase; text-align: center; padding: 0 16px; }
+.landing-hero.dragging .trial-drop { display: grid; }
+.trial-banner { margin: 16px 0 0; padding: 16px 20px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px 24px; border: 1px solid rgba(199,255,61,.4); border-left: 3px solid var(--race-lime); background: rgba(199,255,61,.05); }
+.trial-banner[hidden] { display: none; }
+.trial-banner-copy { flex: 1 1 380px; min-width: 0; }
+.trial-banner b { color: var(--race-lime); font: 700 12px/1.4 var(--font-code); letter-spacing: .16em; text-transform: uppercase; }
+.trial-banner p { margin: 6px 0 0; color: var(--race-text); font: 400 14px/1.5 var(--font-body); }
+.trial-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+html .trial-actions .primary, html .trial-actions .secondary { min-height: 44px; padding: 0 18px; border-radius: 0; font: 700 12px/1 var(--font-code); letter-spacing: .12em; text-transform: uppercase; cursor: pointer; }
+html .trial-actions .primary { color: var(--race-curb); background: var(--race-red); border: 2px solid var(--race-red); }
+html .trial-actions .primary:hover { color: var(--race-red); background: transparent; }
+html .trial-actions .secondary { color: var(--race-text); background: transparent; border: 2px solid var(--race-line-2); }
+html .trial-actions .secondary:hover { border-color: var(--race-text); }
+@media (max-width: 700px) {
+  .landing-trial-button { width: 100%; justify-content: center; }
+  .trial-banner { padding: 14px; }
+  .trial-actions, html .trial-actions .primary, html .trial-actions .secondary { width: 100%; }
+}

@@ -1,5 +1,18 @@
 // Italian translation table (app, landing, features, contact). Keys mirror the ru/en/pl tables.
 export default {
+  "trial.cta": "Analizza il tuo CSV senza registrarti",
+  "trial.note": "Il file viene elaborato nel browser e non viene inviato da nessuna parte.",
+  "trial.reading": "Lettura del log…",
+  "trial.notCsv": "Scegli un file .csv di LapTrace o RaceBox.",
+  "trial.tooLarge": "Il file è troppo grande: massimo 60 MB.",
+  "trial.error": "Impossibile leggere il log. Verifica che sia un CSV di LapTrace o RaceBox.",
+  "trial.drop": "Rilascia il CSV per analizzare il turno",
+  "trial.bannerTitle": "Analisi di prova",
+  "trial.bannerText": "Il log è stato elaborato nel tuo browser e non è stato inviato. Crea un account per conservarlo e ricevere un report AI.",
+  "trial.save": "Salva e ricevi il report AI",
+  "trial.exit": "Esci dalla modalità di prova",
+  "trial.aiLocked": "Il report AI è disponibile dopo la registrazione: crea un account e questo log verrà salvato lì.",
+  "trial.saved": "Il log di prova è stato salvato nel tuo account.",
   "meta.featuresTitle": "Funzioni — logger LapTrace e analisi AI | D3CF",
   "meta.featuresDescription": "Come funzionano LapTrace e D3CF: GPS a 25 Hz e accelerometro, giri divisi automaticamente, delta e settori, e un ingegnere AI con consigli sulla mappa della pista.",
   "meta.shopTitle": "Negozio LapTrace — preordine | D3CF",

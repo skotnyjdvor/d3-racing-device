@@ -13,7 +13,7 @@ import "./demo.js";
 import "./ai-sample.js";
 
 const elements = Object.fromEntries([...document.querySelectorAll("[id]")].map((element) => [element.id, element]));
-const state = { client: null, connected: false, deviceName: "", deviceModel: "", latestTelemetry: null, storage: null, sessions: [], selectedSession: null, analysis: null, sectors: null, selectedLapNumber: null, comparisonLapNumber: null, cursorProgress: null, chartView: { start: 0, end: 1 }, trackView: { scale: 1, offsetX: 0, offsetY: 0 }, telemetryMetric: "speed", track: null, user: null, cloudLogs: [], pollTimer: null, memoryBusy: false, aiReport: null, aiReportLanguage: null, aiAnalysisId: null, aiPending: false, aiHistory: [], aiHistoryLoading: false, aiHistoryError: "", aiHoverIndex: null, aiSelectedIndex: null };
+const state = { client: null, connected: false, deviceName: "", deviceModel: "", latestTelemetry: null, storage: null, sessions: [], selectedSession: null, analysis: null, sectors: null, trial: false, selectedLapNumber: null, comparisonLapNumber: null, cursorProgress: null, chartView: { start: 0, end: 1 }, trackView: { scale: 1, offsetX: 0, offsetY: 0 }, telemetryMetric: "speed", track: null, user: null, cloudLogs: [], pollTimer: null, memoryBusy: false, aiReport: null, aiReportLanguage: null, aiAnalysisId: null, aiPending: false, aiHistory: [], aiHistoryLoading: false, aiHistoryError: "", aiHoverIndex: null, aiSelectedIndex: null };
 const trackAiMarkerAreas = new WeakMap();
 const testMode = new URLSearchParams(location.search).has("mock");
 let accountMode = "signin";
@@ -1454,7 +1454,7 @@ async function selectSession(id) {
   }
   elements.sourceLabel.textContent = t("footer.deviceMemory", { name: state.deviceName });
   elements.analyzeAiButton.disabled = !state.selectedSession.cloudId || !state.analysis.laps.length;
-  elements.copyStatus.textContent = state.selectedSession.cloudId ? t("ai.ready") : t(state.selectedSession.source === "demo" ? "onboard.demoAi" : "ai.cloudRequired");
+  elements.copyStatus.textContent = state.selectedSession.cloudId ? t("ai.ready") : t(state.selectedSession.source === "demo" ? "onboard.demoAi" : state.selectedSession.source === "trial" ? "trial.aiLocked" : "ai.cloudRequired");
   elements.insightsList.innerHTML = generateLocalInsights(state.analysis, t).map((insight) => `<li>${insight}</li>`).join("");
   renderSessions(); updateLapView();
   void refreshAiHistory();
@@ -1467,9 +1467,71 @@ function setAccountMessage(message = "", error = false) {
 }
 
 function updateAccess() {
-  const unlocked = Boolean(state.user) || testMode;
+  const unlocked = Boolean(state.user) || testMode || state.trial;
   document.body.classList.toggle("auth-locked", !unlocked);
   elements.authGate.hidden = unlocked;
+  elements.trialBanner.hidden = !(state.trial && !state.user);
+}
+
+// Guest trial: a CSV is parsed in the browser and analysed without an account; nothing leaves the device
+// until the visitor registers, at which point the log is saved to the new account.
+const TRIAL_MAX_BYTES = 60 * 1024 * 1024;
+function setTrialStatus(message = "", error = false) {
+  elements.trialStatus.textContent = message;
+  elements.trialStatus.classList.toggle("error", error);
+}
+
+async function startTrial(file) {
+  if (!file) return;
+  if (!/\.csv$/i.test(file.name) && file.type !== "text/csv") return setTrialStatus(t("trial.notCsv"), true);
+  if (file.size > TRIAL_MAX_BYTES) return setTrialStatus(t("trial.tooLarge"), true);
+  setTrialStatus(t("trial.reading"));
+  elements.trialButton.disabled = true;
+  try {
+    const points = parseRaceBoxCsv(await file.text());
+    if (!points.length) throw new Error("empty log");
+    const session = { id: `trial-${Date.now()}`, title: file.name.replace(/\.csv$/i, "").slice(0, 100) || t("trial.bannerTitle"), source: "trial", deviceName: "LapTrace", startedAt: points[0].time, endedAt: points.at(-1).time, points };
+    state.trial = true;
+    state.sessions = [session, ...state.sessions.filter((item) => item.source !== "trial")];
+    updateAccess();
+    renderSessions();
+    if (!await selectSession(session.id)) throw new Error("selection failed");
+    showView("analysis");
+    window.scrollTo(0, 0);
+    setTrialStatus();
+  } catch {
+    endTrial();
+    setTrialStatus(t("trial.error"), true);
+  } finally {
+    elements.trialButton.disabled = false;
+    elements.trialInput.value = "";
+  }
+}
+
+function endTrial() {
+  state.trial = false;
+  state.sessions = state.sessions.filter((session) => session.source !== "trial");
+  if (state.selectedSession?.source === "trial") { state.selectedSession = null; state.analysis = null; state.sectors = null; }
+  updateAccess();
+  renderSessions();
+}
+
+// Called right after sign-up/sign-in: the visitor asked to keep the trial log, so it goes to their account.
+async function saveTrialLogs() {
+  const sessions = state.sessions.filter((session) => session.source === "trial" && !session.cloudId);
+  state.trial = false;
+  if (!sessions.length || !state.user) return;
+  try {
+    for (const session of sessions) {
+      session.cloudId = await saveLog(session, "LapTrace");
+      if (session.cloudId) await renameLog(session.cloudId, session.title);
+    }
+    if (sessions.includes(state.selectedSession)) {
+      elements.analyzeAiButton.disabled = !state.analysis?.laps.length;
+      elements.copyStatus.textContent = t("ai.ready");
+    }
+    setAccountMessage(t("trial.saved"));
+  } catch (error) { setAccountMessage(error.message, true); }
 }
 
 const ACCOUNT_MODES = {
@@ -1547,6 +1609,7 @@ async function applyUser(user) {
   setShopUser(user);
   setProfileUser(user);
   if (!user) {
+    if (state.trial || state.sessions.some((session) => session.source === "trial")) endTrial();
     if (!testMode && state.client) await state.client.disconnect();
     state.cloudLogs = [];
     state.aiHistory = []; state.aiHistoryLoading = false; state.aiHistoryError = "";
@@ -1556,6 +1619,7 @@ async function applyUser(user) {
     return;
   }
   renderAccount();
+  await saveTrialLogs();
   await syncCloudLogs();
   showView(viewFromHash(), false);
 }
@@ -1796,6 +1860,25 @@ elements.logsBackButton.addEventListener("click", () => showView("analysis"));
 elements.aiBackButton.addEventListener("click", () => showView("analysis"));
 elements.importLogButton.addEventListener("click", () => elements.importLogInput.click());
 elements.importLogInput.addEventListener("change", () => importLogFile(elements.importLogInput.files?.[0]));
+elements.trialButton.addEventListener("click", () => elements.trialInput.click());
+elements.trialInput.addEventListener("change", () => startTrial(elements.trialInput.files?.[0]));
+elements.trialRegisterButton.addEventListener("click", () => openAccountDialog("register"));
+elements.trialExitButton.addEventListener("click", () => { endTrial(); history.replaceState(null, "", "/"); routedUrl = location.href; showView("analysis", false); syncGuestPage(); window.scrollTo(0, 0); });
+// Dropping a CSV anywhere on the landing hero starts the trial too.
+{
+  let depth = 0;
+  const hero = elements.landingHero;
+  const isFileDrag = (event) => [...(event.dataTransfer?.types || [])].includes("Files");
+  hero.addEventListener("dragenter", (event) => { if (!isFileDrag(event)) return; depth += 1; hero.classList.add("dragging"); });
+  hero.addEventListener("dragleave", () => { depth = Math.max(0, depth - 1); if (!depth) hero.classList.remove("dragging"); });
+  hero.addEventListener("dragover", (event) => { if (isFileDrag(event)) event.preventDefault(); });
+  hero.addEventListener("drop", (event) => {
+    if (!isFileDrag(event)) return;
+    event.preventDefault();
+    depth = 0; hero.classList.remove("dragging");
+    void startTrial(event.dataTransfer.files?.[0]);
+  });
+}
 elements.accountButton.addEventListener("click", () => (state.user ? showView("profile") : openAccountDialog("signin")));
 elements.gateAccountButton.addEventListener("click", () => openAccountDialog("register"));
 elements.demoAccountButton.addEventListener("click", () => openAccountDialog("register"));

@@ -83,7 +83,8 @@
       <button type="button" id="subbarBetaButton"><i class="pulse-dot"></i><span data-i18n="landing.subbarCta"></span><span aria-hidden="true">→</span></button>
     </div>
     <section class="landing" id="authGate">
-      <div class="landing-hero">
+      <div class="landing-hero" id="landingHero">
+        <div class="trial-drop" aria-hidden="true"><span data-i18n="trial.drop"></span></div>
         <div class="hero-grid" aria-hidden="true"></div>
         <div class="hero-track" aria-hidden="true">
           <svg viewBox="22 82 486 214" fill="none">
@@ -118,6 +119,12 @@
               <button class="primary" id="gateAccountButton" type="button" data-i18n="landing.cta"></button>
               <a class="secondary landing-link" href="/#demo" data-i18n="landing.demoCta"></a>
             </div>
+            <div class="landing-trial">
+              <button class="landing-trial-button" id="trialButton" type="button"><span aria-hidden="true">＋</span><b data-i18n="trial.cta"></b></button>
+              <small data-i18n="trial.note"></small>
+              <input id="trialInput" type="file" accept=".csv,text/csv" hidden />
+            </div>
+            <p class="landing-trial-status" id="trialStatus" role="status" aria-live="polite"></p>
           </div>
           <div class="hero-card-slot" aria-hidden="true">
             <div class="race-live-card">
@@ -629,6 +636,13 @@
       </article>
     </section>
     <main class="app-main" id="appMain">
+      <section class="trial-banner" id="trialBanner" hidden>
+        <div class="trial-banner-copy"><b data-i18n="trial.bannerTitle"></b><p data-i18n="trial.bannerText"></p></div>
+        <div class="trial-actions">
+          <button class="primary" id="trialRegisterButton" type="button" data-i18n="trial.save"></button>
+          <button class="secondary" id="trialExitButton" type="button" data-i18n="trial.exit"></button>
+        </div>
+      </section>
       <section class="hero device-hero">
         <div>
           <p class="eyebrow" data-i18n="hero.kicker"></p>
