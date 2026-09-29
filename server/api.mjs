@@ -8,7 +8,9 @@ import express from "express";
 import { ipKeyGenerator, rateLimit } from "express-rate-limit";
 import jwt from "jsonwebtoken";
 import { migrate, requireDatabase } from "./db.mjs";
-import { sendPasswordResetEmail, sendVerificationEmail } from "./mail.mjs";
+import { sendOrderNotification, sendPasswordResetEmail, sendVerificationEmail } from "./mail.mjs";
+import { orderNumber, validateOrder } from "./orders.mjs";
+import { createCheckout, handlePaymentWebhook, shopConfig } from "./payments.mjs";
 import { AI_MODEL, buildTelemetrySnapshot, generateAiFollowUp, generateAiReport, getOpenAiApiKey, groundAiReport, snapshotCacheKey } from "./ai.mjs";
 
 const app = express();
@@ -44,6 +46,8 @@ const clientKey = (request) => ipKeyGenerator(String(request.headers["cf-connect
 const authLimiter = rateLimit({ windowMs: 15 * 60_000, limit: 30, standardHeaders: true, legacyHeaders: false, keyGenerator: clientKey });
 // AI calls are authenticated, so budget them per account rather than per network.
 const aiLimiter = rateLimit({ windowMs: 60 * 60_000, limit: 10, standardHeaders: true, legacyHeaders: false, keyGenerator: (request) => request.auth?.sub || clientKey(request) });
+// Orders come from anonymous visitors too, so they are limited per network like auth.
+const orderLimiter = rateLimit({ windowMs: 60 * 60_000, limit: 6, standardHeaders: true, legacyHeaders: false, keyGenerator: clientKey });
 const normalizeEmail = (email) => String(email || "").trim().toLowerCase();
 const validEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 const publicUser = (row) => ({ id: row.id, email: row.email, emailVerified: Boolean(row.email_verified_at) });
@@ -87,6 +91,53 @@ async function sendVerification(database, user, language) {
   const token = await issueAuthToken(database, user.id, "verify", 24 * 60);
   await sendVerificationEmail(user.email, token, normalizeLanguage(language));
 }
+
+// Signed-in customers get their account attached to the order; a bad or missing token just means guest checkout.
+async function optionalAuth(request, _response, next) {
+  const token = request.headers.authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
+  if (!token) return next();
+  try {
+    const claims = jwt.verify(token, jwtSecret, { issuer: "laptrace" });
+    const result = await requireDatabase().query("select token_version from users where id = $1", [claims.sub]);
+    if (result.rows[0] && result.rows[0].token_version === (claims.tv ?? 0)) request.auth = claims;
+  } catch { /* guest */ }
+  next();
+}
+
+app.get("/api/shop/config", (_request, response) => {
+  response.set("Cache-Control", "public, max-age=60");
+  response.json(shopConfig());
+});
+
+app.post("/api/orders", orderLimiter, optionalAuth, async (request, response, next) => {
+  try {
+    const config = shopConfig();
+    // Hidden honeypot field: real visitors never fill it, bots do. Pretend success without storing anything.
+    if (String(request.body?.website || "").trim()) return response.status(201).json({ order: { number: "D3-0000", quantity: 1, status: "preorder" }, payment: { status: "unavailable" } });
+    const checked = validateOrder(request.body, { maxQuantity: config.maxQuantity });
+    if (checked.error) return response.status(400).json({ error: checked.error });
+    const order = checked.value;
+    const language = normalizeLanguage(request.body.language);
+    const inserted = await requireDatabase().query(
+      `insert into orders (user_id, product, quantity, unit_price_cents, currency, name, email, phone, country, address, note, language)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) returning id, number, status, created_at`,
+      [request.auth?.sub || null, config.product.id, order.quantity, config.priceCents, config.currency, order.name, order.email, order.phone || null, order.country, order.address, order.note || null, language],
+    );
+    const row = inserted.rows[0];
+    const number = orderNumber(row.number);
+    const payment = await createCheckout({ id: row.id, number, ...order });
+    // The order is already saved; a failed notification must not turn into a failed checkout.
+    try { await sendOrderNotification({ ...order, product: config.product.id, status: row.status, language, user_id: request.auth?.sub }, number); }
+    catch (error) { console.error("Order notification failed", error.message); }
+    response.status(201).json({ order: { number, quantity: order.quantity, status: row.status }, payment: { status: payment.status, url: payment.url } });
+  } catch (error) { next(error); }
+});
+
+// Payment provider callbacks land here once a provider is connected (stub responds 501 for now).
+app.post("/api/payments/webhook", async (request, response, next) => {
+  try { await handlePaymentWebhook(request); response.json({ received: true }); }
+  catch (error) { next(error); }
+});
 
 app.get("/api/health", async (_request, response) => {
   response.set("Cache-Control", "no-store");

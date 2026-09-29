@@ -59,3 +59,27 @@ create table if not exists auth_tokens (
 );
 
 create index if not exists auth_tokens_user_kind_idx on auth_tokens (user_id, kind, created_at desc);
+
+create table if not exists orders (
+  id uuid primary key default gen_random_uuid(),
+  number integer generated always as identity,
+  user_id uuid references users(id) on delete set null,
+  product text not null default 'laptrace',
+  quantity integer not null check (quantity between 1 and 100),
+  unit_price_cents integer,
+  currency text not null default 'EUR',
+  name text not null,
+  email text not null,
+  phone text,
+  country text not null,
+  address text not null,
+  note text,
+  language text not null default 'ru',
+  status text not null default 'preorder' check (status in ('preorder', 'awaiting_payment', 'paid', 'shipped', 'cancelled')),
+  payment_provider text,
+  payment_reference text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists orders_user_created_idx on orders (user_id, created_at desc);
+create index if not exists orders_email_idx on orders (email);

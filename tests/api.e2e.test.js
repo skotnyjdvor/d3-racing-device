@@ -174,3 +174,41 @@ test("security headers, request size limit and 404 routing", { skip }, async () 
   assert.equal(oversized.status, 413);
   assert.equal((await call("/api/unknown")).status, 404);
 });
+
+test("shop: pre-orders are stored, notify the sales inbox and keep payments stubbed", { skip }, async () => {
+  const config = await call("/api/shop/config");
+  assert.equal(config.status, 200);
+  assert.equal(config.body.paymentsEnabled, false);
+  assert.equal(config.body.priceCents, null);
+
+  const order = { name: "Mario Rossi", email: "mario@example.com", country: "Italy", address: "Via Roma 1, Viterbo", quantity: 2, consent: true, language: "it" };
+  const before = emails.length;
+  assert.equal((await call("/api/orders", { method: "POST", body: { ...order, consent: false } })).status, 400);
+  assert.equal(emails.length, before);
+
+  const guest = await call("/api/orders", { method: "POST", body: order });
+  assert.equal(guest.status, 201);
+  assert.match(guest.body.order.number, /^D3-\d{4,}$/);
+  assert.equal(guest.body.order.status, "preorder");
+  assert.equal(guest.body.payment.status, "unavailable");
+  assert.equal(guest.body.payment.url, null);
+  const mail = emails.at(-1);
+  assert.deepEqual(mail.to, ["office@d3cf.com"]);
+  assert.match(mail.subject, new RegExp(guest.body.order.number));
+  assert.match(mail.text, /Product: laptrace x 2/);
+  assert.match(mail.text, /Account: guest/);
+
+  const account = await register("buyer@example.com");
+  const signedIn = await call("/api/orders", { method: "POST", token: account.body.token, body: order });
+  assert.equal(signedIn.status, 201);
+  assert.notEqual(signedIn.body.order.number, guest.body.order.number);
+  assert.match(emails.at(-1).text, /Account: signed in/);
+
+  // A filled honeypot pretends success but sends nothing.
+  const sent = emails.length;
+  const bot = await call("/api/orders", { method: "POST", body: { ...order, website: "http://spam.example" } });
+  assert.equal(bot.status, 201);
+  assert.equal(emails.length, sent);
+
+  assert.equal((await call("/api/payments/webhook", { method: "POST", body: {} })).status, 501);
+});

@@ -105,3 +105,19 @@ export async function sendVerificationEmail(to, token, language = "ru") {
     text: `${c.verifyText}\n\n${link}\n\n${c.ignore}`,
   });
 }
+
+// Internal notification about a new shop order; goes to the sales inbox, not to the customer.
+export async function sendOrderNotification(order, number) {
+  const to = (process.env.ORDERS_TO || REPLY_TO).trim();
+  const lines = [
+    `Order ${number}`, `Status: ${order.status}`, `Product: ${order.product} x ${order.quantity}`,
+    `Name: ${order.name}`, `Email: ${order.email}`, `Phone: ${order.phone || "-"}`,
+    `Country: ${order.country}`, `Address: ${order.address}`, `Note: ${order.note || "-"}`,
+    `Language: ${order.language}`, `Account: ${order.user_id ? "signed in" : "guest"}`,
+  ];
+  await send({
+    to, subject: `New D3CF order ${number}`,
+    html: `<pre style="font:14px/1.6 monospace">${escape(lines.join("\n"))}</pre>`,
+    text: lines.join("\n"),
+  });
+}

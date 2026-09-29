@@ -147,3 +147,11 @@ export async function loadAiAnalyses(id) {
 export async function deleteAiAnalysis(id) {
   await request(`/api/ai-analyses/${id}`, { method: "DELETE" });
 }
+
+export async function loadShopConfig() {
+  return request("/api/shop/config");
+}
+
+export async function placeOrder(order) {
+  return request("/api/orders", { method: "POST", body: JSON.stringify(order) });
+}

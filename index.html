@@ -53,6 +53,7 @@
         <nav class="landing-nav" aria-label="Landing">
           <a class="active" href="#analysis" data-i18n="nav.home"></a>
           <a href="#features" data-i18n="nav.features"></a>
+          <a href="#shop" data-i18n="nav.shop"></a>
           <a href="#contact" data-i18n="nav.contact"></a>
         </nav>
         <div class="lang-menu" id="langMenu">
@@ -78,7 +79,7 @@
       </div>
     </header>
     <div class="landing-subbar">
-      <nav class="subbar-nav" aria-label="Sections"><a href="#analysis" data-i18n="nav.home"></a><a href="#features" data-i18n="nav.features"></a><a href="#contact" data-i18n="nav.contact"></a></nav>
+      <nav class="subbar-nav" aria-label="Sections"><a href="#analysis" data-i18n="nav.home"></a><a href="#features" data-i18n="nav.features"></a><a href="#shop" data-i18n="nav.shop"></a><a href="#contact" data-i18n="nav.contact"></a></nav>
       <button type="button" id="subbarBetaButton"><i class="pulse-dot"></i><span data-i18n="landing.subbarCta"></span><span aria-hidden="true">→</span></button>
     </div>
     <section class="landing" id="authGate">
@@ -374,6 +375,90 @@
             <li><b>C</b><span data-i18n="c.tip3"></span></li>
           </ol>
         </section>
+      </div>
+    </section>
+    <section class="shop-page" id="shopPage" aria-labelledby="shopTitle">
+      <div class="shop-inner">
+        <header class="ct-hero shop-hero">
+          <p class="fx-meta"><span class="pulse-dot"></span><b>D3CF</b><i>//</i><span data-i18n="shop.meta"></span></p>
+          <h1 id="shopTitle"><span data-i18n="shop.title1"></span><span class="fx-accent" data-i18n="shop.title2"></span></h1>
+          <p class="fx-lead" data-i18n="shop.lead"></p>
+        </header>
+        <div class="shop-grid">
+          <article class="shop-product">
+            <div class="shop-device" aria-hidden="true">
+              <svg viewBox="0 0 360 220" role="img">
+                <rect class="shop-device-body" x="40" y="36" width="280" height="148" rx="14" />
+                <rect class="shop-device-inset" x="58" y="54" width="244" height="112" rx="8" />
+                <path class="shop-device-mark" d="M74 150 88 118h20l-10 22h14c14 0 22-6 26-18 3-9 2-12-3-12H96l4-10h34c14 0 20 6 20 14 0 14-8 26-20 32-8 5-18 4-26 4z" />
+                <circle class="shop-device-led" cx="286" cy="72" r="5" />
+                <text class="shop-device-label" x="180" y="92" text-anchor="middle">LAPTRACE</text>
+                <g class="shop-device-bars"><rect x="160" y="112" width="120" height="5" /><rect x="160" y="126" width="84" height="5" /><rect x="160" y="140" width="102" height="5" /></g>
+              </svg>
+            </div>
+            <div class="shop-product-body">
+              <p class="fx-kicker"><b>// 01</b><span data-i18n="shop.productKicker"></span></p>
+              <h2>LapTrace</h2>
+              <p class="shop-copy" data-i18n="shop.productCopy"></p>
+              <ul class="shop-specs">
+                <li><b>GPS · 25 Hz</b><span data-i18n="shop.gpsCopy"></span></li>
+                <li><b data-i18n="f.bleTitle"></b><span data-i18n="spec.bleCopy"></span></li>
+                <li><b data-i18n="f.batteryTitle"></b><span data-i18n="spec.batteryCopy"></span></li>
+                <li><b data-i18n="f.usbTitle"></b><span data-i18n="spec.usbCopy"></span></li>
+                <li><b data-i18n="spec.storageTitle"></b><span data-i18n="spec.storageCopy"></span></li>
+                <li><b data-i18n="spec.splashTitle"></b><span data-i18n="spec.splashCopy"></span></li>
+              </ul>
+              <p class="shop-package" data-i18n="shop.packageNote"></p>
+            </div>
+          </article>
+          <div class="shop-checkout">
+            <form class="shop-order" id="shopForm" novalidate>
+              <p class="fx-kicker"><b>// 02</b><span data-i18n="shop.orderKicker"></span></p>
+              <div class="shop-lines">
+                <div class="shop-line">
+                  <span data-i18n="shop.qty"></span>
+                  <div class="shop-qty">
+                    <button type="button" id="shopQtyLess">−</button><output id="shopQtyValue" aria-live="polite">1</output><button type="button" id="shopQtyMore">+</button>
+                  </div>
+                </div>
+                <div class="shop-line"><span data-i18n="shop.price"></span><b id="shopPriceValue" data-i18n="shop.priceSoon"></b></div>
+                <div class="shop-line"><span data-i18n="shop.shipping"></span><b class="shop-muted" data-i18n="shop.shippingNote"></b></div>
+                <div class="shop-line shop-total"><span data-i18n="shop.total"></span><b id="shopTotalValue" data-i18n="shop.totalSoon"></b></div>
+              </div>
+              <p class="fx-kicker"><b>// 03</b><span data-i18n="shop.contactKicker"></span></p>
+              <div class="shop-fields">
+                <label class="shop-field"><span data-i18n="shop.name"></span><input id="shopName" name="name" type="text" autocomplete="name" maxlength="100" required /></label>
+                <label class="shop-field"><span data-i18n="shop.email"></span><input id="shopEmail" name="email" type="email" autocomplete="email" maxlength="200" required /></label>
+                <label class="shop-field"><span data-i18n="shop.phone"></span><input id="shopPhone" name="phone" type="tel" autocomplete="tel" maxlength="40" /></label>
+                <label class="shop-field"><span data-i18n="shop.country"></span><input id="shopCountry" name="country" type="text" autocomplete="country-name" maxlength="80" required /></label>
+                <label class="shop-field wide"><span data-i18n="shop.address"></span><textarea id="shopAddress" name="address" rows="3" autocomplete="street-address" maxlength="400" required></textarea></label>
+                <label class="shop-field wide"><span data-i18n="shop.note"></span><textarea id="shopNote" name="note" rows="2" maxlength="1000"></textarea></label>
+                <input class="shop-trap" id="shopTrap" name="website" type="text" tabindex="-1" autocomplete="off" aria-hidden="true" />
+              </div>
+              <p class="fx-kicker"><b>// 04</b><span data-i18n="shop.payKicker"></span><em class="shop-soon" data-i18n="shop.soon"></em></p>
+              <fieldset class="shop-pay" id="shopPay" disabled>
+                <label class="shop-method"><input type="radio" name="pay" disabled /><span data-i18n="shop.payCard"></span></label>
+                <label class="shop-method"><input type="radio" name="pay" disabled /><span data-i18n="shop.payWallet"></span></label>
+                <label class="shop-method"><input type="radio" name="pay" disabled /><span data-i18n="shop.payTransfer"></span></label>
+                <button class="shop-pay-button" type="button" disabled data-i18n="shop.payButton"></button>
+              </fieldset>
+              <p class="shop-pay-note" data-i18n="shop.payNote"></p>
+              <label class="shop-consent"><input id="shopConsent" type="checkbox" /><span data-i18n="shop.consent"></span></label>
+              <button class="primary shop-submit" id="shopSubmit" type="submit" data-i18n="shop.submit"></button>
+              <p class="shop-status" id="shopStatus" role="status" aria-live="polite"></p>
+            </form>
+            <div class="shop-done" id="shopDone" hidden>
+              <p class="fx-kicker"><b>// OK</b><span data-i18n="shop.doneKicker"></span></p>
+              <h2 data-i18n="shop.doneTitle"></h2>
+              <div class="shop-number"><span data-i18n="shop.doneNumber"></span><strong id="shopNumber">—</strong></div>
+              <p id="shopDoneText"></p>
+              <div class="shop-done-actions">
+                <button class="secondary" id="shopAgain" type="button" data-i18n="shop.doneAgain"></button>
+                <a class="primary" href="#analysis" data-i18n="shop.doneHome"></a>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
     <section class="logs-page" id="logsPage">
@@ -741,7 +826,7 @@
       </section>
     </section>
     <footer>
-      <span>© 2026 D3CF Technology · <a href="mailto:office@d3cf.com">office@d3cf.com</a></span
+      <span>© 2026 D3CF Technology · <a href="mailto:office@d3cf.com">office@d3cf.com</a> · <a href="#shop" data-i18n="nav.shop"></a></span
       ><span id="sourceLabel" data-i18n="footer.noData"></span>
     </footer>
     <dialog class="confirm-dialog" id="confirmDialog" aria-labelledby="confirmTitle" aria-describedby="confirmMessage">

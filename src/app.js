@@ -6,6 +6,7 @@ import { splitSessionIntoLaps } from "./domain/laps.js";
 import { computeSectors } from "./domain/sectors.js";
 import { applyTranslations, getLanguage, onLanguageChange, setLanguage, t } from "./i18n.js";
 import { analyzeLog, askAiFollowUp, cloudConfigured, currentUser, deleteAiAnalysis, deleteLog, loadAiAnalyses, loadLog, loadLogs, renameLog, requestPasswordReset, resendVerification, resetPassword, saveLog, signIn, signOut, signUp, verifyEmail } from "./cloud/api.js";
+import { initShop, onShopShown, setShopUser } from "./shop.js";
 import "./demo.js";
 
 const elements = Object.fromEntries([...document.querySelectorAll("[id]")].map((element) => [element.id, element]));
@@ -58,6 +59,7 @@ function setHint(text, isError = false) {
 function viewFromHash() {
   if (location.hash === "#logs") return "logs";
   if (location.hash === "#ai") return "ai";
+  if (location.hash === "#shop") return "shop";
   return "analysis";
 }
 
@@ -221,15 +223,21 @@ async function removeAiHistoryReport(id) {
 function showView(view, updateHash = true) {
   const logs = view === "logs";
   const ai = view === "ai";
+  const shop = view === "shop";
   document.body.classList.toggle("view-logs", logs);
   document.body.classList.toggle("view-ai", ai);
-  elements.analysisNavButton.classList.toggle("active", !logs && !ai);
+  document.body.classList.toggle("view-shop", shop);
+  elements.analysisNavButton.classList.toggle("active", !logs && !ai && !shop);
   elements.logsNavButton.classList.toggle("active", logs);
   elements.aiNavButton.classList.toggle("active", ai);
   if (ai) renderAiPageContext();
-  if (updateHash) history.pushState(null, "", logs ? "#logs" : ai ? "#ai" : "#analysis");
-  if (ai) requestAnimationFrame(drawTrack);
-  else if (!logs) requestAnimationFrame(() => { drawTrack(); drawCharts(); });
+  if (updateHash) history.pushState(null, "", logs ? "#logs" : ai ? "#ai" : shop ? "#shop" : "#analysis");
+  if (shop) { window.scrollTo(0, 0); onShopShown(); }
+  else {
+    renderDocumentMeta();
+    if (ai) requestAnimationFrame(drawTrack);
+    else if (!logs) requestAnimationFrame(() => { drawTrack(); drawCharts(); });
+  }
 }
 
 // Web Bluetooth exists only in Chromium browsers; iOS Safari and Firefox need the native app or a CSV import.
@@ -1522,13 +1530,14 @@ async function syncCloudLogs() {
 
 async function applyUser(user) {
   state.user = user;
+  setShopUser(user);
   if (!user) {
     if (!testMode && state.client) await state.client.disconnect();
     state.cloudLogs = [];
     state.aiHistory = []; state.aiHistoryLoading = false; state.aiHistoryError = "";
     state.sessions = state.sessions.filter((session) => session.source !== "cloud");
     if (state.selectedSession?.source === "cloud") state.selectedSession = null;
-    showView("analysis", false); renderAccount(); renderSessions(); renderAiHistory();
+    showView(viewFromHash() === "shop" ? "shop" : "analysis", false); renderAccount(); renderSessions(); renderAiHistory();
     return;
   }
   renderAccount();
@@ -1942,7 +1951,7 @@ elements.subbarBetaButton.addEventListener("click", () => openAccountDialog("reg
 elements.featuresAccountButton.addEventListener("click", () => openAccountDialog("register"));
 const landingNavLinks = document.querySelectorAll(".landing-nav a, .subbar-nav a");
 function syncGuestPage() {
-  const page = location.hash === "#features" || location.hash.startsWith("#fx") ? "features" : location.hash === "#contact" ? "contact" : null;
+  const page = location.hash === "#features" || location.hash.startsWith("#fx") ? "features" : location.hash === "#contact" ? "contact" : location.hash === "#shop" ? "shop" : null;
   const wasGuestPage = document.body.classList.contains("guest-features") || document.body.classList.contains("guest-contact");
   document.body.classList.toggle("guest-features", page === "features");
   document.body.classList.toggle("guest-contact", page === "contact");
@@ -2091,6 +2100,8 @@ function startLandingTelemetry() {
 
 startLandingTelemetry();
 
+initShop();
+if (viewFromHash() === "shop") showView("shop", false);
 if (cloudConfigured) {
   currentUser().then(applyUser).then(handleAuthLink);
 } else {
