@@ -8,6 +8,7 @@ import { applyTranslations, getLanguage, onLanguageChange, setLanguage, t } from
 import { analyzeLog, askAiFollowUp, cloudConfigured, currentUser, deleteAiAnalysis, deleteLog, loadAiAnalyses, loadLog, loadLogs, renameLog, requestPasswordReset, resendVerification, resetPassword, saveLog, signIn, signOut, signUp, verifyEmail } from "./cloud/api.js";
 import { initShop, onShopShown, setShopUser } from "./shop.js";
 import { initProfile, onProfileShown, setProfileUser } from "./profile.js";
+import "./demo.js";
 import "./ai-sample.js";
 
 const elements = Object.fromEntries([...document.querySelectorAll("[id]")].map((element) => [element.id, element]));
@@ -1793,6 +1794,7 @@ elements.importLogInput.addEventListener("change", () => importLogFile(elements.
 elements.accountButton.addEventListener("click", () => (state.user ? showView("profile") : openAccountDialog("signin")));
 elements.gateAccountButton.addEventListener("click", () => openAccountDialog("register"));
 elements.demoAccountButton.addEventListener("click", () => openAccountDialog("register"));
+elements.aiSampleAccountButton.addEventListener("click", () => openAccountDialog("register"));
 elements.accountSignInTab.addEventListener("click", () => setAccountMode("signin"));
 elements.accountRegisterTab.addEventListener("click", () => setAccountMode("register"));
 elements.accountForgotButton.addEventListener("click", () => setAccountMode("forgot"));

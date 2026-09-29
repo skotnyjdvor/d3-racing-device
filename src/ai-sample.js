@@ -1,6 +1,6 @@
 // Landing "AI report sample": hovering a card (or a map point) highlights its twin; until the visitor interacts
 // the highlight walks through the advice on its own while the section is on screen.
-const section = document.getElementById("demo");
+const section = document.getElementById("aiSample");
 const cards = [...(section?.querySelectorAll("[data-ais-card]") ?? [])];
 const markers = [...(section?.querySelectorAll("[data-ais-marker]") ?? [])];
 
