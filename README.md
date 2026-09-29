@@ -1,48 +1,38 @@
-# D3 Racing Lab
+# D3CF Technology
 
-Local-first приложение для загрузки и анализа логов LapTrace по Bluetooth. Устройство использует совместимый UART-over-BLE протокол.
+Web app and API for the LapTrace telemetry logger: download sessions over Bluetooth (or upload a CSV), split them into laps and sectors, compare laps and get an AI debrief. Live at [d3cf.com](https://d3cf.com).
 
-## Основной сценарий
+## Structure
 
-1. Подключить LapTrace после заезда.
-2. Проверить GPS fix, батарею и заполнение памяти.
-3. Начать/остановить standalone recording (`0xFF/0x25`).
-4. При необходимости разблокировать память (`0xFF/0x30`).
-5. Начать выгрузку (`0xFF/0x23`).
-6. Получить history data (`0xFF/0x21`) и разделить записи по state change (`0xFF/0x26`).
-7. Выбрать сессию и анализировать её локально.
+- `index.html`, `styles.css`, `src/` — the single-page app (Vite). Public pages live on real paths (`/`, `/features`, `/shop`, `/contact`); the signed-in views use hashes (`/#analysis`, `/#logs`, `/#ai`, `/#profile`).
+- `src/domain/` — CSV/UBX parsing, lap splitting, sectors, analysis and the track catalog.
+- `src/ble/` — Web Bluetooth, Capacitor (iOS) and mock LapTrace clients.
+- `server/` — Express API: accounts (JWT), log library, AI reports (OpenAI), shop pre-orders, transactional email (Resend), PostgreSQL schema.
+- `tests/` — unit tests plus API end-to-end tests that run against PostgreSQL when `TEST_DATABASE_URL` is set.
 
-CSV не является пользовательским источником данных. Он используется только как fixture автоматических тестов и BLE-эмулятора.
+## Local development
 
-## Запуск
-
-```powershell
+```bash
+npm install
 npm start
 ```
 
-Откройте `http://127.0.0.1:4173` в Chrome или Edge. Web Bluetooth доступен только в secure context; `localhost` считается безопасным контекстом.
+Opens the app on `http://127.0.0.1:4173`. `?mock=1` uses a simulated LapTrace instead of real Bluetooth. Web Bluetooth needs Chrome or Edge.
 
-Тестовый режим без устройства: `http://127.0.0.1:4173/?mock=1`.
+The API needs PostgreSQL: copy `.env.example` to `.env`, then run `npm run start:server`.
 
-```powershell
+```bash
 npm test
+npm run build
 ```
 
-## Реализовано
+## Deployment
 
-- BLE UART и потоковый UBX parser с checksum;
-- статус, защита и разблокировка памяти;
-- start/stop записи на 25 Гц с ожиданием GPS fix;
-- live-индикаторы GPS, спутников, батареи/напряжения и свободной памяти;
-- загрузка, прогресс и отмена history dump;
-- разделение нескольких записей в памяти;
-- выбор сессии, GPS-трасса, скорость и IMU-метрики;
-- агрегированный контекст для будущего AI-инженера.
-- локализация интерфейса: русский, английский и польский с сохранением выбора.
+`main` deploys to Render after CI passes; see [docs/render-setup.md](docs/render-setup.md) for environment variables, the shop and database backups.
 
 ## iPhone / iOS
 
-В iOS-приложении используется нативный CoreBluetooth через Capacitor, потому что Safari не предоставляет Web Bluetooth. Сборка iOS выполняется на Mac с установленными Xcode и Node.js:
+Safari has no Web Bluetooth, so the iOS app wraps the same web build with Capacitor and uses CoreBluetooth. Build on a Mac with Xcode:
 
 ```bash
 npm install
@@ -50,10 +40,6 @@ npm run ios:add
 npm run ios:open
 ```
 
-После открытия Xcode выберите Apple Development Team, подключите настоящий iPhone и запустите target `App`. Bluetooth не работает в iOS Simulator. После изменений веб-интерфейса выполняйте:
+In Xcode pick your Apple Development Team, connect a real iPhone (Bluetooth does not work in the Simulator) and run the `App` target. After web changes run `npm run ios:sync`. `ios:add` adds the required `NSBluetoothAlwaysUsageDescription` to `Info.plist`. The app talks to `https://d3cf.com`, and the API accepts its `capacitor://localhost` origin.
 
-```bash
-npm run ios:sync
-```
-
-Bundle ID приложения: `com.d3racinglab.laptrace`. Скрипт `ios:add` автоматически добавляет обязательное разрешение `NSBluetoothAlwaysUsageDescription` в `Info.plist`.
+App name: **D3CF**, bundle ID: `com.d3racinglab.laptrace`.

@@ -1,6 +1,6 @@
 {
   "appId": "com.d3racinglab.laptrace",
-  "appName": "LapTrace",
+  "appName": "D3CF",
   "webDir": "dist",
   "ios": {
     "contentInset": "automatic",

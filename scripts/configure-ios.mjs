@@ -12,7 +12,7 @@ try {
 if (!plist.includes("NSBluetoothAlwaysUsageDescription")) {
   const permission = [
     "\t<key>NSBluetoothAlwaysUsageDescription</key>",
-    "\t<string>LapTrace uses Bluetooth to connect to the telemetry logger and download recorded sessions.</string>",
+    "\t<string>D3CF uses Bluetooth to connect to the LapTrace logger and download recorded sessions.</string>",
   ].join("\n");
   plist = plist.replace("</dict>", `${permission}\n</dict>`);
   await writeFile(plistPath, plist, "utf8");
