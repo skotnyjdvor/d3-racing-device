@@ -1110,8 +1110,38 @@ async function refreshStorage() {
   catch (error) { setHint(connectionErrorMessage(error), true); }
 }
 
+function sessionLabel(session) {
+  return `${session.title || t("sessions.item", { id: session.displayId ?? session.id })} · ${formatDate(session.startedAt)}${session.source === "cloud" && !compactLayout.matches ? " ☁" : ""}`;
+}
+
+// Session picker at the top of the analysis screen: select plus newer/older steppers.
+function renderSessionBar() {
+  const sessions = state.sessions;
+  const index = sessions.indexOf(state.selectedSession);
+  elements.sessionSelect.innerHTML = sessions.map((session) => `<option value="${escapeHtml(session.id)}">${escapeHtml(sessionLabel(session))}</option>`).join("");
+  elements.sessionSelect.value = index >= 0 ? String(sessions[index].id) : "";
+  elements.sessionSelect.disabled = sessions.length < 2;
+  elements.sessionNewerButton.disabled = index <= 0;
+  elements.sessionOlderButton.disabled = index < 0 || index >= sessions.length - 1;
+  elements.sessionNewerButton.title = elements.sessionNewerButton.ariaLabel = t("session.newer");
+  elements.sessionOlderButton.title = elements.sessionOlderButton.ariaLabel = t("session.older");
+  const current = sessions[index];
+  elements.sessionBarMeta.textContent = current
+    ? `${formatDuration(new Date(current.endedAt) - new Date(current.startedAt))} · ${t("sessions.points", { count: (current.points?.length ?? current.pointCount ?? 0).toLocaleString(getLanguage()) })}`
+    : "";
+}
+
+async function chooseSession(id) {
+  if (!id || String(state.selectedSession?.id) === String(id)) return;
+  elements.sessionBar.classList.add("loading");
+  const ok = await selectSession(id);
+  elements.sessionBar.classList.remove("loading");
+  if (!ok) renderSessionBar();
+}
+
 function renderSessions() {
   renderSessionState();
+  renderSessionBar();
   elements.sessionsValue.textContent = String(state.sessions.length);
   const totalPoints = state.sessions.reduce((sum, session) => sum + (session.points?.length ?? session.pointCount ?? 0), 0);
   elements.sessionsMeta.textContent = t("progress.records", { received: totalPoints.toLocaleString(getLanguage()), expected: totalPoints.toLocaleString(getLanguage()) });
@@ -1199,7 +1229,7 @@ function updateLapView() {
   elements.trackStatGap.classList.toggle("ahead", gapMs !== null && gapMs < 0);
   elements.trackStatGap.classList.toggle("behind", gapMs !== null && gapMs > 0);
   elements.trackStatSpeed.textContent = `${(lap?.maxSpeed ?? state.analysis.session.maxSpeed).toFixed(1)} ${t("unit.speed")}`;
-  elements.trackTitle.textContent = `${state.track ? `${state.track.name} · ` : ""}${state.selectedSession.source === "demo" ? state.selectedSession.title : t("sessions.item", { id: state.selectedSession.displayId ?? state.selectedSession.id })}${lap ? ` · ${t("laps.legend", { lap: lap.number })}` : ""}`;
+  elements.trackTitle.textContent = `${state.track ? `${state.track.name} · ` : ""}${state.selectedSession.title || t("sessions.item", { id: state.selectedSession.displayId ?? state.selectedSession.id })}${lap ? ` · ${t("laps.legend", { lap: lap.number })}` : ""}`;
   renderLapControls(); renderSectors(); renderAiPageContext(); drawTrack(); drawCharts();
 }
 
@@ -1817,13 +1847,20 @@ elements.analysisTabs.addEventListener("keydown", (event) => {
   selectAnalysisTab(analysisTabButtons[(next + analysisTabButtons.length) % analysisTabButtons.length].dataset.analysisTab, true);
 });
 analysisTabButtons.forEach((button) => { button.tabIndex = button.getAttribute("aria-selected") === "true" ? 0 : -1; });
-compactLayout.addEventListener("change", () => { renderLapControls(); requestAnimationFrame(() => { drawTrack(); drawCharts(); }); });
+compactLayout.addEventListener("change", () => { renderLapControls(); renderSessionBar(); requestAnimationFrame(() => { drawTrack(); drawCharts(); }); });
 
 elements.deviceSummaryButton.addEventListener("click", () => {
   const open = !elements.devicePanel.classList.contains("device-open");
   elements.devicePanel.classList.toggle("device-open", open);
   elements.deviceSummaryButton.setAttribute("aria-expanded", String(open));
 });
+elements.sessionSelect.addEventListener("change", () => chooseSession(elements.sessionSelect.value));
+const stepSession = (offset) => {
+  const next = state.sessions[state.sessions.indexOf(state.selectedSession) + offset];
+  if (next) void chooseSession(next.id);
+};
+elements.sessionNewerButton.addEventListener("click", () => stepSession(-1));
+elements.sessionOlderButton.addEventListener("click", () => stepSession(1));
 elements.aiSessionSelect.addEventListener("change", async () => {
   if (elements.aiSessionSelect.value) await selectSession(elements.aiSessionSelect.value);
 });

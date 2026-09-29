@@ -1,5 +1,8 @@
 // Italian translation table (app, landing, features, contact). Keys mirror the ru/en/pl tables.
 export default {
+  "session.label": "Sessione",
+  "session.newer": "Sessione più recente",
+  "session.older": "Sessione meno recente",
   "mtab.track": "Pista",
   "mtab.charts": "Grafici",
   "mtab.sectors": "Settori",

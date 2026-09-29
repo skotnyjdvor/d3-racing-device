@@ -891,7 +891,7 @@ h1 .solid-title { color: var(--text); -webkit-text-stroke: 0; }
 .metric strong { margin: auto 0 2px; font-size: clamp(36px, 4vw, 62px); letter-spacing: -.055em; line-height: .9; }
 .metric.accent strong { color: var(--acid); }
 
-.dashboard { width: 100%; display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(420px, .92fr); grid-template-areas: "laps laps" "track telemetry" "track delta" "sectors insights"; gap: 10px; margin: 12px auto 0; }
+.dashboard { width: 100%; display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(420px, .92fr); grid-template-areas: "session session" "laps laps" "track telemetry" "track delta" "sectors insights"; gap: 10px; margin: 12px auto 0; }
 .panel { background: linear-gradient(145deg, rgba(18, 23, 30, .96), rgba(12, 16, 22, .96)); border: 1px solid var(--line); }
 .panel-head { min-height: 60px; padding: 13px 16px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .panel-head h2, .ai-panel h2 { margin: 0; font-size: 20px; letter-spacing: -.025em; }
@@ -1073,7 +1073,7 @@ footer { width: min(1480px, calc(100% - 40px)); min-height: 74px; margin: 0 auto
   .summary-grid { grid-template-columns: repeat(2, 1fr); }
   .metric:nth-child(2) { border-right: 0; }
   .metric:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
-  .dashboard { grid-template-columns: 1fr; grid-template-areas: "laps" "track" "telemetry" "delta" "sectors" "insights"; }
+  .dashboard { grid-template-columns: 1fr; grid-template-areas: "session" "laps" "track" "telemetry" "delta" "sectors" "insights"; }
   .logs-page-head { grid-template-columns: 1fr; align-items: stretch; }
   .ai-page-head { grid-template-columns: 1fr; align-items: stretch; gap: 24px; }
   .ai-results { grid-template-columns: 1fr; }
@@ -1335,3 +1335,24 @@ html .sectors-panel.is-empty .sector-table-wrap, html .sectors-panel.is-empty .i
   html body .insight-panel .insights li { padding: 8px 0 9px 4px; font-size: 14px; }
 }
 @media (max-width: 340px) { html body { --topbar-h: 88px; } }
+
+/* ---------- Session picker on the analysis page ---------- */
+.session-bar { grid-area: session; min-width: 0; }
+html .session-bar { display: grid; grid-template-columns: 44px minmax(0, 560px) 44px 1fr; align-items: end; gap: 6px; padding: 10px 12px; }
+html .session-bar-field { display: grid; gap: 6px; min-width: 0; }
+html .session-bar-field > span { color: var(--race-muted); font: 400 12px/1 var(--font-code); letter-spacing: .18em; text-transform: uppercase; }
+html .session-bar select { width: 100%; min-width: 0; height: 44px; padding: 0 30px 0 12px; color: var(--race-text); border-radius: 0; background-color: var(--race-bg); border: 1px solid var(--race-line-2); font: 700 14px/1 var(--font-body); font-variant-numeric: tabular-nums; letter-spacing: 0; text-overflow: ellipsis; }
+html .session-bar select:focus { border-color: var(--race-red); outline: none; }
+html .session-bar select:disabled { opacity: 1; color: var(--race-text-2); }
+html .session-step { width: 44px; height: 44px; padding: 0; color: var(--race-text); background: transparent; border: 1px solid var(--race-line-2); border-radius: 0; font: 400 24px/1 var(--font-code); cursor: pointer; transition: border-color .15s, background-color .15s; }
+html .session-step:hover:not(:disabled) { border-color: var(--race-red); background: rgba(225,6,0,.08); }
+html .session-step:focus-visible { outline: 1px solid var(--race-red); outline-offset: 2px; }
+html .session-step:disabled { color: var(--race-line-2); cursor: default; }
+html .session-bar-meta { align-self: center; justify-self: end; padding-top: 18px; color: var(--race-text-2); font: 400 12px/1.3 var(--font-code); letter-spacing: .1em; text-transform: uppercase; text-align: right; }
+html .session-bar.loading select { opacity: .55; pointer-events: none; }
+@media (max-width: 700px) {
+  html .session-bar { grid-template-columns: 44px minmax(0, 1fr) 44px; align-items: center; padding: 8px; }
+  html .session-bar select { font-size: 13px; padding-left: 10px; }
+  html .session-bar-field > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  html .session-bar-meta { display: none; }
+}
