@@ -449,12 +449,14 @@ function updateTrackZoom(nextScale, anchorX, anchorY) {
     offsetY: anchorY - (anchorY - previous.offsetY) * factor,
   };
   elements.trackZoomReset.textContent = `${Math.round(scale * 100)}%`;
+  elements.trackCanvas.classList.toggle("zoomed", scale > 1);
   drawTrack();
 }
 
 function resetTrackZoom() {
   state.trackView = { scale: 1, offsetX: 0, offsetY: 0 };
   elements.trackZoomReset.textContent = "100%";
+  elements.trackCanvas.classList.remove("zoomed");
   drawTrack();
 }
 
@@ -768,18 +770,17 @@ function drawAiCardVisuals() {
   });
 }
 
-function openAiRecommendation(index, progress) {
+// Selecting an advice item (card or map marker) highlights both on the AI page; the page never switches views.
+function openAiRecommendation(index, progress, { scrollTo = "map" } = {}) {
   state.aiSelectedIndex = index;
   state.cursorProgress = progress;
-  const span = 0.2;
-  const start = Math.max(0, Math.min(1 - span, progress - span / 2));
-  state.chartView = { start, end: start + span };
-  elements.chartZoomReset.textContent = "500%";
-  showView("analysis");
-  requestAnimationFrame(() => {
-    drawTrack(); drawCharts();
-    elements.trackCanvas.scrollIntoView({ behavior: "smooth", block: "center" });
-  });
+  elements.aiReport.querySelectorAll("[data-ai-index]").forEach((card) => card.classList.toggle("selected", Number(card.dataset.aiIndex) === index));
+  drawTrack();
+  // The map is sticky beside the cards on desktop; on phones it sits above them, so bring the right one into view.
+  const compact = window.matchMedia("(max-width: 1023px)").matches;
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const target = scrollTo === "card" ? elements.aiReport.querySelector(`[data-ai-index="${index}"]`) : compact ? elements.aiTrackCanvas : null;
+  target?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "center" });
 }
 
 function distanceSeries(points, key) {
@@ -1063,7 +1064,7 @@ elements.aiTrackCanvas.addEventListener("click", (event) => {
   const y = event.clientY - rect.top;
   const marker = (trackAiMarkerAreas.get(elements.aiTrackCanvas) || [])
     .find((item) => Math.hypot(item.x - x, item.y - y) <= item.radius);
-  if (marker) openAiRecommendation(marker.index, marker.progress);
+  if (marker) openAiRecommendation(marker.index, marker.progress, { scrollTo: "card" });
 });
 
 function selectTelemetryMetric(metric) {
