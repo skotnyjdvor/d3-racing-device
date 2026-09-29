@@ -143,44 +143,60 @@
 
       <div class="demo-section" id="demo">
         <div class="demo-heading">
-          <div><p class="eyebrow" data-i18n="landing.demoKicker"></p><h2 data-i18n="landing.demoTitle"></h2></div>
-          <p data-i18n="landing.demoCopy"></p>
+          <div><p class="eyebrow" data-i18n="ais.kicker"></p><h2 data-i18n="ais.title"></h2></div>
+          <p data-i18n="ais.copy"></p>
         </div>
-        <div class="demo-metrics">
-          <div><span data-i18n="landing.bestLap"></span><strong id="demoBestLap">—</strong><small id="demoBestLapLabel">Viterbo · —</small></div>
-          <div><span data-i18n="landing.liveSpeed"></span><strong id="demoSpeed">118.6</strong><small>km/h</small></div>
-          <div><span data-i18n="landing.liveG"></span><strong id="demoGForce">0.72 g</strong><small id="demoSector">T4 · 58%</small></div>
-          <div><span data-i18n="landing.liveDelta"></span><strong class="acid" id="demoDelta">−0.412</strong><small>vs Lap 5</small></div>
-        </div>
-        <div class="demo-grid">
-          <article class="demo-track panel">
-            <div class="panel-head"><div><p class="eyebrow" data-i18n="track.kicker"></p><h2>Circuito di Viterbo</h2></div><span class="demo-badge">DEMO LOG</span></div>
-            <svg viewBox="0 0 640 430" role="img" aria-label="Viterbo racing line demo">
-              <defs><linearGradient id="trackGradient" x1="0" y1="1" x2="1" y2="0"><stop stop-color="#5a5b66"/><stop offset=".5" stop-color="#f4f4ee"/><stop offset="1" stop-color="#e10600"/></linearGradient></defs>
-              <path class="track-shadow" id="demoTrackShadow" d="M80 215H560"/>
-              <path class="track-line" id="demoTrackPath" d="M80 215H560"/>
-              <g id="demoTrackMarker"><circle cx="0" cy="0" r="8" class="track-point"/><circle cx="0" cy="0" r="15" class="track-point-ring"/></g>
-              <g class="turn-labels"><text x="26" y="35">GPS · VITERBO · 2026-07-10</text></g>
+        <div class="ais-grid">
+          <article class="ais-map">
+            <div class="ais-map-head"><span>GPS · CIRCUITO DI VITERBO</span><b data-i18n="ais.badge"></b></div>
+            <div class="ais-map-sticky">
+            <svg viewBox="0 0 560 520" role="img" aria-label="AI report sample: racing line with numbered advice points">
+              <path class="ais-shadow" d="M233.7 80.4L243.7 77.7L253.7 74.9L263.7 72.1L273.7 69.3L283.7 66.4L293.6 63.7L303.6 60.9L313.6 58.1L323.6 55.3L333.6 52.6L343.6 49.8L353.7 47.3L363.7 45.0L373.8 43.0L384.0 41.4L394.2 40.4L404.3 40.0L414.4 40.4L424.4 41.7L434.1 44.0L443.5 47.3L452.4 51.7L460.6 57.0L468.0 63.3L474.4 70.5L479.5 78.6L483.1 87.2L485.1 96.2L485.5 105.3L484.2 114.3L481.3 123.1L477.0 131.4L471.5 139.4L465.2 147.2L458.3 154.7L451.3 162.2L444.6 169.8L438.5 177.7L433.2 186.0L429.0 194.7L425.9 204.0L423.9 213.6L423.0 223.4L422.9 233.5L423.4 243.7L424.1 253.9L424.9 264.1L425.3 274.3L425.2 284.4L424.2 294.4L422.3 304.1L419.3 313.6L415.3 322.7L410.4 331.5L404.7 339.8L398.3 347.6L391.4 355.1L384.0 362.3L376.3 369.1L368.3 375.8L360.2 382.2L351.8 388.2L343.2 393.7L334.3 398.2L325.4 401.5L316.7 403.2L308.6 403.0L301.6 400.9L295.9 397.1L291.8 391.8L289.8 385.4L289.9 378.3L292.2 370.9L296.6 363.7L302.8 357.1L310.2 351.0L318.5 345.4L327.2 340.1L335.9 334.7L344.2 329.1L351.7 322.9L358.2 315.9L363.1 308.2L366.2 300.2L367.3 292.1L366.3 284.5L363.3 277.7L358.5 272.3L352.2 268.4L344.7 266.4L336.5 266.5L328.1 268.5L319.7 272.2L311.7 277.4L303.9 283.7L296.4 290.6L289.1 297.9L282.0 305.4L274.9 312.9L267.9 320.5L260.9 328.1L254.2 335.9L247.8 343.9L242.0 352.1L237.0 360.8L232.9 369.8L229.7 379.2L227.6 388.9L226.2 398.9L225.5 409.0L224.9 419.2L224.3 429.4L223.2 439.4L221.2 448.8L218.2 457.5L213.8 465.2L208.1 471.5L201.3 476.3L193.7 479.2L185.5 480.0L177.3 478.8L169.4 475.6L162.2 470.6L155.9 464.1L150.8 456.3L146.9 447.6L144.3 438.2L142.9 428.4L142.8 418.5L143.7 408.5L145.6 398.7L148.4 389.0L152.1 379.6L156.6 370.5L161.7 361.7L167.5 353.2L173.7 345.0L180.4 337.2L187.4 329.7L194.8 322.5L202.3 315.4L210.1 308.6L218.0 301.9L226.0 295.3L234.1 288.8L242.2 282.3L250.3 275.9L258.4 269.4L266.5 262.9L274.6 256.5L282.7 250.0L290.8 243.5L298.9 237.0L306.9 230.5L315.0 223.9L322.9 217.3L330.9 210.6L338.7 203.9L346.5 197.0L354.2 190.1L361.7 183.0L368.8 175.6L375.1 167.7L380.4 159.5L384.2 151.1L386.3 142.7L386.4 134.6L384.7 127.1L380.9 120.5L375.4 115.0L368.3 110.9L360.0 108.3L350.8 107.2L341.1 107.4L331.1 108.6L321.1 110.7L311.1 113.3L301.1 116.2L291.2 119.2L281.3 122.1L271.3 125.1L261.4 127.9L251.4 130.8L241.4 133.6L231.5 136.5L221.6 139.6L211.7 142.8L202.0 146.3L192.5 150.1L183.1 154.4L174.2 159.2L165.8 164.8L158.3 171.1L152.1 178.2L147.6 185.7L145.2 193.2L144.9 200.0L146.5 205.6L149.9 209.7L155.2 212.5L162.1 214.3L170.3 215.4L179.1 216.2L187.7 217.0L195.4 218.6L201.7 221.4L206.3 225.7L209.2 231.6L210.0 238.4L208.7 245.8L205.2 253.1L199.7 259.8L192.6 265.5L184.3 270.0L175.2 273.2L165.6 275.0L155.8 275.5L146.0 274.8L136.4 272.9L127.1 269.8L118.2 265.5L109.9 260.2L102.2 253.9L95.3 246.8L89.3 238.9L84.2 230.4L80.2 221.3L77.2 211.9L75.2 202.2L74.5 192.3L74.9 182.4L76.5 172.7L79.2 163.2L83.0 154.1L87.9 145.5L93.8 137.6L100.5 130.3L108.1 123.8L116.3 118.1L125.0 113.1L134.2 108.8L143.7 105.0L153.5 101.7L163.4 98.8L173.4 96.1L183.4 93.5L193.5 91.0L203.6 88.4L213.6 85.8L223.7 83.1Z" />
+              <path class="ais-line" d="M233.7 80.4L243.7 77.7L253.7 74.9L263.7 72.1L273.7 69.3L283.7 66.4L293.6 63.7L303.6 60.9L313.6 58.1L323.6 55.3L333.6 52.6L343.6 49.8L353.7 47.3L363.7 45.0L373.8 43.0L384.0 41.4L394.2 40.4L404.3 40.0L414.4 40.4L424.4 41.7L434.1 44.0L443.5 47.3L452.4 51.7L460.6 57.0L468.0 63.3L474.4 70.5L479.5 78.6L483.1 87.2L485.1 96.2L485.5 105.3L484.2 114.3L481.3 123.1L477.0 131.4L471.5 139.4L465.2 147.2L458.3 154.7L451.3 162.2L444.6 169.8L438.5 177.7L433.2 186.0L429.0 194.7L425.9 204.0L423.9 213.6L423.0 223.4L422.9 233.5L423.4 243.7L424.1 253.9L424.9 264.1L425.3 274.3L425.2 284.4L424.2 294.4L422.3 304.1L419.3 313.6L415.3 322.7L410.4 331.5L404.7 339.8L398.3 347.6L391.4 355.1L384.0 362.3L376.3 369.1L368.3 375.8L360.2 382.2L351.8 388.2L343.2 393.7L334.3 398.2L325.4 401.5L316.7 403.2L308.6 403.0L301.6 400.9L295.9 397.1L291.8 391.8L289.8 385.4L289.9 378.3L292.2 370.9L296.6 363.7L302.8 357.1L310.2 351.0L318.5 345.4L327.2 340.1L335.9 334.7L344.2 329.1L351.7 322.9L358.2 315.9L363.1 308.2L366.2 300.2L367.3 292.1L366.3 284.5L363.3 277.7L358.5 272.3L352.2 268.4L344.7 266.4L336.5 266.5L328.1 268.5L319.7 272.2L311.7 277.4L303.9 283.7L296.4 290.6L289.1 297.9L282.0 305.4L274.9 312.9L267.9 320.5L260.9 328.1L254.2 335.9L247.8 343.9L242.0 352.1L237.0 360.8L232.9 369.8L229.7 379.2L227.6 388.9L226.2 398.9L225.5 409.0L224.9 419.2L224.3 429.4L223.2 439.4L221.2 448.8L218.2 457.5L213.8 465.2L208.1 471.5L201.3 476.3L193.7 479.2L185.5 480.0L177.3 478.8L169.4 475.6L162.2 470.6L155.9 464.1L150.8 456.3L146.9 447.6L144.3 438.2L142.9 428.4L142.8 418.5L143.7 408.5L145.6 398.7L148.4 389.0L152.1 379.6L156.6 370.5L161.7 361.7L167.5 353.2L173.7 345.0L180.4 337.2L187.4 329.7L194.8 322.5L202.3 315.4L210.1 308.6L218.0 301.9L226.0 295.3L234.1 288.8L242.2 282.3L250.3 275.9L258.4 269.4L266.5 262.9L274.6 256.5L282.7 250.0L290.8 243.5L298.9 237.0L306.9 230.5L315.0 223.9L322.9 217.3L330.9 210.6L338.7 203.9L346.5 197.0L354.2 190.1L361.7 183.0L368.8 175.6L375.1 167.7L380.4 159.5L384.2 151.1L386.3 142.7L386.4 134.6L384.7 127.1L380.9 120.5L375.4 115.0L368.3 110.9L360.0 108.3L350.8 107.2L341.1 107.4L331.1 108.6L321.1 110.7L311.1 113.3L301.1 116.2L291.2 119.2L281.3 122.1L271.3 125.1L261.4 127.9L251.4 130.8L241.4 133.6L231.5 136.5L221.6 139.6L211.7 142.8L202.0 146.3L192.5 150.1L183.1 154.4L174.2 159.2L165.8 164.8L158.3 171.1L152.1 178.2L147.6 185.7L145.2 193.2L144.9 200.0L146.5 205.6L149.9 209.7L155.2 212.5L162.1 214.3L170.3 215.4L179.1 216.2L187.7 217.0L195.4 218.6L201.7 221.4L206.3 225.7L209.2 231.6L210.0 238.4L208.7 245.8L205.2 253.1L199.7 259.8L192.6 265.5L184.3 270.0L175.2 273.2L165.6 275.0L155.8 275.5L146.0 274.8L136.4 272.9L127.1 269.8L118.2 265.5L109.9 260.2L102.2 253.9L95.3 246.8L89.3 238.9L84.2 230.4L80.2 221.3L77.2 211.9L75.2 202.2L74.5 192.3L74.9 182.4L76.5 172.7L79.2 163.2L83.0 154.1L87.9 145.5L93.8 137.6L100.5 130.3L108.1 123.8L116.3 118.1L125.0 113.1L134.2 108.8L143.7 105.0L153.5 101.7L163.4 98.8L173.4 96.1L183.4 93.5L193.5 91.0L203.6 88.4L213.6 85.8L223.7 83.1Z" />
+              <g class="ais-marker" data-ais-marker="0" transform="translate(458 155)"><circle class="ais-marker-halo" r="20" /><circle class="ais-marker-dot" r="12" /><text y="1">1</text></g>
+              <g class="ais-marker" data-ais-marker="1" transform="translate(237 361)"><circle class="ais-marker-halo" r="20" /><circle class="ais-marker-dot" r="12" /><text y="1">2</text></g>
+              <g class="ais-marker" data-ais-marker="2" transform="translate(331 109)"><circle class="ais-marker-halo" r="20" /><circle class="ais-marker-dot" r="12" /><text y="1">3</text></g>
             </svg>
-            <div class="legend"><span data-i18n="track.slower"></span><i></i><span data-i18n="track.faster"></span></div>
+            <div class="ais-map-foot"><span class="ais-key"><i></i><span data-i18n="laps.primary"></span></span><span class="ais-key ais-key-ai"><i></i>AI POINTS</span></div>
+            </div>
           </article>
-          <article class="demo-chart panel">
-            <div class="panel-head"><div><p class="eyebrow" data-i18n="landing.compareKicker"></p><h2 data-i18n="landing.compareTitle"></h2></div><span class="chart-unit">km/h</span></div>
-            <svg viewBox="0 0 640 300" preserveAspectRatio="none" role="img" aria-label="Two lap speed comparison">
-              <g class="chart-grid"><path d="M52 42H620M52 102H620M52 162H620M52 222H620M52 270H620"/><path d="M52 30V270M194 30V270M336 30V270M478 30V270M620 30V270"/></g>
-              <path class="chart-secondary" id="demoSecondaryLine" d="M52 235H620"/>
-              <path class="chart-primary" id="demoPrimaryLine" d="M52 225H620"/>
-              <line id="demoChartCursor" x1="384" y1="30" x2="384" y2="270" class="chart-cursor"/><circle id="demoPrimaryDot" cx="384" cy="98" r="6" class="chart-dot-primary"/><circle id="demoSecondaryDot" cx="384" cy="112" r="5" class="chart-dot-secondary"/>
-              <g class="chart-labels"><text x="15" y="46">140</text><text x="22" y="106">100</text><text x="28" y="166">60</text><text x="42" y="292">0%</text><text x="185" y="292">25%</text><text x="327" y="292">50%</text><text x="469" y="292">75%</text><text x="596" y="292">100%</text></g>
-            </svg>
-            <div class="demo-legend"><span class="lap-six" id="demoPrimaryLegend">Viterbo · —</span><span class="lap-five" id="demoSecondaryLegend">Viterbo · —</span></div>
-            <div class="demo-scrubber"><button id="demoPlayButton" type="button" aria-label="Play demo">▶</button><input id="demoProgress" type="range" min="0" max="1000" value="580" aria-label="Lap position"/><output id="demoProgressLabel">58%</output></div>
-          </article>
-          <article class="demo-insight panel">
-            <p class="eyebrow" data-i18n="landing.aiKicker"></p><h2 data-i18n="landing.aiTitle"></h2>
-            <p id="demoInsight" data-i18n="landing.aiInsight"></p>
-            <button class="primary" id="demoAccountButton" type="button" data-i18n="landing.unlock"></button>
-          </article>
+          <div class="ais-report">
+            <div class="ais-chips"><span class="ais-chip good" data-i18n="ai.quality.good"></span><span class="ais-chip" data-i18n="ais.pair"></span></div>
+            <div>
+              <p class="ais-label" data-i18n="ai.summary"></p>
+              <blockquote class="ais-summary" data-i18n="ais.summary"></blockquote>
+            </div>
+            <div>
+              <p class="ais-label" data-i18n="ai.losses"></p>
+              <div class="ais-cards">
+            <article class="ais-card" data-ais-card="0" tabindex="0">
+              <i class="ais-num">1</i>
+              <strong data-i18n="ai.location.beforeCorner"></strong>
+              <small class="ais-phase">D1 · <span data-i18n="ai.phase.braking"></span></small>
+              <p><b data-i18n="ai.observation"></b> <span data-i18n="ais.o1"></span></p>
+              <p class="ais-try"><b data-i18n="ai.recommendation"></b> <span data-i18n="ais.r1"></span></p>
+              <em class="ais-conf" data-i18n="ais.confMedium"></em>
+            </article>
+            <article class="ais-card" data-ais-card="1" tabindex="0">
+              <i class="ais-num">2</i>
+              <strong data-i18n="ai.location.inCorner"></strong>
+              <small class="ais-phase">D2 · <span data-i18n="ai.phase.corner"></span></small>
+              <p><b data-i18n="ai.observation"></b> <span data-i18n="ais.o2"></span></p>
+              <p class="ais-try"><b data-i18n="ai.recommendation"></b> <span data-i18n="ais.r2"></span></p>
+              <em class="ais-conf" data-i18n="ais.confMedium"></em>
+            </article>
+            <article class="ais-card" data-ais-card="2" tabindex="0">
+              <i class="ais-num">3</i>
+              <strong data-i18n="ai.location.afterCorner"></strong>
+              <small class="ais-phase">D3 · <span data-i18n="ai.phase.acceleration"></span></small>
+              <p><b data-i18n="ai.observation"></b> <span data-i18n="ais.o3"></span></p>
+              <p class="ais-try"><b data-i18n="ai.recommendation"></b> <span data-i18n="ais.r3"></span></p>
+              <em class="ais-conf" data-i18n="ais.confHigh"></em>
+            </article>
+              </div>
+            </div>
+            <div class="ais-cta"><button class="primary" id="demoAccountButton" type="button" data-i18n="landing.unlock"></button><span data-i18n="ais.note"></span></div>
+          </div>
         </div>
       </div>
 
