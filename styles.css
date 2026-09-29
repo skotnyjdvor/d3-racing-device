@@ -1579,4 +1579,49 @@ html .profile-delete:hover { color: var(--race-curb); background: var(--race-red
 @media (prefers-reduced-motion: reduce) {
   .ais-marker.active .ais-marker-halo { animation: none; }
 }
-.auth-locked .ais-heading .eyebrow::before { content: "// 03"; }
+.auth-locked .ais-heading .eyebrow::before { content: "// 02"; }
+.auth-locked .demo-heading:not(.ais-heading) .eyebrow::before { content: "// 03"; }
+
+/* ---------- Landing: telemetry demo layout with the G-force chart ---------- */
+@media (min-width: 901px) {
+  .auth-locked .demo-grid { grid-template-columns: minmax(0, 1.12fr) minmax(0, .88fr); grid-template-areas: "track chart" "track g" "insight insight"; }
+  .auth-locked .demo-track { grid-area: track; display: flex; flex-direction: column; }
+  .auth-locked .demo-track svg { flex: 1; height: auto; min-height: 430px; }
+  .auth-locked .demo-chart { grid-area: chart; }
+  .auth-locked .demo-chart svg { height: 300px; padding: 18px 16px 8px; }
+  .auth-locked .demo-gchart { grid-area: g; }
+  .auth-locked .demo-insight { grid-area: insight; }
+}
+.auth-locked .demo-gchart .panel-head { min-height: 72px; padding: 16px 22px; }
+.demo-tabs { display: flex; gap: 6px; }
+.demo-tabs button { min-height: 36px; padding: 0 12px; color: var(--race-muted); background: transparent; border: 1px solid var(--race-line-2); border-radius: 0; font: 700 12px/1 var(--font-code); letter-spacing: .1em; text-transform: uppercase; cursor: pointer; transition: color .15s, background-color .15s, border-color .15s; }
+.demo-tabs button:hover { color: var(--race-text); border-color: var(--race-text-2); }
+.demo-tabs button.active { color: var(--race-curb); background: var(--race-red); border-color: var(--race-red); }
+.demo-tabs button:focus-visible { outline: 1px solid var(--race-red); outline-offset: 2px; }
+.demo-gplot { position: relative; padding: 0 16px; }
+.demo-gplot svg { display: block; width: 100%; height: auto; aspect-ratio: 640 / 240; background: transparent; background-image: linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px); background-size: 48px 48px; }
+.demo-gplot .chart-grid path { fill: none; stroke: var(--race-line); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.demo-gplot .g-zero { fill: none; stroke: rgba(255,255,255,.3); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.demo-gplot .chart-primary, .demo-gplot .chart-secondary { fill: none; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.demo-gplot .chart-primary { stroke: var(--race-curb); stroke-width: 2.4; }
+.demo-gplot .chart-secondary { stroke: var(--race-red); stroke-width: 1.9; opacity: .85; }
+.demo-gplot .chart-cursor { stroke: var(--race-red); stroke-dasharray: 3 5; stroke-width: 1; opacity: .8; vector-effect: non-scaling-stroke; }
+.demo-gplot .chart-dot-primary { fill: var(--race-curb); }
+.demo-gplot .chart-dot-secondary { fill: var(--race-red); }
+.demo-gy { position: absolute; left: 16px; width: calc(8.75% - 2px); padding-right: 6px; transform: translateY(-50%); text-align: right; color: var(--race-muted); font: 400 12px/1 var(--font-code); letter-spacing: .02em; pointer-events: none; }
+.demo-gy-max { top: 12.5%; }
+.demo-gy-zero { top: 50%; }
+.demo-gy-min { top: 87.5%; }
+.demo-gx { margin: 6px 16px 0 calc(16px + 8.75%); display: flex; justify-content: space-between; color: var(--race-muted); font: 400 12px/1 var(--font-code); letter-spacing: .04em; }
+.auth-locked .demo-gchart .demo-legend { padding: 14px 22px 20px; }
+@media (max-width: 900px) {
+  .auth-locked .demo-grid { grid-template-columns: 1fr; }
+  .auth-locked .demo-track svg { flex: none; }
+  .demo-gplot { padding: 0 8px; }
+  .demo-gy { left: 8px; }
+  .demo-gx { margin: 6px 8px 0 calc(8px + 8.75%); }
+  .auth-locked .demo-gchart .panel-head { padding: 14px 16px; }
+}
+
+.auth-locked .demo-legend { flex-wrap: wrap; gap: 10px 24px; }
+.auth-locked .demo-legend span { white-space: nowrap; }

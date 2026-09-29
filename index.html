@@ -141,49 +141,6 @@
         </div>
       </div>
 
-      <div class="demo-section" id="demo">
-        <div class="demo-heading">
-          <div><p class="eyebrow" data-i18n="landing.demoKicker"></p><h2 data-i18n="landing.demoTitle"></h2></div>
-          <p data-i18n="landing.demoCopy"></p>
-        </div>
-        <div class="demo-metrics">
-          <div><span data-i18n="landing.bestLap"></span><strong id="demoBestLap">—</strong><small id="demoBestLapLabel">Viterbo · —</small></div>
-          <div><span data-i18n="landing.liveSpeed"></span><strong id="demoSpeed">118.6</strong><small>km/h</small></div>
-          <div><span data-i18n="landing.liveG"></span><strong id="demoGForce">0.72 g</strong><small id="demoSector">T4 · 58%</small></div>
-          <div><span data-i18n="landing.liveDelta"></span><strong class="acid" id="demoDelta">−0.412</strong><small>vs Lap 5</small></div>
-        </div>
-        <div class="demo-grid">
-          <article class="demo-track panel">
-            <div class="panel-head"><div><p class="eyebrow" data-i18n="track.kicker"></p><h2>Circuito di Viterbo</h2></div><span class="demo-badge">DEMO LOG</span></div>
-            <svg viewBox="0 0 640 430" role="img" aria-label="Viterbo racing line demo">
-              <defs><linearGradient id="trackGradient" x1="0" y1="1" x2="1" y2="0"><stop stop-color="#5a5b66"/><stop offset=".5" stop-color="#f4f4ee"/><stop offset="1" stop-color="#e10600"/></linearGradient></defs>
-              <path class="track-shadow" id="demoTrackShadow" d="M80 215H560"/>
-              <path class="track-line" id="demoTrackPath" d="M80 215H560"/>
-              <g id="demoTrackMarker"><circle cx="0" cy="0" r="8" class="track-point"/><circle cx="0" cy="0" r="15" class="track-point-ring"/></g>
-              <g class="turn-labels"><text x="26" y="35">GPS · VITERBO · 2026-07-10</text></g>
-            </svg>
-            <div class="legend"><span data-i18n="track.slower"></span><i></i><span data-i18n="track.faster"></span></div>
-          </article>
-          <article class="demo-chart panel">
-            <div class="panel-head"><div><p class="eyebrow" data-i18n="landing.compareKicker"></p><h2 data-i18n="landing.compareTitle"></h2></div><span class="chart-unit">km/h</span></div>
-            <svg viewBox="0 0 640 300" preserveAspectRatio="none" role="img" aria-label="Two lap speed comparison">
-              <g class="chart-grid"><path d="M52 42H620M52 102H620M52 162H620M52 222H620M52 270H620"/><path d="M52 30V270M194 30V270M336 30V270M478 30V270M620 30V270"/></g>
-              <path class="chart-secondary" id="demoSecondaryLine" d="M52 235H620"/>
-              <path class="chart-primary" id="demoPrimaryLine" d="M52 225H620"/>
-              <line id="demoChartCursor" x1="384" y1="30" x2="384" y2="270" class="chart-cursor"/><circle id="demoPrimaryDot" cx="384" cy="98" r="6" class="chart-dot-primary"/><circle id="demoSecondaryDot" cx="384" cy="112" r="5" class="chart-dot-secondary"/>
-              <g class="chart-labels"><text x="15" y="46">140</text><text x="22" y="106">100</text><text x="28" y="166">60</text><text x="42" y="292">0%</text><text x="185" y="292">25%</text><text x="327" y="292">50%</text><text x="469" y="292">75%</text><text x="596" y="292">100%</text></g>
-            </svg>
-            <div class="demo-legend"><span class="lap-six" id="demoPrimaryLegend">Viterbo · —</span><span class="lap-five" id="demoSecondaryLegend">Viterbo · —</span></div>
-            <div class="demo-scrubber"><button id="demoPlayButton" type="button" aria-label="Play demo">▶</button><input id="demoProgress" type="range" min="0" max="1000" value="580" aria-label="Lap position"/><output id="demoProgressLabel">58%</output></div>
-          </article>
-          <article class="demo-insight panel">
-            <p class="eyebrow" data-i18n="landing.aiKicker"></p><h2 data-i18n="landing.aiTitle"></h2>
-            <p id="demoInsight" data-i18n="landing.aiInsight"></p>
-            <button class="primary" id="demoAccountButton" type="button" data-i18n="landing.unlock"></button>
-          </article>
-        </div>
-      </div>
-
       <div class="demo-section ais-section" id="aiSample">
         <div class="demo-heading ais-heading">
           <div><p class="eyebrow" data-i18n="ais.kicker"></p><h2 data-i18n="ais.title"></h2></div>
@@ -240,6 +197,67 @@
             </div>
             <div class="ais-cta"><button class="primary" id="aiSampleAccountButton" type="button" data-i18n="landing.unlock"></button><span data-i18n="ais.note"></span></div>
           </div>
+        </div>
+      </div>
+
+      <div class="demo-section" id="demo">
+        <div class="demo-heading">
+          <div><p class="eyebrow" data-i18n="landing.demoKicker"></p><h2 data-i18n="landing.demoTitle"></h2></div>
+          <p data-i18n="landing.demoCopy"></p>
+        </div>
+        <div class="demo-metrics">
+          <div><span data-i18n="landing.bestLap"></span><strong id="demoBestLap">—</strong><small id="demoBestLapLabel">Viterbo · —</small></div>
+          <div><span data-i18n="landing.liveSpeed"></span><strong id="demoSpeed">118.6</strong><small>km/h</small></div>
+          <div><span data-i18n="landing.liveG"></span><strong id="demoGForce">0.72 g</strong><small id="demoSector">T4 · 58%</small></div>
+          <div><span data-i18n="landing.liveDelta"></span><strong class="acid" id="demoDelta">−0.412</strong><small>vs Lap 5</small></div>
+        </div>
+        <div class="demo-grid">
+          <article class="demo-track panel">
+            <div class="panel-head"><div><p class="eyebrow" data-i18n="track.kicker"></p><h2>Circuito di Viterbo</h2></div><span class="demo-badge">DEMO LOG</span></div>
+            <svg viewBox="0 0 640 430" role="img" aria-label="Viterbo racing line demo">
+              <defs><linearGradient id="trackGradient" x1="0" y1="1" x2="1" y2="0"><stop stop-color="#5a5b66"/><stop offset=".5" stop-color="#f4f4ee"/><stop offset="1" stop-color="#e10600"/></linearGradient></defs>
+              <path class="track-shadow" id="demoTrackShadow" d="M80 215H560"/>
+              <path class="track-line" id="demoTrackPath" d="M80 215H560"/>
+              <g id="demoTrackMarker"><circle cx="0" cy="0" r="8" class="track-point"/><circle cx="0" cy="0" r="15" class="track-point-ring"/></g>
+              <g class="turn-labels"><text x="26" y="35">GPS · VITERBO · 2026-07-10</text></g>
+            </svg>
+            <div class="legend"><span data-i18n="track.slower"></span><i></i><span data-i18n="track.faster"></span></div>
+          </article>
+          <article class="demo-chart panel">
+            <div class="panel-head"><div><p class="eyebrow" data-i18n="landing.compareKicker"></p><h2 data-i18n="landing.compareTitle"></h2></div><span class="chart-unit">km/h</span></div>
+            <svg viewBox="0 0 640 300" preserveAspectRatio="none" role="img" aria-label="Two lap speed comparison">
+              <g class="chart-grid"><path d="M52 42H620M52 102H620M52 162H620M52 222H620M52 270H620"/><path d="M52 30V270M194 30V270M336 30V270M478 30V270M620 30V270"/></g>
+              <path class="chart-secondary" id="demoSecondaryLine" d="M52 235H620"/>
+              <path class="chart-primary" id="demoPrimaryLine" d="M52 225H620"/>
+              <line id="demoChartCursor" x1="384" y1="30" x2="384" y2="270" class="chart-cursor"/><circle id="demoPrimaryDot" cx="384" cy="98" r="6" class="chart-dot-primary"/><circle id="demoSecondaryDot" cx="384" cy="112" r="5" class="chart-dot-secondary"/>
+              <g class="chart-labels"><text x="15" y="46">140</text><text x="22" y="106">100</text><text x="28" y="166">60</text><text x="42" y="292">0%</text><text x="185" y="292">25%</text><text x="327" y="292">50%</text><text x="469" y="292">75%</text><text x="596" y="292">100%</text></g>
+            </svg>
+            <div class="demo-legend"><span class="lap-six" id="demoPrimaryLegend">Viterbo · —</span><span class="lap-five" id="demoSecondaryLegend">Viterbo · —</span></div>
+            <div class="demo-scrubber"><button id="demoPlayButton" type="button" aria-label="Play demo">▶</button><input id="demoProgress" type="range" min="0" max="1000" value="580" aria-label="Lap position"/><output id="demoProgressLabel">58%</output></div>
+          </article>
+          <article class="demo-gchart panel">
+            <div class="panel-head">
+              <div><p class="eyebrow" data-i18n="landing.gKicker"></p><h2 data-i18n="landing.gTitle"></h2></div>
+              <div class="demo-tabs" role="group" aria-label="G-force"><button class="active" type="button" data-demo-g="gForceY" data-i18n="telemetry.lateralShort"></button><button type="button" data-demo-g="gForceX" data-i18n="telemetry.longitudinalShort"></button></div>
+            </div>
+            <div class="demo-gplot">
+              <svg viewBox="0 0 640 240" preserveAspectRatio="none" role="img" aria-label="G-force comparison of two laps">
+                <g class="chart-grid"><path d="M56 30H632M56 75H632M56 120H632M56 165H632M56 210H632"/><path d="M56 30V210M200 30V210M344 30V210M488 30V210M632 30V210"/></g>
+                <path class="g-zero" d="M56 120H632"/>
+                <path class="chart-secondary" id="demoGSecondaryLine" d="M56 120H632"/>
+                <path class="chart-primary" id="demoGPrimaryLine" d="M56 120H632"/>
+                <line id="demoGCursor" x1="384" y1="30" x2="384" y2="210" class="chart-cursor"/><circle id="demoGPrimaryDot" cx="384" cy="120" r="5" class="chart-dot-primary"/><circle id="demoGSecondaryDot" cx="384" cy="120" r="4" class="chart-dot-secondary"/>
+              </svg>
+              <span class="demo-gy demo-gy-max" id="demoGMax">+1.0</span><span class="demo-gy demo-gy-zero">0</span><span class="demo-gy demo-gy-min" id="demoGMin">−1.0</span>
+            </div>
+            <div class="demo-gx"><span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span></div>
+            <div class="demo-legend"><span class="lap-six" id="demoGPrimaryLegend">—</span><span class="lap-five" id="demoGSecondaryLegend">—</span></div>
+          </article>
+          <article class="demo-insight panel">
+            <p class="eyebrow" data-i18n="landing.aiKicker"></p><h2 data-i18n="landing.aiTitle"></h2>
+            <p id="demoInsight" data-i18n="landing.aiInsight"></p>
+            <button class="primary" id="demoAccountButton" type="button" data-i18n="landing.unlock"></button>
+          </article>
         </div>
       </div>
 

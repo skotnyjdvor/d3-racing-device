@@ -17,6 +17,8 @@ if (progress && path && marker && playButton) {
   let comparisonLap;
   let frame = 0;
   let lastTime = 0;
+  let gMetric = "gForceY";
+  const G_X = 56; const G_W = 576; const G_ZERO = 120; const G_H = 90;
 
   const formatLap = (milliseconds) => {
     const minutes = Math.floor(milliseconds / 60_000);
@@ -53,6 +55,25 @@ if (progress && path && marker && playButton) {
     }).join(" ");
   }
 
+  // Symmetric G scale (rounded up to 0.5 g) shared by both laps so they stay comparable.
+  function gRange() {
+    const peak = Math.max(...[...primarySeries, ...comparisonSeries].map((item) => Math.abs(item.point[gMetric]) || 0), 0.5);
+    return Math.ceil(peak * 2) / 2;
+  }
+  const gY = (value, range) => G_ZERO - Math.max(-range, Math.min(range, value)) / range * G_H;
+  const signed = (value, digits = 1) => `${value > 0 ? "+" : value < 0 ? "−" : ""}${Math.abs(value).toFixed(digits)}`;
+
+  function renderGChart() {
+    if (!primarySeries.length) return;
+    const range = gRange();
+    const project = ({ point, progress: position }) => [G_X + position * G_W, gY(point[gMetric] || 0, range)];
+    elements.demoGPrimaryLine.setAttribute("d", linePath(primarySeries, project));
+    elements.demoGSecondaryLine.setAttribute("d", linePath(comparisonSeries, project));
+    elements.demoGMax.textContent = signed(range);
+    elements.demoGMin.textContent = signed(-range);
+    renderDemo();
+  }
+
   function renderStaticLog(points, analysis) {
     primaryLap = analysis.fastestLap;
     comparisonLap = analysis.laps.reduce((slowest, lap) => lap.durationMs > slowest.durationMs ? lap : slowest, analysis.laps[0]);
@@ -80,7 +101,7 @@ if (progress && path && marker && playButton) {
     elements.demoBestLapLabel.textContent = `Viterbo · Lap ${primaryLap.number}`;
     elements.demoPrimaryLegend.textContent = `Lap ${primaryLap.number} · ${formatLap(primaryLap.durationMs)}`;
     elements.demoSecondaryLegend.textContent = `Lap ${comparisonLap.number} · ${formatLap(comparisonLap.durationMs)}`;
-    renderDemo();
+    renderGChart();
   }
 
   function renderDemo() {
@@ -99,6 +120,13 @@ if (progress && path && marker && playButton) {
     elements.demoChartCursor.setAttribute("x1", x); elements.demoChartCursor.setAttribute("x2", x);
     elements.demoPrimaryDot.setAttribute("cx", x); elements.demoPrimaryDot.setAttribute("cy", yPrimary);
     elements.demoSecondaryDot.setAttribute("cx", x); elements.demoSecondaryDot.setAttribute("cy", ySecondary);
+    const gRangeNow = gRange();
+    const gx = G_X + position * G_W;
+    elements.demoGCursor.setAttribute("x1", gx); elements.demoGCursor.setAttribute("x2", gx);
+    elements.demoGPrimaryDot.setAttribute("cx", gx); elements.demoGPrimaryDot.setAttribute("cy", gY(primary.point[gMetric] || 0, gRangeNow));
+    elements.demoGSecondaryDot.setAttribute("cx", gx); elements.demoGSecondaryDot.setAttribute("cy", gY(comparison.point[gMetric] || 0, gRangeNow));
+    elements.demoGPrimaryLegend.textContent = `Lap ${primaryLap.number} · ${signed(primary.point[gMetric] || 0, 2)} g`;
+    elements.demoGSecondaryLegend.textContent = `Lap ${comparisonLap.number} · ${signed(comparison.point[gMetric] || 0, 2)} g`;
     elements.demoSpeed.textContent = primary.point.speed.toFixed(1);
     elements.demoGForce.textContent = `${Math.abs(primary.point.gForceY).toFixed(2)} g`;
     elements.demoDelta.textContent = `${timeDelta <= 0 ? "−" : "+"}${Math.abs(timeDelta).toFixed(3)}`;
@@ -126,6 +154,11 @@ if (progress && path && marker && playButton) {
     if (frame) stop();
     else { playButton.textContent = "Ⅱ"; playButton.setAttribute("aria-label", "Pause demo"); frame = requestAnimationFrame(animate); }
   });
+  document.querySelectorAll("[data-demo-g]").forEach((button) => button.addEventListener("click", () => {
+    gMetric = button.dataset.demoG;
+    document.querySelectorAll("[data-demo-g]").forEach((other) => other.classList.toggle("active", other === button));
+    renderGChart();
+  }));
   onLanguageChange(renderDemo);
 
   // The 1.2 MB demo log is only fetched and parsed once the demo section approaches the viewport.

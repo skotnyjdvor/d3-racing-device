@@ -1,5 +1,7 @@
 // Italian translation table (app, landing, features, contact). Keys mirror the ru/en/pl tables.
 export default {
+  "landing.gKicker": "ACCELERAZIONI",
+  "landing.gTitle": "Accelerazioni sul giro",
   "ais.kicker": "Esempio di report AI",
   "ais.title": "Un debriefing da allenatore",
   "ais.copy": "Ecco un breve report AI dopo il turno: cosa conta, dove è andato il tempo e cosa provare nel giro successivo. Ogni consiglio è legato a un punto sulla mappa.",
