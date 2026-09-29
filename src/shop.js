@@ -116,7 +116,6 @@ export function onShopShown() {
     .then((loaded) => { config = { ...config, ...loaded }; quantity = Math.min(quantity, config.maxQuantity); renderPrice(); })
     .catch(() => {});
   renderPrice();
-  document.title = t("shop.metaTitle");
 }
 
 export function initShop() {
@@ -126,6 +125,6 @@ export function initShop() {
   fieldIds.forEach((id) => $(id).addEventListener("input", () => $(id).removeAttribute("aria-invalid")));
   $("shopConsent").addEventListener("change", () => $("shopConsent").closest(".shop-consent").classList.remove("invalid"));
   $("shopAgain").addEventListener("click", reset);
-  onLanguageChange(() => { renderPrice(); renderDone(); if (document.body.classList.contains("view-shop")) document.title = t("shop.metaTitle"); });
+  onLanguageChange(() => { renderPrice(); renderDone(); });
   renderPrice();
 }

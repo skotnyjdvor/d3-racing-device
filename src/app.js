@@ -8,6 +8,7 @@ import { applyTranslations, getLanguage, onLanguageChange, setLanguage, t } from
 import { analyzeLog, askAiFollowUp, cloudConfigured, currentUser, deleteAiAnalysis, deleteLog, loadAiAnalyses, loadLog, loadLogs, renameLog, requestPasswordReset, resendVerification, resetPassword, saveLog, signIn, signOut, signUp, verifyEmail } from "./cloud/api.js";
 import { initShop, onShopShown, setShopUser } from "./shop.js";
 import { initProfile, onProfileShown, setProfileUser } from "./profile.js";
+import { PAGE_PATHS, currentPage, interceptLinks, navigate, upgradeLegacyHash } from "./router.js";
 import "./demo.js";
 import "./ai-sample.js";
 
@@ -16,6 +17,7 @@ const state = { client: null, connected: false, deviceName: "", deviceModel: "",
 const trackAiMarkerAreas = new WeakMap();
 const testMode = new URLSearchParams(location.search).has("mock");
 let accountMode = "signin";
+let routedUrl = "";
 let aiRequestToken = 0;
 let aiHistoryRequestToken = 0;
 
@@ -61,7 +63,7 @@ function setHint(text, isError = false) {
 function viewFromHash() {
   if (location.hash === "#logs") return "logs";
   if (location.hash === "#ai") return "ai";
-  if (location.hash === "#shop") return "shop";
+  if (currentPage() === "shop") return "shop";
   if (location.hash === "#profile") return "profile";
   return "analysis";
 }
@@ -238,7 +240,10 @@ function showView(view, updateHash = true) {
   elements.logsNavButton.classList.toggle("active", logs);
   elements.aiNavButton.classList.toggle("active", ai);
   if (ai) renderAiPageContext();
-  if (updateHash) history.pushState(null, "", logs ? "#logs" : ai ? "#ai" : shop ? "#shop" : profile ? "#profile" : "#analysis");
+  if (updateHash) {
+    const url = shop ? PAGE_PATHS.shop : `/${logs ? "#logs" : ai ? "#ai" : profile ? "#profile" : "#analysis"}`;
+    if (url !== location.pathname + location.hash) { history.pushState(null, "", url); routedUrl = location.href; syncGuestPage(); }
+  }
   if (shop) { window.scrollTo(0, 0); onShopShown(); }
   else if (profile) { window.scrollTo(0, 0); onProfileShown(); }
   else {
@@ -1914,12 +1919,19 @@ elements.aiComparisonLapSelect.addEventListener("change", () => changeComparison
 elements.telemetryMetricSelect.addEventListener("change", () => selectTelemetryMetric(elements.telemetryMetricSelect.value));
 document.querySelectorAll("[data-metric]").forEach((button) => button.addEventListener("click", () => selectTelemetryMetric(button.dataset.metric)));
 window.addEventListener("resize", () => { drawTrack(); drawCharts(); drawAiCardVisuals(); });
-window.addEventListener("hashchange", () => {
-  const view = viewFromHash();
-  const needsLogin = view === "logs" || view === "ai" ? !(state.user || testMode) : view === "profile" && !state.user;
-  if (needsLogin) showView("analysis", false);
-  else showView(view, false);
-});
+// Hash links, back/forward and in-app navigation all end up here; the last URL guards against double runs.
+function applyRoute() {
+  if (upgradeLegacyHash() || location.href !== routedUrl) {
+    routedUrl = location.href;
+    const view = viewFromHash();
+    const needsLogin = view === "logs" || view === "ai" ? !(state.user || testMode) : view === "profile" && !state.user;
+    showView(needsLogin ? "analysis" : view, false);
+    syncGuestPage();
+  }
+}
+window.addEventListener("hashchange", applyRoute);
+window.addEventListener("popstate", applyRoute);
+window.addEventListener("routechange", applyRoute);
 // Language dropdown: rows slide out one after another; arrow keys, Home/End and Escape work like a menu.
 const languageOptions = [...elements.langMenuList.querySelectorAll("[data-lang]")];
 function setLanguageMenu(open, focusCurrent = false) {
@@ -1962,16 +1974,20 @@ syncLanguageButtons();
 elements.subbarBetaButton.addEventListener("click", () => openAccountDialog("register"));
 elements.featuresAccountButton.addEventListener("click", () => openAccountDialog("register"));
 const landingNavLinks = document.querySelectorAll(".landing-nav a, .subbar-nav a");
+let shownGuestPage;
 function syncGuestPage() {
-  const page = location.hash === "#features" || location.hash.startsWith("#fx") ? "features" : location.hash === "#contact" ? "contact" : location.hash === "#shop" ? "shop" : null;
-  const wasGuestPage = document.body.classList.contains("guest-features") || document.body.classList.contains("guest-contact");
+  const page = currentPage();
+  const previous = shownGuestPage;
+  shownGuestPage = page;
   document.body.classList.toggle("guest-features", page === "features");
   document.body.classList.toggle("guest-contact", page === "contact");
-  landingNavLinks.forEach((link) => link.classList.toggle("active", link.hash === (page ? `#${page}` : "#analysis")));
-  if (location.hash === "#features" || location.hash === "#contact") window.scrollTo(0, 0);
-  if (location.hash === "#demo" && wasGuestPage) requestAnimationFrame(() => document.getElementById("demo")?.scrollIntoView());
+  landingNavLinks.forEach((link) => link.classList.toggle("active", link.getAttribute("href") === (page ? PAGE_PATHS[page] : "/")));
+  if (page !== previous && previous !== undefined && !location.hash) window.scrollTo(0, 0);
+  if (location.hash && page !== previous && previous !== undefined) requestAnimationFrame(() => document.getElementById(location.hash.slice(1))?.scrollIntoView());
+  renderDocumentMeta();
 }
-window.addEventListener("hashchange", syncGuestPage);
+upgradeLegacyHash();
+interceptLinks();
 syncGuestPage();
 
 // Contact page: localized mail subjects and copy-to-clipboard.
@@ -1981,8 +1997,10 @@ function renderContactLinks() {
   });
 }
 function renderDocumentMeta() {
-  document.title = t("meta.title");
-  document.querySelector('meta[name="description"]')?.setAttribute("content", t("meta.description"));
+  const page = currentPage();
+  const prefix = page === "features" ? "meta.features" : page === "contact" ? "meta.contact" : page === "shop" ? "meta.shop" : "meta.";
+  document.title = t(page ? `${prefix}Title` : "meta.title");
+  document.querySelector('meta[name="description"]')?.setAttribute("content", t(page ? `${prefix}Description` : "meta.description"));
 }
 elements.contactCopyButton?.addEventListener("click", async () => {
   try {
@@ -2115,7 +2133,7 @@ startLandingTelemetry();
 initShop();
 initProfile({
   askDialog,
-  async onSignedOut() { history.replaceState(null, "", "#analysis"); await applyUser(null); },
+  async onSignedOut() { history.replaceState(null, "", "/#analysis"); await applyUser(null); },
   async onPasswordChanged(user) { state.user = user; renderAccount(); },
 });
 if (viewFromHash() === "shop") showView("shop", false);

@@ -1,5 +1,5 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import bcrypt from "bcryptjs";
@@ -10,6 +10,7 @@ import jwt from "jsonwebtoken";
 import { migrate, requireDatabase } from "./db.mjs";
 import { sendOrderNotification, sendPasswordResetEmail, sendVerificationEmail } from "./mail.mjs";
 import { orderNumber, validateOrder } from "./orders.mjs";
+import { PUBLIC_PAGES, renderPublicPage } from "./pages.mjs";
 import { createCheckout, handlePaymentWebhook, shopConfig } from "./payments.mjs";
 import { AI_MODEL, buildTelemetrySnapshot, generateAiFollowUp, generateAiReport, getOpenAiApiKey, groundAiReport, snapshotCacheKey } from "./ai.mjs";
 
@@ -22,7 +23,9 @@ const jwtSecret = process.env.JWT_SECRET || (process.env.NODE_ENV === "productio
 if (!jwtSecret) throw new Error("JWT_SECRET is required");
 
 const allowedOrigins = (process.env.APP_ORIGIN || "http://127.0.0.1:4173,http://localhost:4173")
-  .split(",").map((origin) => origin.trim()).filter(Boolean);
+  .split(",").map((origin) => origin.trim()).filter(Boolean)
+  // The iOS app (Capacitor) calls the API from its own scheme.
+  .concat("capacitor://localhost", "ionic://localhost");
 app.use(cors({ origin: (origin, callback) => callback(null, !origin || allowedOrigins.includes(origin)) }));
 app.use((request, response, next) => {
   response.set({
@@ -458,14 +461,24 @@ app.use((error, _request, response, _next) => {
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const dist = join(root, "dist");
 if (existsSync(dist)) {
+  // "/features/" would break relative asset URLs, so public pages always use the path without a trailing slash.
+  app.use((request, response, next) => {
+    const trimmed = request.path.replace(/\/+$/, "");
+    if (trimmed !== request.path && PUBLIC_PAGES[trimmed]) return response.redirect(301, trimmed + (request.url.slice(request.path.length) || ""));
+    next();
+  });
   app.use(express.static(dist, {
     setHeaders(response, filePath) {
       if (/[\\/]assets[\\/]/.test(filePath)) response.set("Cache-Control", "public, max-age=31536000, immutable");
       else if (filePath.endsWith(".html")) response.set("Cache-Control", "no-cache");
     },
   }));
-  // The app routes with #hashes, so only "/" is a real page; everything else is a proper 404.
+  // "/" hosts the app (its views use #hashes); /features, /shop and /contact are real pages with their own <head>.
   app.get(["/", "/index.html"], (_request, response) => response.set("Cache-Control", "no-cache").sendFile(join(dist, "index.html")));
+  const indexHtml = readFileSync(join(dist, "index.html"), "utf8");
+  const publicOrigin = (process.env.APP_URL || "https://d3cf.com").replace(/\/$/, "");
+  const pageHtml = new Map(Object.keys(PUBLIC_PAGES).map((path) => [path, renderPublicPage(indexHtml, path, publicOrigin)]));
+  app.get(Object.keys(PUBLIC_PAGES), (request, response) => response.set("Cache-Control", "no-cache").type("html").send(pageHtml.get(request.path)));
   app.use((_request, response) => response.status(404).set("Cache-Control", "no-cache").sendFile(join(dist, "404.html")));
 }
 

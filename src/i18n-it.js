@@ -1,5 +1,11 @@
 // Italian translation table (app, landing, features, contact). Keys mirror the ru/en/pl tables.
 export default {
+  "meta.featuresTitle": "Funzioni — logger LapTrace e analisi AI | D3CF",
+  "meta.featuresDescription": "Come funzionano LapTrace e D3CF: GPS a 25 Hz e accelerometro, giri divisi automaticamente, delta e settori, e un ingegnere AI con consigli sulla mappa della pista.",
+  "meta.shopTitle": "Negozio LapTrace — preordine | D3CF",
+  "meta.shopDescription": "Preordina il logger GPS LapTrace per la pista: 25 Hz, Bluetooth, fino a 20 ore di utilizzo. Confermeremo prezzo e consegna via email.",
+  "meta.contactTitle": "Contatti | D3CF Technology",
+  "meta.contactDescription": "Domande sulla beta, sul dispositivo LapTrace, sull'analisi dei log o su collaborazioni: scrivi a office@d3cf.com.",
   "landing.gKicker": "ACCELERAZIONI",
   "landing.gTitle": "Accelerazioni sul giro",
   "ais.kicker": "Esempio di report AI",
