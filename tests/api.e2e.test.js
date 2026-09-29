@@ -212,3 +212,37 @@ test("shop: pre-orders are stored, notify the sales inbox and keep payments stub
 
   assert.equal((await call("/api/payments/webhook", { method: "POST", body: {} })).status, 501);
 });
+
+test("profile: summary, password change with session rotation, and account deletion", { skip }, async () => {
+  const account = await register("profile@example.com", "first-password-1");
+  const token = account.body.token;
+  assert.ok(account.body.user.createdAt);
+
+  await call("/api/orders", { method: "POST", token, body: { name: "Anna Nowak", email: "profile@example.com", country: "Poland", address: "ul. Prosta 1, Warszawa", quantity: 1, consent: true, language: "pl" } });
+  await call("/api/logs", { method: "POST", token, body: { startedAt: "2026-03-01T10:00:00Z", endedAt: "2026-03-01T10:30:00Z", points: [{ t: 1 }, { t: 2 }] } });
+
+  const profile = await call("/api/profile", { token });
+  assert.equal(profile.status, 200);
+  assert.equal(profile.body.user.email, "profile@example.com");
+  assert.deepEqual(profile.body.stats, { logs: 1, aiReports: 0, orders: 1 });
+  assert.equal(profile.body.orders[0].status, "preorder");
+  assert.match(profile.body.orders[0].number, /^D3-\d{4,}$/);
+  assert.equal((await call("/api/profile")).status, 401);
+
+  // Wrong current password, too-short new password, then a real change that rotates the token.
+  assert.equal((await call("/api/auth/change-password", { method: "POST", token, body: { currentPassword: "nope-nope-1", newPassword: "second-password-2" } })).status, 403);
+  assert.equal((await call("/api/auth/change-password", { method: "POST", token, body: { currentPassword: "first-password-1", newPassword: "short" } })).status, 400);
+  const changed = await call("/api/auth/change-password", { method: "POST", token, body: { currentPassword: "first-password-1", newPassword: "second-password-2" } });
+  assert.equal(changed.status, 200);
+  assert.equal((await call("/api/auth/me", { token })).status, 401, "the old token is revoked");
+  assert.equal((await call("/api/auth/me", { token: changed.body.token })).status, 200, "the fresh token works");
+  assert.equal((await call("/api/auth/login", { method: "POST", body: { email: "profile@example.com", password: "first-password-1" } })).status, 401);
+  assert.equal((await call("/api/auth/login", { method: "POST", body: { email: "profile@example.com", password: "second-password-2" } })).status, 200);
+
+  // Deletion needs the password, removes logs, and keeps the order without the account link.
+  const fresh = changed.body.token;
+  assert.equal((await call("/api/auth/me", { method: "DELETE", token: fresh, body: { password: "wrong-password-1" } })).status, 403);
+  assert.equal((await call("/api/auth/me", { method: "DELETE", token: fresh, body: { password: "second-password-2" } })).status, 204);
+  assert.equal((await call("/api/auth/me", { token: fresh })).status, 401);
+  assert.equal((await call("/api/auth/login", { method: "POST", body: { email: "profile@example.com", password: "second-password-2" } })).status, 401);
+});

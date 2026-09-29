@@ -59,6 +59,20 @@ export async function resendVerification(language) {
   return request("/api/auth/verify/resend", { method: "POST", body: JSON.stringify({ language }) });
 }
 
+export async function loadProfile() {
+  return request("/api/profile");
+}
+
+export async function changePassword(currentPassword, newPassword) {
+  return rememberAuth(await request("/api/auth/change-password", { method: "POST", body: JSON.stringify({ currentPassword, newPassword }) }));
+}
+
+export async function deleteAccount(password) {
+  await request("/api/auth/me", { method: "DELETE", body: JSON.stringify({ password }) });
+  localStorage.removeItem(tokenKey);
+  listeners.forEach((listener) => listener(null));
+}
+
 export async function signOut() {
   localStorage.removeItem(tokenKey);
   listeners.forEach((listener) => listener(null));

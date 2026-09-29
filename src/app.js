@@ -7,6 +7,7 @@ import { computeSectors } from "./domain/sectors.js";
 import { applyTranslations, getLanguage, onLanguageChange, setLanguage, t } from "./i18n.js";
 import { analyzeLog, askAiFollowUp, cloudConfigured, currentUser, deleteAiAnalysis, deleteLog, loadAiAnalyses, loadLog, loadLogs, renameLog, requestPasswordReset, resendVerification, resetPassword, saveLog, signIn, signOut, signUp, verifyEmail } from "./cloud/api.js";
 import { initShop, onShopShown, setShopUser } from "./shop.js";
+import { initProfile, onProfileShown, setProfileUser } from "./profile.js";
 import "./demo.js";
 
 const elements = Object.fromEntries([...document.querySelectorAll("[id]")].map((element) => [element.id, element]));
@@ -60,6 +61,7 @@ function viewFromHash() {
   if (location.hash === "#logs") return "logs";
   if (location.hash === "#ai") return "ai";
   if (location.hash === "#shop") return "shop";
+  if (location.hash === "#profile") return "profile";
   return "analysis";
 }
 
@@ -177,6 +179,8 @@ function askDialog({ title, message = "", confirmLabel, danger = false, input = 
   elements.confirmSubmit.textContent = confirmLabel;
   elements.confirmSubmit.classList.toggle("danger", danger);
   elements.confirmField.hidden = !input;
+  elements.confirmInput.type = input?.type ?? "text";
+  elements.confirmInput.autocomplete = input?.type === "password" ? "current-password" : "off";
   elements.confirmInput.value = input?.value ?? "";
   elements.confirmFieldLabel.textContent = input?.label ?? "";
   return new Promise((resolve) => {
@@ -191,7 +195,7 @@ function askDialog({ title, message = "", confirmLabel, danger = false, input = 
     const onSubmit = (event) => {
       event.preventDefault();
       if (!input) return finish(true);
-      const value = elements.confirmInput.value.trim();
+      const value = input.type === "password" ? elements.confirmInput.value : elements.confirmInput.value.trim();
       if (!value) { elements.confirmInput.focus(); return; }
       finish(value);
     };
@@ -224,15 +228,18 @@ function showView(view, updateHash = true) {
   const logs = view === "logs";
   const ai = view === "ai";
   const shop = view === "shop";
+  const profile = view === "profile";
   document.body.classList.toggle("view-logs", logs);
   document.body.classList.toggle("view-ai", ai);
   document.body.classList.toggle("view-shop", shop);
-  elements.analysisNavButton.classList.toggle("active", !logs && !ai && !shop);
+  document.body.classList.toggle("view-profile", profile);
+  elements.analysisNavButton.classList.toggle("active", !logs && !ai && !shop && !profile);
   elements.logsNavButton.classList.toggle("active", logs);
   elements.aiNavButton.classList.toggle("active", ai);
   if (ai) renderAiPageContext();
-  if (updateHash) history.pushState(null, "", logs ? "#logs" : ai ? "#ai" : shop ? "#shop" : "#analysis");
+  if (updateHash) history.pushState(null, "", logs ? "#logs" : ai ? "#ai" : shop ? "#shop" : profile ? "#profile" : "#analysis");
   if (shop) { window.scrollTo(0, 0); onShopShown(); }
+  else if (profile) { window.scrollTo(0, 0); onProfileShown(); }
   else {
     renderDocumentMeta();
     if (ai) requestAnimationFrame(drawTrack);
@@ -1532,6 +1539,7 @@ async function syncCloudLogs() {
 async function applyUser(user) {
   state.user = user;
   setShopUser(user);
+  setProfileUser(user);
   if (!user) {
     if (!testMode && state.client) await state.client.disconnect();
     state.cloudLogs = [];
@@ -1782,7 +1790,7 @@ elements.logsBackButton.addEventListener("click", () => showView("analysis"));
 elements.aiBackButton.addEventListener("click", () => showView("analysis"));
 elements.importLogButton.addEventListener("click", () => elements.importLogInput.click());
 elements.importLogInput.addEventListener("change", () => importLogFile(elements.importLogInput.files?.[0]));
-elements.accountButton.addEventListener("click", () => openAccountDialog("signin"));
+elements.accountButton.addEventListener("click", () => (state.user ? showView("profile") : openAccountDialog("signin")));
 elements.gateAccountButton.addEventListener("click", () => openAccountDialog("register"));
 elements.demoAccountButton.addEventListener("click", () => openAccountDialog("register"));
 elements.accountSignInTab.addEventListener("click", () => setAccountMode("signin"));
@@ -1906,7 +1914,8 @@ document.querySelectorAll("[data-metric]").forEach((button) => button.addEventLi
 window.addEventListener("resize", () => { drawTrack(); drawCharts(); drawAiCardVisuals(); });
 window.addEventListener("hashchange", () => {
   const view = viewFromHash();
-  if ((view === "logs" || view === "ai") && !(state.user || testMode)) showView("analysis", false);
+  const needsLogin = view === "logs" || view === "ai" ? !(state.user || testMode) : view === "profile" && !state.user;
+  if (needsLogin) showView("analysis", false);
   else showView(view, false);
 });
 // Language dropdown: rows slide out one after another; arrow keys, Home/End and Escape work like a menu.
@@ -2102,6 +2111,11 @@ function startLandingTelemetry() {
 startLandingTelemetry();
 
 initShop();
+initProfile({
+  askDialog,
+  async onSignedOut() { history.replaceState(null, "", "#analysis"); await applyUser(null); },
+  async onPasswordChanged(user) { state.user = user; renderAccount(); },
+});
 if (viewFromHash() === "shop") showView("shop", false);
 if (cloudConfigured) {
   currentUser().then(applyUser).then(handleAuthLink);

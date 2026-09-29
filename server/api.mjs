@@ -50,9 +50,9 @@ const aiLimiter = rateLimit({ windowMs: 60 * 60_000, limit: 10, standardHeaders:
 const orderLimiter = rateLimit({ windowMs: 60 * 60_000, limit: 6, standardHeaders: true, legacyHeaders: false, keyGenerator: clientKey });
 const normalizeEmail = (email) => String(email || "").trim().toLowerCase();
 const validEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-const publicUser = (row) => ({ id: row.id, email: row.email, emailVerified: Boolean(row.email_verified_at) });
+const publicUser = (row) => ({ id: row.id, email: row.email, emailVerified: Boolean(row.email_verified_at), createdAt: row.created_at ?? null });
 const issueToken = (row) => jwt.sign({ sub: row.id, email: row.email, tv: row.token_version ?? 0 }, jwtSecret, { expiresIn: "30d", issuer: "laptrace" });
-const userColumns = "id, email, email_verified_at, token_version";
+const userColumns = "id, email, email_verified_at, token_version, created_at";
 const normalizeLanguage = (language) => (["ru", "en", "pl", "it"].includes(language) ? language : "ru");
 const hashToken = (token) => createHash("sha256").update(token).digest("hex");
 const tokenPattern = /^[A-Za-z0-9_-]{32,128}$/;
@@ -186,6 +186,55 @@ app.get("/api/auth/me", authenticate, async (request, response, next) => {
     const result = await requireDatabase().query(`select ${userColumns} from users where id = $1`, [request.auth.sub]);
     if (!result.rows[0]) return response.status(401).json({ error: "Account not found" });
     response.json({ user: publicUser(result.rows[0]) });
+  } catch (error) { next(error); }
+});
+
+// Profile: account summary, activity counters and the account's own orders.
+app.get("/api/profile", authenticate, async (request, response, next) => {
+  try {
+    const database = requireDatabase();
+    const userId = request.auth.sub;
+    const [user, logs, reports, orders] = await Promise.all([
+      database.query(`select ${userColumns} from users where id = $1`, [userId]),
+      database.query("select count(*)::int as count from telemetry_logs where user_id = $1", [userId]),
+      database.query("select count(*)::int as count from ai_analyses where user_id = $1", [userId]),
+      database.query("select number, product, quantity, status, created_at from orders where user_id = $1 order by created_at desc limit 20", [userId]),
+    ]);
+    if (!user.rows[0]) return response.status(401).json({ error: "Account not found" });
+    response.set("Cache-Control", "no-store");
+    response.json({
+      user: publicUser(user.rows[0]),
+      stats: { logs: logs.rows[0].count, aiReports: reports.rows[0].count, orders: orders.rows.length },
+      orders: orders.rows.map((order) => ({ number: orderNumber(order.number), product: order.product, quantity: order.quantity, status: order.status, createdAt: order.created_at })),
+    });
+  } catch (error) { next(error); }
+});
+
+// Changing the password revokes every other session (token_version) and hands the caller a fresh token.
+app.post("/api/auth/change-password", authenticate, authLimiter, async (request, response, next) => {
+  try {
+    const current = String(request.body.currentPassword || "");
+    const next_ = String(request.body.newPassword || "");
+    if (next_.length < 8 || next_.length > 200) return response.status(400).json({ error: "Use a new password of at least 8 characters" });
+    const database = requireDatabase();
+    const existing = await database.query("select password_hash from users where id = $1", [request.auth.sub]);
+    if (!existing.rows[0]) return response.status(401).json({ error: "Account not found" });
+    if (!(await bcrypt.compare(current, existing.rows[0].password_hash))) return response.status(403).json({ error: "The current password is incorrect" });
+    const hash = await bcrypt.hash(next_, 12);
+    const result = await database.query(`update users set password_hash = $1, token_version = token_version + 1 where id = $2 returning ${userColumns}`, [hash, request.auth.sub]);
+    response.json({ user: publicUser(result.rows[0]), token: issueToken(result.rows[0]) });
+  } catch (error) { next(error); }
+});
+
+// Permanent account deletion: logs and AI reports cascade, orders stay for bookkeeping but lose the account link.
+app.delete("/api/auth/me", authenticate, authLimiter, async (request, response, next) => {
+  try {
+    const database = requireDatabase();
+    const existing = await database.query("select password_hash from users where id = $1", [request.auth.sub]);
+    if (!existing.rows[0]) return response.status(401).json({ error: "Account not found" });
+    if (!(await bcrypt.compare(String(request.body?.password || ""), existing.rows[0].password_hash))) return response.status(403).json({ error: "The password is incorrect" });
+    await database.query("delete from users where id = $1", [request.auth.sub]);
+    response.status(204).end();
   } catch (error) { next(error); }
 });
 

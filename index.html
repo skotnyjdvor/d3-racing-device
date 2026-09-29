@@ -461,6 +461,66 @@
         </div>
       </div>
     </section>
+    <section class="profile-page" id="profilePage" aria-labelledby="profileTitle">
+      <div class="profile-inner">
+        <header class="profile-head">
+          <span class="profile-avatar" id="profileAvatar" aria-hidden="true">?</span>
+          <div>
+            <p class="fx-meta"><span class="pulse-dot"></span><b>D3CF</b><i>//</i><span data-i18n="profile.meta"></span></p>
+            <h1 id="profileTitle" data-i18n="profile.title"></h1>
+            <p class="profile-email" id="profileEmail"></p>
+          </div>
+        </header>
+        <div class="profile-grid">
+          <section class="profile-card">
+            <p class="fx-kicker"><b>// 01</b><span data-i18n="profile.accountKicker"></span></p>
+            <dl class="profile-facts">
+              <div><dt data-i18n="profile.email"></dt><dd id="profileFactEmail">—</dd></div>
+              <div><dt data-i18n="profile.emailStatus"></dt><dd><span class="profile-badge" id="profileVerified">—</span></dd></div>
+              <div><dt data-i18n="profile.since"></dt><dd id="profileSince">—</dd></div>
+            </dl>
+            <div class="profile-verify" id="profileVerifyNotice" hidden>
+              <p data-i18n="account.unverified"></p>
+              <button class="secondary" id="profileResendButton" type="button" data-i18n="account.resend"></button>
+            </div>
+            <p class="profile-status" id="profileAccountStatus" role="status" aria-live="polite"></p>
+          </section>
+          <section class="profile-card">
+            <p class="fx-kicker"><b>// 02</b><span data-i18n="profile.activityKicker"></span></p>
+            <div class="profile-stats">
+              <a class="profile-stat" href="#logs"><strong id="profileStatLogs">—</strong><span data-i18n="profile.logs"></span></a>
+              <a class="profile-stat" href="#ai"><strong id="profileStatReports">—</strong><span data-i18n="profile.reports"></span></a>
+              <div class="profile-stat"><strong id="profileStatOrders">—</strong><span data-i18n="profile.orders"></span></div>
+            </div>
+          </section>
+          <section class="profile-card wide" id="profileOrders">
+            <p class="fx-kicker"><b>// 03</b><span data-i18n="profile.ordersKicker"></span></p>
+            <ul class="profile-order-list" id="profileOrderList"></ul>
+            <p class="profile-empty" id="profileOrdersEmpty" hidden><span data-i18n="profile.ordersEmpty"></span> <a href="#shop" data-i18n="profile.toShop"></a></p>
+          </section>
+          <section class="profile-card">
+            <p class="fx-kicker"><b>// 04</b><span data-i18n="profile.securityKicker"></span></p>
+            <form class="profile-form" id="profilePasswordForm" novalidate>
+              <label class="shop-field"><span data-i18n="profile.currentPassword"></span><input id="profileCurrentPassword" type="password" autocomplete="current-password" maxlength="200" /></label>
+              <label class="shop-field"><span data-i18n="profile.newPassword"></span><input id="profileNewPassword" type="password" autocomplete="new-password" maxlength="200" /></label>
+              <label class="shop-field"><span data-i18n="account.confirmPassword"></span><input id="profileRepeatPassword" type="password" autocomplete="new-password" maxlength="200" /></label>
+              <button class="primary profile-submit" id="profilePasswordSubmit" type="submit" data-i18n="profile.changePassword"></button>
+              <p class="profile-status" id="profilePasswordStatus" role="status" aria-live="polite"></p>
+            </form>
+          </section>
+          <section class="profile-card">
+            <p class="fx-kicker"><b>// 05</b><span data-i18n="profile.sessionKicker"></span></p>
+            <button class="secondary profile-signout" id="profileSignOutButton" type="button" data-i18n="account.signOut"></button>
+            <div class="profile-danger">
+              <h2 data-i18n="profile.dangerTitle"></h2>
+              <p data-i18n="profile.dangerText"></p>
+              <button class="profile-delete" id="profileDeleteButton" type="button" data-i18n="profile.deleteButton"></button>
+              <p class="profile-status" id="profileDeleteStatus" role="status" aria-live="polite"></p>
+            </div>
+          </section>
+        </div>
+      </div>
+    </section>
     <section class="logs-page" id="logsPage">
       <div class="logs-page-head">
         <div>
@@ -834,7 +894,7 @@
         <p class="eyebrow" id="confirmKicker">D3CF</p>
         <h2 id="confirmTitle"></h2>
         <p class="dialog-copy" id="confirmMessage"></p>
-        <label class="confirm-field" id="confirmField" hidden><span id="confirmFieldLabel"></span><input id="confirmInput" type="text" maxlength="100" autocomplete="off" /></label>
+        <label class="confirm-field" id="confirmField" hidden><span id="confirmFieldLabel"></span><input id="confirmInput" type="text" maxlength="200" autocomplete="off" /></label>
         <div class="confirm-actions">
           <button class="secondary" id="confirmCancel" type="button" data-i18n="dialog.cancel"></button>
           <button class="primary" id="confirmSubmit" type="submit"></button>
