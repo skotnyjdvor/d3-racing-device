@@ -17,6 +17,9 @@ const state = { client: null, connected: false, deviceName: "", deviceModel: "",
 const trackAiMarkerAreas = new WeakMap();
 const testMode = new URLSearchParams(location.search).has("mock");
 let accountMode = "signin";
+// AI report mode: "single" analyses one lap on its own, "compare" explains the difference between two laps.
+let aiModePreference = "single";
+try { if (localStorage.getItem("d3-ai-mode") === "compare") aiModePreference = "compare"; } catch {}
 let routedUrl = "";
 let aiRequestToken = 0;
 let aiHistoryRequestToken = 0;
@@ -68,6 +71,35 @@ function viewFromHash() {
   return "analysis";
 }
 
+// What will actually be analysed: comparison needs a second lap to be selected.
+function effectiveAiMode() {
+  return aiModePreference === "compare" && state.comparisonLapNumber && (state.analysis?.laps.length ?? 0) > 1 ? "compare" : "single";
+}
+
+function renderAiMode() {
+  const mode = effectiveAiMode();
+  elements.aiModeGroup.querySelectorAll("[data-ai-mode]").forEach((button) => {
+    button.setAttribute("aria-checked", String(button.dataset.aiMode === mode));
+    button.tabIndex = button.dataset.aiMode === mode ? 0 : -1;
+    if (button.dataset.aiMode === "compare") button.disabled = (state.analysis?.laps.length ?? 0) < 2;
+  });
+  elements.aiModeGroup.setAttribute("aria-label", t("ai.modeLabel"));
+  elements.aiLapControls.classList.toggle("single", mode === "single");
+  elements.aiPrimaryLapLabel.textContent = t(mode === "single" ? "ai.lapToAnalyse" : "laps.primary");
+}
+
+function setAiMode(mode) {
+  aiModePreference = mode === "compare" ? "compare" : "single";
+  try { localStorage.setItem("d3-ai-mode", aiModePreference); } catch {}
+  if (aiModePreference === "compare" && !state.comparisonLapNumber && state.analysis) {
+    // Switching to comparison picks the fastest other lap, the same default as when a session opens.
+    const other = [...state.analysis.laps].sort((a, b) => a.durationMs - b.durationMs).find((lap) => lap.number !== state.selectedLapNumber);
+    state.comparisonLapNumber = other?.number ?? null;
+  }
+  clearAiReport();
+  updateLapView();
+}
+
 function renderAiPageContext() {
   const session = state.selectedSession;
   elements.aiSessionSelect.innerHTML = state.sessions.length
@@ -84,6 +116,7 @@ function renderAiPageContext() {
   elements.aiComparisonLapSelect.disabled = laps.length < 2;
   elements.aiPrimaryLapSelect.value = state.selectedLapNumber ? String(state.selectedLapNumber) : "";
   elements.aiComparisonLapSelect.value = state.comparisonLapNumber ? String(state.comparisonLapNumber) : "";
+  renderAiMode();
 }
 
 function renderAiHistory() {
@@ -108,7 +141,7 @@ function renderAiHistory() {
     const primary = Number(item.primary_lap);
     const pair = Number.isFinite(comparison) && comparison > 0
       ? t("ai.historyPair", { primary, comparison })
-      : `${t("laps.legend", { lap: primary })} · ${t("laps.none")}`;
+      : t("ai.historySingle", { lap: primary });
     const language = ["ru", "en", "pl", "it"].includes(item.language) ? item.language.toUpperCase() : "RU";
     const current = item.id === state.aiAnalysisId ? " current" : "";
     return `<article class="ai-history-item${current}">
@@ -163,7 +196,13 @@ function openAiHistoryReport(id) {
   const primary = Number(saved.primary_lap);
   const comparison = Number(saved.comparison_lap);
   if (availableLaps.has(primary)) state.selectedLapNumber = primary;
-  state.comparisonLapNumber = availableLaps.has(comparison) && comparison !== state.selectedLapNumber ? comparison : null;
+  if (comparison > 0) {
+    aiModePreference = "compare";
+    state.comparisonLapNumber = availableLaps.has(comparison) && comparison !== state.selectedLapNumber ? comparison : null;
+  } else {
+    aiModePreference = "single";
+    if (state.comparisonLapNumber === state.selectedLapNumber) state.comparisonLapNumber = null;
+  }
   updateLapView();
   renderAiReport(saved.report, saved.id, saved.language || getLanguage());
   elements.copyStatus.textContent = t("ai.historyOpened");
@@ -489,7 +528,9 @@ function drawTrackCanvas(canvas) {
     context.beginPath(); context.moveTo(0, y); context.lineTo(width, y); context.stroke();
   }
   const primarySeries = distancePoints(lapPoints(state.selectedLapNumber), 1800);
-  const comparisonSeries = state.comparisonLapNumber ? distancePoints(lapPoints(state.comparisonLapNumber), 1800) : [];
+  // The AI map of a single-lap report shows only that lap.
+  const hideComparison = canvas === elements.aiTrackCanvas && state.aiReport?.analysisMode === "single-lap";
+  const comparisonSeries = state.comparisonLapNumber && !hideComparison ? distancePoints(lapPoints(state.comparisonLapNumber), 1800) : [];
   const primaryPoints = primarySeries.map((item) => item.point);
   const comparisonPoints = comparisonSeries.map((item) => item.point);
   const boundsPoints = [...primaryPoints, ...comparisonPoints];
@@ -691,12 +732,13 @@ function drawAiSegmentPreview(canvas, item, index) {
 }
 
 function drawAiSpeedPreview(canvas, item) {
+  const single = state.aiReport?.analysisMode === "single-lap";
   const primary = distancePoints(lapPoints(state.selectedLapNumber), 700);
-  const comparison = state.comparisonLapNumber ? distancePoints(lapPoints(state.comparisonLapNumber), 700) : [];
+  const comparison = !single && state.comparisonLapNumber ? distancePoints(lapPoints(state.comparisonLapNumber), 700) : [];
   const { context, width, height } = canvasContext(canvas);
   context.fillStyle = "#08080c";
   context.fillRect(0, 0, width, height);
-  if (primary.length < 2 || comparison.length < 2 || width < 2 || height < 2) return;
+  if (primary.length < 2 || (!single && comparison.length < 2) || width < 2 || height < 2) return;
 
   const focus = Math.max(0, Math.min(1, Number(item.distancePercent) / 100));
   const rawStart = Math.max(0, Math.min(1, Number(item.startPercent) / 100));
@@ -762,7 +804,7 @@ function drawAiSpeedPreview(canvas, item) {
   context.textBaseline = "middle";
   const legends = [
     { x: 10, color: "#f4f4ee", label: t("laps.legend", { lap: state.selectedLapNumber }) },
-    { x: Math.min(width / 2, 116), color: "#e10600", label: t("laps.legend", { lap: state.comparisonLapNumber }) },
+    ...(single ? [] : [{ x: Math.min(width / 2, 116), color: "#e10600", label: t("laps.legend", { lap: state.comparisonLapNumber }) }]),
   ];
   legends.forEach((legend) => {
     context.fillStyle = legend.color; context.fillRect(legend.x, 10, 12, 2);
@@ -1304,6 +1346,10 @@ function renderAiReport(report, analysisId, reportLanguage = getLanguage()) {
   state.aiSelectedIndex = null;
   elements.aiResults.hidden = false;
   elements.aiTrackLegend.hidden = !(report.timeLosses || []).length;
+  const singleLap = report.analysisMode === "single-lap";
+  elements.aiTrackComparisonLegend.hidden = singleLap;
+  elements.aiFollowupCopy.textContent = t(singleLap ? "ai.followupCopySingle" : "ai.followupCopy");
+  elements.aiQuestion.placeholder = t(singleLap ? "ai.placeholderSingle" : "ai.placeholder");
   elements.aiReportJumpButton.classList.add("ready");
   const strengths = (report.strengths || []).map((item) => `
     <article class="ai-report-card"><strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(item.evidence)}</span></article>`).join("");
@@ -1361,7 +1407,8 @@ async function runAiAnalysis() {
   if (!cloudId) { elements.copyStatus.textContent = t("ai.cloudRequired"); return; }
   const requestLanguage = getLanguage();
   const requestPrimaryLap = state.selectedLapNumber;
-  const requestComparisonLap = state.comparisonLapNumber;
+  const requestMode = effectiveAiMode();
+  const requestComparisonLap = requestMode === "compare" ? state.comparisonLapNumber : null;
   const requestToken = ++aiRequestToken;
   state.aiPending = true;
   elements.analyzeAiButton.disabled = true;
@@ -1369,6 +1416,7 @@ async function runAiAnalysis() {
   elements.copyStatus.textContent = t("ai.analyzing");
   try {
     const result = await analyzeLog(cloudId, {
+      mode: requestMode,
       primaryLap: requestPrimaryLap,
       comparisonLap: requestComparisonLap,
       question: "",
@@ -1387,7 +1435,8 @@ async function runAiAnalysis() {
       elements.analyzeAiButton.textContent = t("ai.analyze");
       const sameComparison = state.selectedSession?.cloudId === cloudId
         && state.selectedLapNumber === requestPrimaryLap
-        && state.comparisonLapNumber === requestComparisonLap;
+        && effectiveAiMode() === requestMode
+        && (requestMode === "single" || state.comparisonLapNumber === requestComparisonLap);
       if (sameComparison && requestLanguage !== getLanguage()) void runAiAnalysis();
     }
   }
@@ -1969,6 +2018,18 @@ const stepSession = (offset) => {
 };
 elements.sessionNewerButton.addEventListener("click", () => stepSession(-1));
 elements.sessionOlderButton.addEventListener("click", () => stepSession(1));
+elements.aiModeGroup.querySelectorAll("[data-ai-mode]").forEach((button) => button.addEventListener("click", () => {
+  if (button.dataset.aiMode !== effectiveAiMode()) setAiMode(button.dataset.aiMode);
+}));
+elements.aiModeGroup.addEventListener("keydown", (event) => {
+  if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
+  event.preventDefault();
+  const next = effectiveAiMode() === "single" ? "compare" : "single";
+  const target = elements.aiModeGroup.querySelector(`[data-ai-mode="${next}"]`);
+  if (target.disabled) return;
+  setAiMode(next);
+  target.focus();
+});
 elements.aiSessionSelect.addEventListener("change", async () => {
   if (elements.aiSessionSelect.value) await selectSession(elements.aiSessionSelect.value);
 });

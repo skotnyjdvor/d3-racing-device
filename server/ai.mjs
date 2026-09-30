@@ -3,6 +3,7 @@ import { analyzeSession } from "../src/domain/analysis.js";
 import { splitSessionIntoLaps } from "../src/domain/laps.js";
 import { extractLapEvents } from "../src/domain/lap-events.js";
 import { detectDeltaLossZones } from "../src/domain/delta-losses.js";
+import { detectLapOpportunities } from "../src/domain/lap-opportunities.js";
 import { TRACKS } from "../src/domain/track-catalog.js";
 import { distanceMeters, identifyTrack } from "../src/domain/tracks.js";
 
@@ -204,6 +205,65 @@ function locationAroundCorner(corners, distancePercent) {
   return { driverLocation: ranked[0].driverLocation, cornerId: ranked[0].corner.id };
 }
 
+const snapshotLanguage = (language) => (["ru", "en", "pl", "it"].includes(language) ? language : "ru");
+export const isSingleLapSnapshot = (snapshot) => String(snapshot?.analysisMode || "").startsWith("single-lap");
+const OPPORTUNITY_PHASE = { braking: "braking", coasting: "coasting", cornerSpeed: "corner", lateThrottle: "acceleration" };
+
+// One lap analysed on its own: no comparison lap, the zones come from detectLapOpportunities.
+function buildSingleLapSnapshot({ options, track, prepared, analysis, primaryLap, lapTimes }) {
+  const points = prepared.filter((point) => point.lap === primaryLap);
+  const lap = analysis.laps.find((item) => item.number === primaryLap);
+  const events = extractLapEvents(points);
+  const detailed = lapProfile(points, 400);
+  const found = detectLapOpportunities(points);
+  const place = (distancePercent) => locationAroundCorner(events.corners, distancePercent);
+  const speedAt = (distancePercent) => detailed[Math.max(0, Math.min(detailed.length - 1, Math.round(distancePercent * 4)))]?.speedKph ?? null;
+  return {
+    schema: "laptrace-telemetry-snapshot/v10",
+    analysisMode: "single-lap/v1",
+    language: snapshotLanguage(options.language),
+    question: String(options.question || "").trim().slice(0, 500),
+    track: track ? { id: track.id, name: track.name } : null,
+    session: {
+      startedAt: analysis.startedAt,
+      sampleRateHz: rounded(analysis.sampleRateHz, 1),
+      completedLaps: analysis.laps.length,
+      lapTimeSpreadSeconds: analysis.laps.length > 1 ? rounded(Math.max(...lapTimes) - Math.min(...lapTimes)) : 0,
+      dataQuality: analysis.quality,
+    },
+    lap: {
+      number: primaryLap,
+      timeSeconds: rounded(lap.durationMs / 1000),
+      isFastestLap: analysis.fastestLap?.number === primaryLap,
+      averageSpeedKph: rounded(lap.averageSpeed, 1),
+      maxSpeedKph: rounded(lap.maxSpeed, 1),
+      trace: lapProfile(points),
+      detectedPhases: {
+        methodology: "Braking and acceleration use smoothed GPS speed derivative; corners use smoothed absolute lateral acceleration; apex is the minimum-speed sample inside a corner.",
+        ...events,
+      },
+      references: {
+        methodology: "What this lap already achieves: strongestBrakingG is its hardest braking, cornerGripG its typical peak cornering load (95th percentile inside corners).",
+        ...found.references,
+      },
+      cornerGripUse: found.corners.map((corner) => ({ ...corner, ...place(corner.apexPercent) })),
+      opportunities: {
+        methodology: "Authoritative zones where this lap probably leaves time, found from this lap alone. braking: braking uses clearly less combined grip than the lap's strongest braking. coasting: after lifting off the car rolls before the brakes bite. cornerSpeed: the slowest part of the corner uses clearly less cornering grip than the lap's other corners. lateThrottle: acceleration starts late after the slowest point although the car is below the grip limit. estimatedGainSeconds is a rough physics estimate for ranking, not a measured loss. evidenceStrength says how clear the signal is.",
+        zones: found.zones.map((zone) => ({
+          ...zone,
+          phaseType: OPPORTUNITY_PHASE[zone.type],
+          ...place(zone.distancePercent),
+          speedKph: speedAt(zone.distancePercent),
+          gForces: summarizeGForZone(detailed, zone),
+        })),
+      },
+      highlights: found.highlights.map((highlight) => ({ ...highlight, ...place(highlight.distancePercent) })),
+    },
+    comparison: { primaryLap, comparisonLap: null },
+    sensorWarning: "Accelerometer signs depend on mounting. Treat causal claims as hypotheses unless supported by multiple signals.",
+  };
+}
+
 export function buildTelemetrySnapshot(points, options = {}) {
   const track = identifyTrack(points, TRACKS);
   const prepared = splitSessionIntoLaps(points, track);
@@ -213,6 +273,10 @@ export function buildTelemetrySnapshot(points, options = {}) {
   const comparisonLap = available.includes(Number(options.comparisonLap)) && Number(options.comparisonLap) !== primaryLap
     ? Number(options.comparisonLap)
     : analysis.laps.find((lap) => lap.number !== primaryLap)?.number ?? null;
+  // A single lap is analysed on request, or when the session has no second lap to compare with.
+  if (primaryLap && (options.mode === "single" || !comparisonLap)) {
+    return buildSingleLapSnapshot({ options, track, prepared, analysis, primaryLap, lapTimes: analysis.laps.map((lap) => lap.durationMs / 1000) });
+  }
   const primaryPoints = prepared.filter((point) => point.lap === primaryLap);
   const comparisonPoints = comparisonLap ? prepared.filter((point) => point.lap === comparisonLap) : [];
   const primaryProfile = lapProfile(primaryPoints);
@@ -292,7 +356,77 @@ export function snapshotCacheKey(logId, snapshot, model = AI_MODEL) {
   return createHash("sha256").update(JSON.stringify({ logId, model, snapshot })).digest("hex");
 }
 
+// Plain fallback text per single-lap zone type, used when the model skips a zone.
+const SINGLE_LAP_FALLBACK = {
+  ru: {
+    braking: ["Здесь торможение заметно мягче, чем в других зонах этого круга.", "Возможно, торможение начинается раньше, чем нужно, и идёт вполсилы.", "Попробуйте тормозить чуть позже и сразу сильнее, как на самом сильном торможении круга."],
+    coasting: ["Перед торможением машина какое-то время катится без газа и без тормоза.", "Возможно, газ отпускается раньше, чем нужно.", "Держите газ дольше и переходите на тормоз одним движением."],
+    cornerSpeed: ["В самой медленной части поворота машина использует меньше сцепления, чем в других поворотах круга.", "Возможно, скорость сброшена сильнее, чем требует поворот.", "Попробуйте пронести через поворот немного больше скорости и отпускать тормоз раньше."],
+    lateThrottle: ["После самой медленной точки поворота разгон начинается с задержкой.", "Возможно, газ открывается позже, чем позволяет сцепление.", "Начинайте плавно открывать газ сразу после самой медленной точки."],
+  },
+  en: {
+    braking: ["Braking here is clearly softer than in other braking zones of this lap.", "The braking may start too early and stay too light.", "Try braking a little later and harder straight away, like in the strongest braking zone of the lap."],
+    coasting: ["Before braking the car rolls for a while with neither throttle nor brake.", "You may be lifting off earlier than needed.", "Stay on the throttle longer and go straight from throttle to brake."],
+    cornerSpeed: ["In the slowest part of the corner the car uses less grip than in other corners of this lap.", "The car may be slowed down more than the corner needs.", "Try to carry a little more speed through the corner and release the brake earlier."],
+    lateThrottle: ["After the slowest point of the corner the acceleration starts late.", "The throttle may be opened later than the grip allows.", "Start opening the throttle smoothly right after the slowest point."],
+  },
+  pl: {
+    braking: ["Hamowanie jest tu wyraźnie łagodniejsze niż w innych strefach tego okrążenia.", "Możliwe, że hamowanie zaczyna się za wcześnie i jest zbyt słabe.", "Spróbuj hamować nieco później i od razu mocniej, jak w najmocniejszej strefie hamowania okrążenia."],
+    coasting: ["Przed hamowaniem pojazd przez chwilę toczy się bez gazu i bez hamulca.", "Możliwe, że gaz jest puszczany wcześniej niż trzeba.", "Trzymaj gaz dłużej i przechodź z gazu na hamulec jednym ruchem."],
+    cornerSpeed: ["W najwolniejszej części zakrętu pojazd wykorzystuje mniej przyczepności niż w innych zakrętach okrążenia.", "Możliwe, że prędkość jest zbijana bardziej, niż wymaga zakręt.", "Spróbuj przenieść przez zakręt trochę więcej prędkości i wcześniej zwalniać hamulec."],
+    lateThrottle: ["Po najwolniejszym punkcie zakrętu przyspieszanie zaczyna się z opóźnieniem.", "Możliwe, że gaz jest otwierany później, niż pozwala przyczepność.", "Zaczynaj płynnie dodawać gazu zaraz po najwolniejszym punkcie."],
+  },
+  it: {
+    braking: ["Qui la frenata è nettamente più morbida che nelle altre frenate del giro.", "Forse la frenata inizia troppo presto e resta troppo leggera.", "Prova a frenare un po' più tardi e subito più forte, come nella frenata più decisa del giro."],
+    coasting: ["Prima della frenata l'auto scorre per un po' senza gas e senza freno.", "Forse rilasci il gas prima del necessario.", "Tieni il gas più a lungo e passa dal gas al freno con un solo movimento."],
+    cornerSpeed: ["Nella parte più lenta della curva l'auto sfrutta meno aderenza che nelle altre curve del giro.", "Forse la velocità viene ridotta più di quanto richieda la curva.", "Prova a portare un po' più di velocità in curva e a rilasciare il freno prima."],
+    lateThrottle: ["Dopo il punto più lento della curva l'accelerazione parte in ritardo.", "Forse apri il gas più tardi di quanto consenta l'aderenza.", "Inizia ad aprire il gas in modo progressivo subito dopo il punto più lento."],
+  },
+};
+const CONFIDENCE_ORDER = ["low", "medium", "high"];
+const EVIDENCE_CAP = { strong: "high", moderate: "medium", weak: "low" };
+const lowerConfidence = (a, b) => CONFIDENCE_ORDER[Math.min(CONFIDENCE_ORDER.indexOf(a), CONFIDENCE_ORDER.indexOf(b))] ?? "low";
+
+function groundSingleLapReport(report, snapshot) {
+  const zones = snapshot.lap?.opportunities?.zones || [];
+  const qualityLevel = snapshot.session?.dataQuality?.assessment?.level || "good";
+  const qualityCap = qualityLevel === "poor" ? "low" : qualityLevel === "warning" ? "medium" : "high";
+  const texts = SINGLE_LAP_FALLBACK[snapshot.language] || SINGLE_LAP_FALLBACK.en;
+  const generatedByZone = new Map((report.timeLosses || []).map((item) => [item.zoneId, item]));
+  return {
+    ...report,
+    analysisMode: "single-lap",
+    lapNumber: snapshot.lap?.number ?? null,
+    consistency: { ...report.consistency, lapTimeSpreadSeconds: snapshot.session?.lapTimeSpreadSeconds ?? 0 },
+    timeLosses: zones.map((zone) => {
+      const generated = generatedByZone.get(zone.id) || {};
+      const [observation, hypothesis, recommendation] = texts[zone.type] || texts.cornerSpeed;
+      const generatedConfidence = CONFIDENCE_ORDER.includes(generated.confidence) ? generated.confidence : "low";
+      return {
+        zoneId: zone.id,
+        observation: generated.observation || observation,
+        hypothesis: generated.hypothesis || hypothesis,
+        recommendation: generated.recommendation || recommendation,
+        confidence: lowerConfidence(lowerConfidence(generatedConfidence, EVIDENCE_CAP[zone.evidenceStrength] || "low"), qualityCap),
+        opportunityType: zone.type,
+        evidenceStrength: zone.evidenceStrength,
+        estimatedGainSeconds: zone.estimatedGainSeconds,
+        distancePercent: zone.distancePercent,
+        startPercent: zone.startPercent,
+        endPercent: zone.endPercent,
+        phaseType: zone.phaseType,
+        driverLocation: zone.driverLocation,
+        cornerId: zone.cornerId,
+        primarySpeedKph: zone.speedKph,
+        comparisonSpeedKph: null,
+        gForces: zone.gForces,
+      };
+    }),
+  };
+}
+
 export function groundAiReport(report, snapshot) {
+  if (isSingleLapSnapshot(snapshot)) return groundSingleLapReport(report, snapshot);
   const zones = snapshot.comparison?.deltaLossZones?.zones || [];
   const qualityLevel = snapshot.session?.dataQuality?.assessment?.level || "good";
   const generatedByZone = new Map((report.timeLosses || []).map((item) => [item.zoneId, item]));
@@ -340,6 +474,47 @@ export function groundAiReport(report, snapshot) {
   };
 }
 
+const SHARED_CLOSING_INSTRUCTIONS = [
+  "Treat corner direction labels as sensor polarity, not guaranteed left/right direction.",
+  "Separate observations from hypotheses. Never invent track geometry, driver inputs, or vehicle setup.",
+  "Use the requested language. Keep recommendations specific and testable.",
+  "When data quality is insufficient, add a warning and lower confidence.",
+  "Treat session.dataQuality.assessment as authoritative: never use high confidence when it reports warning, and use only low confidence when it reports poor.",
+];
+
+const COMPARISON_INSTRUCTIONS = [
+  "You are a racing coach who explains measured telemetry in language every track driver can understand.",
+  AI_PILOT_LANGUAGE_RULES,
+  AI_STANDARD_REPORT_RULES,
+  "Use only facts present in the telemetry snapshot.",
+  "When the snapshot question is empty, produce the standard engineering report: summary, strongest measured advantages, every authoritative loss zone, consistency, and data limitations.",
+  "Use detectedPhases to compare braking points, corner entry, middle, exit speeds, and acceleration zones, but describe the result only through driverLocation.",
+  "deltaLossZones is authoritative and describes where the comparison lap loses time to the primary lap: return exactly one timeLosses item for each supplied zone and reference it only by zoneId.",
+  "For every time-loss zone, compare gForces.primary with gForces.comparison. atLossPoint contains exact longitudinal and lateral G at the strongest delta change; zone contains measured means and signed peaks across the interval.",
+  "Use longitudinal G to support braking or acceleration hypotheses and lateral G to support cornering-load hypotheses, but account for the mounting-dependent sign and do not treat G-force alone as driver input.",
+  "Never invent or alter a loss position, delta value, phase ID, or zone ID. Explain possible causes only from the supplied signals.",
+  ...SHARED_CLOSING_INSTRUCTIONS,
+];
+
+export const SINGLE_LAP_INSTRUCTIONS = [
+  "You are a racing coach who explains measured telemetry in language every track driver can understand.",
+  AI_PILOT_LANGUAGE_RULES,
+  AI_STANDARD_REPORT_RULES,
+  "Use only facts present in the telemetry snapshot.",
+  "This report analyses one lap on its own. There is no comparison lap: never compare with another lap or mention other laps, except in the consistency section.",
+  "lap.opportunities.zones is authoritative: each zone is a place where this lap probably leaves time, found from this lap's own data. Return exactly one timeLosses item for each zone and reference it only by zoneId.",
+  "Zone types: braking means braking there uses clearly less grip than the strongest braking this lap already shows; coasting means that after lifting off the car rolls before the brakes really bite; cornerSpeed means the slowest part of the corner uses clearly less cornering grip than the other corners of this lap, so the minimum speed could probably be higher; lateThrottle means acceleration starts late after the slowest point of the corner although the car is not at the grip limit.",
+  "lap.references and lap.cornerGripUse describe what this lap already achieves. Frame advice as doing in the weak place what the driver already does elsewhere on this lap.",
+  "estimatedGainSeconds is a rough physics estimate used for ranking, not a measured loss: use it only to decide what matters most in the summary and never present it as a fact.",
+  "Judge certainty from evidence and evidenceStrength. Layout, kerbs, surface grip, traffic or a deliberate line can also explain a zone: for weak evidence phrase the observation as a possibility.",
+  "Set confidence to at most high for strong evidence, at most medium for moderate evidence, and low for weak evidence.",
+  "Build strengths from lap.highlights and lap.detectedPhases: the strongest braking, the best-used corner, top speed, and clean corner exits.",
+  "In consistency: when session.completedLaps is one, say that lap-to-lap consistency cannot be judged from a single lap and set lapTimeSpreadSeconds to 0; otherwise describe session.lapTimeSpreadSeconds qualitatively and copy it into lapTimeSpreadSeconds.",
+  "Use lateral G in zone gForces to support cornering-load hypotheses; longitudinal G signs depend on mounting, so prefer the speed-based evidence for braking and acceleration.",
+  "Never invent or alter a zone position, phase ID, or zone ID. Explain possible causes only from the supplied signals.",
+  ...SHARED_CLOSING_INSTRUCTIONS,
+];
+
 function outputText(response) {
   for (const item of response.output || []) {
     for (const content of item.content || []) {
@@ -362,23 +537,7 @@ export async function generateAiReport(snapshot, { apiKey = getOpenAiApiKey(), m
       model,
       store: false,
       reasoning: { effort: "medium" },
-      instructions: [
-        "You are a racing coach who explains measured telemetry in language every track driver can understand.",
-        AI_PILOT_LANGUAGE_RULES,
-        AI_STANDARD_REPORT_RULES,
-        "Use only facts present in the telemetry snapshot.",
-        "When the snapshot question is empty, produce the standard engineering report: summary, strongest measured advantages, every authoritative loss zone, consistency, and data limitations.",
-        "Use detectedPhases to compare braking points, corner entry, middle, exit speeds, and acceleration zones, but describe the result only through driverLocation.",
-        "deltaLossZones is authoritative and describes where the comparison lap loses time to the primary lap: return exactly one timeLosses item for each supplied zone and reference it only by zoneId.",
-        "For every time-loss zone, compare gForces.primary with gForces.comparison. atLossPoint contains exact longitudinal and lateral G at the strongest delta change; zone contains measured means and signed peaks across the interval.",
-        "Use longitudinal G to support braking or acceleration hypotheses and lateral G to support cornering-load hypotheses, but account for the mounting-dependent sign and do not treat G-force alone as driver input.",
-        "Never invent or alter a loss position, delta value, phase ID, or zone ID. Explain possible causes only from the supplied signals.",
-        "Treat corner direction labels as sensor polarity, not guaranteed left/right direction.",
-        "Separate observations from hypotheses. Never invent track geometry, driver inputs, or vehicle setup.",
-        "Use the requested language. Keep recommendations specific and testable.",
-        "When data quality is insufficient, add a warning and lower confidence.",
-        "Treat session.dataQuality.assessment as authoritative: never use high confidence when it reports warning, and use only low confidence when it reports poor.",
-      ].join(" "),
+      instructions: (isSingleLapSnapshot(snapshot) ? SINGLE_LAP_INSTRUCTIONS : COMPARISON_INSTRUCTIONS).join(" "),
       input: JSON.stringify(snapshot),
       text: {
         verbosity: "low",
@@ -420,7 +579,8 @@ export async function generateAiFollowUp(snapshot, report, question, { apiKey = 
       instructions: [
         "You are answering a follow-up question about an existing motorsport telemetry report.",
         AI_PILOT_LANGUAGE_RULES,
-        "Use only the supplied telemetry snapshot and grounded report. Do not move, add, or reinterpret authoritative delta-loss zones.",
+        "Use only the supplied telemetry snapshot and grounded report. Do not move, add, or reinterpret the authoritative zones: delta-loss zones when two laps are compared, lap opportunity zones when snapshot.analysisMode is single-lap.",
+        "When snapshot.analysisMode is single-lap there is no comparison lap: answer about that lap only.",
         "Support the answer with measured lap time, speed, longitudinal G, lateral G, delta, phase, or data-quality evidence from the input.",
         "Clearly distinguish measured observations from hypotheses. Accelerometer signs depend on device mounting.",
         "If the question cannot be answered from the supplied data, say so directly and add a data warning.",

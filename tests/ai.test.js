@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { parseRaceBoxCsv } from "../src/domain/csv.js";
-import { AI_FOLLOWUP_SCHEMA, AI_PILOT_LANGUAGE_RULES, AI_REPORT_SCHEMA, AI_STANDARD_REPORT_RULES, buildTelemetrySnapshot, generateAiFollowUp, groundAiReport, snapshotCacheKey } from "../server/ai.mjs";
+import { AI_FOLLOWUP_SCHEMA, AI_PILOT_LANGUAGE_RULES, AI_REPORT_SCHEMA, AI_STANDARD_REPORT_RULES, SINGLE_LAP_INSTRUCTIONS, buildTelemetrySnapshot, generateAiFollowUp, groundAiReport, isSingleLapSnapshot, snapshotCacheKey } from "../server/ai.mjs";
 
 const points = parseRaceBoxCsv(fs.readFileSync(new URL("../src/fixtures/viterbo-session-2026-07-10.csv", import.meta.url), "utf8"));
 
@@ -98,4 +98,93 @@ test("fallback AI loss text does not expose exact telemetry figures", () => {
   const report = groundAiReport({ timeLosses: [] }, snapshot);
   assert.doesNotMatch(report.timeLosses[0].observation, /\d/);
   assert.doesNotMatch(report.timeLosses[0].recommendation, /\d/);
+});
+
+test("single-lap mode builds a snapshot about one lap without a comparison lap", () => {
+  const snapshot = buildTelemetrySnapshot(points, { primaryLap: 5, comparisonLap: 3, mode: "single", language: "en" });
+  assert.ok(isSingleLapSnapshot(snapshot));
+  assert.equal(snapshot.schema, "laptrace-telemetry-snapshot/v10");
+  assert.equal(snapshot.lap.number, 5);
+  assert.equal(snapshot.comparison.primaryLap, 5);
+  assert.equal(snapshot.comparison.comparisonLap, null);
+  assert.equal(snapshot.lap.trace.length, 41);
+  assert.ok(snapshot.lap.detectedPhases.corners.length >= 8);
+  assert.ok(snapshot.lap.references.strongestBrakingG > 0.5);
+  const zones = snapshot.lap.opportunities.zones;
+  assert.ok(zones.length >= 1);
+  assert.ok(zones.every((zone) => /^O\d+$/.test(zone.id)));
+  assert.ok(zones.every((zone) => ["beforeCorner", "inCorner", "afterCorner", "betweenCorners"].includes(zone.driverLocation)));
+  assert.ok(zones.every((zone) => ["braking", "coasting", "corner", "acceleration"].includes(zone.phaseType)));
+  assert.ok(zones.every((zone) => Number.isFinite(zone.speedKph) && Number.isFinite(zone.gForces.zone.meanAbsoluteLateralG)));
+  assert.ok(snapshot.lap.highlights.length >= 2);
+  const text = JSON.stringify(snapshot);
+  assert.ok(!text.includes("deltaLossZones") && !text.includes("comparisonSpeedKph"), "no comparison data leaks into the single-lap snapshot");
+  assert.ok(text.length < 25_000);
+});
+
+test("a session with one completed lap falls back to single-lap analysis", () => {
+  const firstLapOnly = buildTelemetrySnapshot(points.slice(0, 3000), { primaryLap: 1, comparisonLap: 2 });
+  if (firstLapOnly.session.completedLaps === 1) {
+    assert.ok(isSingleLapSnapshot(firstLapOnly));
+    assert.equal(firstLapOnly.session.lapTimeSpreadSeconds, 0);
+  } else {
+    assert.equal(isSingleLapSnapshot(firstLapOnly), false);
+  }
+});
+
+test("single-lap and comparison reports never share a cache entry", () => {
+  const single = buildTelemetrySnapshot(points, { primaryLap: 4, comparisonLap: 6, mode: "single" });
+  const compare = buildTelemetrySnapshot(points, { primaryLap: 4, comparisonLap: 6, mode: "compare" });
+  assert.notEqual(snapshotCacheKey("log-1", single), snapshotCacheKey("log-1", compare));
+});
+
+test("single-lap grounding keeps deterministic zones and caps confidence by evidence and data quality", () => {
+  const snapshot = buildTelemetrySnapshot(points, { primaryLap: 5, mode: "single", language: "ru" });
+  const zones = snapshot.lap.opportunities.zones;
+  const strong = zones.find((zone) => zone.evidenceStrength === "strong");
+  const weak = zones.find((zone) => zone.evidenceStrength === "weak");
+  assert.ok(strong && weak);
+  const report = groundAiReport({
+    summary: "S", strengths: [], dataWarnings: [], consistency: { assessment: "A", lapTimeSpreadSeconds: 9 },
+    timeLosses: zones.map((zone) => ({ zoneId: zone.id, distancePercent: 1, observation: "Obs", hypothesis: "Hyp", recommendation: "Rec", confidence: "high" })),
+  }, snapshot);
+  assert.equal(report.analysisMode, "single-lap");
+  assert.equal(report.lapNumber, 5);
+  assert.equal(report.consistency.lapTimeSpreadSeconds, snapshot.session.lapTimeSpreadSeconds);
+  assert.equal(report.timeLosses.length, zones.length);
+  const groundedStrong = report.timeLosses.find((item) => item.zoneId === strong.id);
+  const groundedWeak = report.timeLosses.find((item) => item.zoneId === weak.id);
+  assert.equal(groundedStrong.distancePercent, strong.distancePercent);
+  assert.equal(groundedStrong.opportunityType, strong.type);
+  assert.equal(groundedStrong.comparisonSpeedKph, null);
+  assert.equal(groundedStrong.confidence, "medium", "the fixture's data quality is 'warning', so high is capped");
+  assert.equal(groundedWeak.confidence, "low");
+
+  const good = structuredClone(snapshot);
+  good.session.dataQuality.assessment.level = "good";
+  assert.equal(groundAiReport({ timeLosses: [{ zoneId: strong.id, observation: "O", hypothesis: "H", recommendation: "R", confidence: "high" }] }, good)
+    .timeLosses.find((item) => item.zoneId === strong.id).confidence, "high");
+});
+
+test("single-lap fallback text is typed, localised and free of figures", () => {
+  for (const language of ["ru", "en", "pl", "it"]) {
+    const snapshot = buildTelemetrySnapshot(points, { primaryLap: 7, mode: "single", language });
+    const report = groundAiReport({ timeLosses: [] }, snapshot);
+    assert.ok(report.timeLosses.length >= 1);
+    for (const item of report.timeLosses) {
+      assert.ok(item.observation.length > 20 && item.recommendation.length > 20);
+      assert.doesNotMatch(item.observation + item.hypothesis + item.recommendation, /\d/);
+    }
+  }
+  const ru = groundAiReport({ timeLosses: [] }, buildTelemetrySnapshot(points, { primaryLap: 7, mode: "single", language: "ru" }));
+  assert.match(ru.timeLosses.find((item) => item.opportunityType === "braking").observation, /торможение/);
+});
+
+test("single-lap instructions forbid comparisons and explain the zone types", () => {
+  const text = SINGLE_LAP_INSTRUCTIONS.join(" ");
+  assert.match(text, /There is no comparison lap/);
+  assert.match(text, /lap\.opportunities\.zones is authoritative/);
+  assert.match(text, /cornerSpeed/);
+  assert.match(text, /never present it as a fact/);
+  assert.match(text, /Do not include digits/);
 });

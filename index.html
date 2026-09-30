@@ -921,10 +921,14 @@
             <span data-i18n="aiPage.selected"></span>
             <select id="aiSessionSelect"></select>
           </label>
-          <div class="ai-lap-controls">
-            <label><span data-i18n="laps.primary"></span><select id="aiPrimaryLapSelect"></select></label>
+          <div class="ai-mode" id="aiModeGroup" role="radiogroup" aria-label="Analysis mode">
+            <button type="button" role="radio" aria-checked="true" data-ai-mode="single"><b data-i18n="ai.modeSingle"></b><small data-i18n="ai.modeSingleHint"></small></button>
+            <button type="button" role="radio" aria-checked="false" data-ai-mode="compare"><b data-i18n="ai.modeCompare"></b><small data-i18n="ai.modeCompareHint"></small></button>
+          </div>
+          <div class="ai-lap-controls" id="aiLapControls">
+            <label><span id="aiPrimaryLapLabel"></span><select id="aiPrimaryLapSelect"></select></label>
             <span class="lap-vs">VS</span>
-            <label><span data-i18n="laps.compare"></span><select id="aiComparisonLapSelect"></select></label>
+            <label class="ai-comparison-control"><span data-i18n="laps.compare"></span><select id="aiComparisonLapSelect"></select></label>
           </div>
           <button class="secondary" id="aiBackButton" type="button" data-i18n="aiPage.back"></button>
         </div>
@@ -955,7 +959,7 @@
             <canvas id="aiTrackCanvas"></canvas>
             <div class="legend trajectory-legend">
               <span class="trajectory-primary" data-i18n="laps.primary"></span>
-              <span class="trajectory-comparison" data-i18n="laps.compare"></span>
+              <span class="trajectory-comparison" id="aiTrackComparisonLegend" data-i18n="laps.compare"></span>
               <span class="trajectory-ai">AI POINTS</span>
             </div>
           </article>
@@ -964,7 +968,7 @@
             <section class="ai-followup" id="aiFollowup" hidden>
               <p class="eyebrow" data-i18n="ai.followupKicker"></p>
               <h2 data-i18n="ai.followupTitle"></h2>
-              <p data-i18n="ai.followupCopy"></p>
+              <p id="aiFollowupCopy" data-i18n="ai.followupCopy"></p>
               <div class="ai-actions">
                 <textarea id="aiQuestion" rows="3" data-i18n-placeholder="ai.placeholder"></textarea>
                 <button class="primary" id="askAiButton" type="button" disabled data-i18n="ai.ask"></button>

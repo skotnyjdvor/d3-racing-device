@@ -1655,3 +1655,17 @@ html .trial-actions .secondary:hover { border-color: var(--race-text); }
   .trial-banner { padding: 14px; }
   .trial-actions, html .trial-actions .primary, html .trial-actions .secondary { width: 100%; }
 }
+
+/* ---------- AI mode: one lap or two laps ---------- */
+.ai-mode { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--race-line); border: 1px solid var(--race-line); }
+.ai-page-context .ai-mode button { margin: 0; }
+.ai-mode button { min-height: 58px; padding: 10px 12px; display: grid; align-content: center; gap: 4px; color: var(--race-text-2); background: var(--race-bg); border: 0; text-align: left; cursor: pointer; transition: background-color .15s, color .15s, box-shadow .15s; }
+.ai-mode button b { color: var(--race-text); font: 700 12px/1.2 var(--font-code); letter-spacing: .12em; text-transform: uppercase; }
+.ai-mode button small { color: var(--race-muted); font: 400 12px/1.35 var(--font-body); }
+.ai-mode button:hover:not(:disabled) { background: rgba(255,255,255,.04); }
+.ai-mode button[aria-checked="true"] { background: rgba(225,6,0,.1); box-shadow: inset 0 -2px 0 var(--race-red); }
+.ai-mode button[aria-checked="true"] b { color: var(--race-curb); }
+.ai-mode button:focus-visible { outline: 1px solid var(--race-red); outline-offset: -3px; }
+.ai-mode button:disabled { opacity: .45; cursor: not-allowed; }
+html .ai-lap-controls.single { grid-template-columns: minmax(0, 1fr); }
+html .ai-lap-controls.single .lap-vs, html .ai-lap-controls.single .ai-comparison-control { display: none; }

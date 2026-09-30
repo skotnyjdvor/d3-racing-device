@@ -70,8 +70,9 @@ function baseEvent(range, distance, totalDistance, times) {
   };
 }
 
-export function extractLapEvents(points) {
-  if (!Array.isArray(points) || points.length < 5) return { corners: [], brakingZones: [], accelerationZones: [] };
+// Smoothed per-sample signals of one lap: speed (km/h), signed lateral G, distance (m) and GPS-speed
+// derivative (m/s², the only longitudinal signal whose sign does not depend on how the device is mounted).
+export function lapSignals(points) {
   const times = points.map((point) => finite(point.timeMs));
   const intervals = times.slice(1).map((time, index) => time - times[index]).filter((value) => value > 0);
   const samplePeriodMs = median(intervals);
@@ -90,11 +91,24 @@ export function extractLapEvents(points) {
     const seconds = (times[after] - times[before]) / 1000;
     return seconds > 0 ? ((speeds[after] - speeds[before]) / 3.6) / seconds : 0;
   });
-  const options = { mergeGapMs: 360, minDurationMs: 360 };
+  return { times, samplePeriodMs, smoothRadius, speeds, lateral, distance, totalDistance, acceleration };
+}
 
-  const cornerRanges = rangesFromLabels(lateral.map((value, index) => Math.abs(value) >= 0.3 && speeds[index] >= 12 ? Math.sign(value) : 0), times, options);
-  const brakingRanges = rangesFromMask(acceleration.map((value, index) => value <= -1.35 && speeds[index] >= 15), times, options);
-  const accelerationRanges = rangesFromMask(acceleration.map((value, index) => value >= 0.9 && speeds[index] >= 10), times, { ...options, minDurationMs: 440 });
+// Index ranges of corners (sustained lateral load), braking and acceleration phases.
+export function lapRanges({ times, speeds, lateral, acceleration }) {
+  const options = { mergeGapMs: 360, minDurationMs: 360 };
+  return {
+    cornerRanges: rangesFromLabels(lateral.map((value, index) => Math.abs(value) >= 0.3 && speeds[index] >= 12 ? Math.sign(value) : 0), times, options),
+    brakingRanges: rangesFromMask(acceleration.map((value, index) => value <= -1.35 && speeds[index] >= 15), times, options),
+    accelerationRanges: rangesFromMask(acceleration.map((value, index) => value >= 0.9 && speeds[index] >= 10), times, { ...options, minDurationMs: 440 }),
+  };
+}
+
+export function extractLapEvents(points) {
+  if (!Array.isArray(points) || points.length < 5) return { corners: [], brakingZones: [], accelerationZones: [] };
+  const signals = lapSignals(points);
+  const { times, speeds, lateral, distance, totalDistance, acceleration } = signals;
+  const { cornerRanges, brakingRanges, accelerationRanges } = lapRanges(signals);
 
   const corners = cornerRanges.map((range) => {
     let apex = range.start;

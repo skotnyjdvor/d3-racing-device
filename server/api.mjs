@@ -390,6 +390,7 @@ app.post("/api/logs/:id/ai-analysis", authenticate, aiLimiter, async (request, r
     const snapshot = buildTelemetrySnapshot(log.payload.points, {
       primaryLap: request.body.primaryLap,
       comparisonLap: request.body.comparisonLap,
+      mode: request.body.mode === "single" ? "single" : "compare",
       question: request.body.question,
       language: request.body.language,
     });
