@@ -205,6 +205,7 @@ function openAiHistoryReport(id) {
   }
   updateLapView();
   renderAiReport(saved.report, saved.id, saved.language || getLanguage());
+  revealAiReport();
   elements.copyStatus.textContent = t("ai.historyOpened");
   elements.analyzeAiButton.disabled = false;
   elements.analyzeAiButton.textContent = t("ai.analyze");
@@ -1338,6 +1339,25 @@ function aiQualityMarkup() {
   </section>`;
 }
 
+// A fresh or reopened report enters card by card; re-renders (language switch) stay still.
+let aiRevealTimer = 0;
+function revealAiReport() {
+  let index = 0;
+  [...elements.aiReport.children].forEach((block) => {
+    const cards = block.querySelectorAll(".ai-report-card");
+    (cards.length ? [...cards] : [block]).forEach((item) => {
+      item.classList.add("ai-reveal-item");
+      item.style.setProperty("--reveal", String(Math.min(index, 10)));
+      index += 1;
+    });
+  });
+  elements.aiReport.classList.remove("revealing");
+  void elements.aiReport.offsetWidth;
+  elements.aiReport.classList.add("revealing");
+  clearTimeout(aiRevealTimer);
+  aiRevealTimer = setTimeout(() => elements.aiReport.classList.remove("revealing"), 1200);
+}
+
 function renderAiReport(report, analysisId, reportLanguage = getLanguage()) {
   state.aiReport = report;
   state.aiReportLanguage = reportLanguage;
@@ -1424,6 +1444,7 @@ async function runAiAnalysis() {
     });
     if (requestToken !== aiRequestToken || requestLanguage !== getLanguage()) return;
     renderAiReport(result.analysis.report, result.analysis.id, requestLanguage);
+    revealAiReport();
     elements.copyStatus.textContent = `${t("ai.reportReady")}${result.cached ? " · cache" : ""}`;
     void refreshAiHistory();
   } catch (error) {
@@ -2249,10 +2270,9 @@ function startLandingTelemetry() {
     }
     return [lapProfile[0][1], lapProfile[0][2]];
   };
-  const frame = (now) => {
+  const render = (now) => {
     const dt = Math.min(.1, (now - lastFrame) / 1000);
     lastFrame = now;
-    if (document.hidden || !document.body.classList.contains("auth-locked") || document.body.classList.contains("guest-features") || document.body.classList.contains("guest-contact")) { requestAnimationFrame(frame); return; }
     const elapsedMs = now - startedAt;
     const lapPosition = (elapsedMs / 1000) % lapSeconds;
     const jitter = Math.sin(now / 37) * 1.5 + Math.sin(now / 13) * .8;
@@ -2267,12 +2287,47 @@ function startLandingTelemetry() {
     setThrottle(Math.round(Math.max(0, Math.min(100, throttleValue + (throttleValue > 5 && throttleValue < 100 ? jitter : 0)))), textFrame);
     setBrake(Math.round(Math.max(0, brakeValue + (brakeValue > 5 ? jitter : 0))), textFrame);
     setSpeed(Math.round(speedKmh), textFrame);
+  };
+  // The loop runs only while the live card is really on screen; otherwise it stops instead of spinning idle.
+  const card = sessionTime.closest(".landing-hero")?.querySelector(".race-live-card") || document.querySelector(".race-live-card");
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+  let onScreen = true;
+  let running = false;
+  const shouldRun = () => onScreen && !document.hidden && document.body.classList.contains("auth-locked")
+    && !["guest-features", "guest-contact", "view-shop"].some((name) => document.body.classList.contains(name));
+  const frame = (now) => {
+    if (!shouldRun() || reduceMotion.matches) { running = false; return; }
+    render(now);
     requestAnimationFrame(frame);
   };
-  requestAnimationFrame(frame);
+  const update = () => {
+    if (reduceMotion.matches) { running = false; lastFrame = performance.now(); render(lastFrame); return; }
+    if (running || !shouldRun()) return;
+    running = true;
+    lastFrame = performance.now();
+    requestAnimationFrame(frame);
+  };
+  if (card && "IntersectionObserver" in window) {
+    new IntersectionObserver((entries) => { onScreen = entries.some((entry) => entry.isIntersecting); update(); }).observe(card);
+  }
+  new MutationObserver(update).observe(document.body, { attributes: true, attributeFilter: ["class"] });
+  document.addEventListener("visibilitychange", update);
+  reduceMotion.addEventListener?.("change", update);
+  update();
 }
 
 startLandingTelemetry();
+
+// Page titles slide in the first time a page is shown; later visits show them in place.
+document.querySelectorAll(".landing-copy h1, .fx-hero h1, .ct-hero h1").forEach((title) => {
+  const lines = title.querySelectorAll(":scope > span");
+  const finished = new Set();
+  title.addEventListener("animationend", (event) => {
+    if (event.animationName !== "heroLineIn") return;
+    finished.add(event.target);
+    if (finished.size >= lines.length) title.classList.add("played");
+  });
+});
 
 initShop();
 initProfile({
