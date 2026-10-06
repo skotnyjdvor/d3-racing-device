@@ -8,6 +8,7 @@ import { applyTranslations, getLanguage, onLanguageChange, setLanguage, t } from
 import { analyzeLog, askAiFollowUp, cloudConfigured, currentUser, deleteAiAnalysis, deleteLog, loadAiAnalyses, loadLog, loadLogs, loadSharedSession, renameLog, requestPasswordReset, resendVerification, resetPassword, saveLog, signIn, signOut, signUp, verifyEmail } from "./cloud/api.js";
 import { initShop, onShopShown, setShopUser } from "./shop.js";
 import { initProfile, onProfileShown, setProfileUser } from "./profile.js";
+import { acceptInviteFlow, initStats, onStatsShown, setStatsUser } from "./stats.js";
 import { initShare, openShareDialog } from "./share.js";
 import { PAGE_PATHS, currentPage, interceptLinks, navigate, upgradeLegacyHash } from "./router.js";
 import "./demo.js";
@@ -291,7 +292,7 @@ function showView(view, updateHash = true) {
     if (url !== location.pathname + location.hash) { history.pushState(null, "", url); routedUrl = location.href; syncGuestPage(); }
   }
   if (shop) { window.scrollTo(0, 0); onShopShown(); }
-  else if (profile) { window.scrollTo(0, 0); onProfileShown(); }
+  else if (profile) { window.scrollTo(0, 0); onProfileShown(); onStatsShown(); }
   else {
     renderDocumentMeta();
     if (ai) requestAnimationFrame(drawTrack);
@@ -1279,7 +1280,7 @@ function renderSessions() {
   }));
   elements.sessionList.querySelectorAll("[data-share]").forEach((button) => button.addEventListener("click", () => {
     const target = state.sessions.find((item) => item.cloudId === button.dataset.share);
-    if (target) openShareDialog(target, state.user?.email);
+    if (target) openShareDialog(target, state.user?.displayName || state.user?.email);
   }));
   elements.sessionList.querySelectorAll("[data-rename]").forEach((button) => button.addEventListener("click", () => renameCloudSession(button.dataset.rename)));
   elements.sessionList.querySelectorAll("[data-delete]").forEach((button) => button.addEventListener("click", () => deleteCloudSession(button.dataset.delete)));
@@ -1750,6 +1751,7 @@ async function applyUser(user) {
   state.user = user;
   setShopUser(user);
   setProfileUser(user);
+  setStatsUser(user);
   if (!user) {
     if (state.trial || state.sessions.some((session) => session.source === "trial")) endTrial();
     if (!testMode && state.client) await state.client.disconnect();
@@ -1764,6 +1766,7 @@ async function applyUser(user) {
   await saveTrialLogs();
   await syncCloudLogs();
   showView(viewFromHash(), false);
+  if (pendingFriendToken) void handleFriendLink();
 }
 
 async function submitAccount(action) {
@@ -1847,6 +1850,22 @@ async function handleSharedLink() {
   } catch (error) {
     showNotice(/no longer|invalid|not found/i.test(error.message) ? t("share.invalid") : t("share.loadFailed"), true);
   }
+}
+
+// Open "#friend=<token>": signed-out visitors sign in first (the token waits), then the invitation is confirmed.
+let pendingFriendToken = null;
+async function handleFriendLink() {
+  const match = location.hash.match(/^#friend=([A-Za-z0-9_-]{32,64})$/);
+  if (match) { pendingFriendToken = match[1]; history.replaceState(null, "", location.pathname + location.search + "#profile"); }
+  if (!pendingFriendToken) return;
+  if (!state.user) {
+    if (!elements.accountDialog.open) openAccountDialog("signup");
+    setAccountMessage(t("invite.signIn"));
+    return;
+  }
+  const token = pendingFriendToken;
+  pendingFriendToken = null;
+  if (await acceptInviteFlow(token)) showView("profile", true);
 }
 
 async function handleAuthLink() {
@@ -2041,7 +2060,7 @@ elements.trialButton.addEventListener("click", () => elements.trialInput.click()
 elements.trialInput.addEventListener("change", () => startTrial(elements.trialInput.files?.[0]));
 elements.trialRegisterButton.addEventListener("click", () => openAccountDialog("register"));
 elements.trialUploadButton.addEventListener("click", () => elements.trialInput.click());
-elements.sessionShareButton.addEventListener("click", () => { if (state.selectedSession?.cloudId) openShareDialog(state.selectedSession, state.user?.email); });
+elements.sessionShareButton.addEventListener("click", () => { if (state.selectedSession?.cloudId) openShareDialog(state.selectedSession, state.user?.displayName || state.user?.email); });
 initShare();
 onLanguageChange(() => { renderTrialBanner(); if (state.rival && state.selectedSession?.source === "shared") { state.selectedSession.title = t("share.sessionTitle", { name: state.rival.name }); } });
 elements.trialExitButton.addEventListener("click", () => { endTrial(); history.replaceState(null, "", "/"); routedUrl = location.href; showView("analysis", false); syncGuestPage(); window.scrollTo(0, 0); });
@@ -2079,6 +2098,7 @@ elements.accountResendButton.addEventListener("click", async () => {
 });
 window.addEventListener("hashchange", handleAuthLink);
 window.addEventListener("hashchange", handleSharedLink);
+window.addEventListener("hashchange", handleFriendLink);
 elements.accountPasswordConfirm.addEventListener("input", () => {
   elements.accountPassword.classList.remove("invalid");
   elements.accountPasswordConfirm.classList.remove("invalid");
@@ -2449,9 +2469,10 @@ initProfile({
   async onSignedOut() { history.replaceState(null, "", "/#analysis"); await applyUser(null); },
   async onPasswordChanged(user) { state.user = user; renderAccount(); },
 });
+initStats({ askDialog, showNotice, onUserUpdated(user) { state.user = { ...state.user, ...user }; } });
 if (viewFromHash() === "shop") showView("shop", false);
 if (cloudConfigured) {
-  currentUser().then(applyUser).then(handleAuthLink).then(handleSharedLink);
+  currentUser().then(applyUser).then(handleAuthLink).then(handleSharedLink).then(handleFriendLink);
 } else {
   void handleAuthLink();
   void handleSharedLink();

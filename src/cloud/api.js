@@ -185,3 +185,43 @@ export async function revokeShare(shareId) {
 export async function loadSharedSession(token) {
   return request(`/api/shared/${encodeURIComponent(token)}`);
 }
+
+export async function saveProfileSettings(settings) {
+  return request("/api/profile/settings", { method: "PATCH", body: JSON.stringify(settings) });
+}
+
+export async function loadFriends() {
+  return request("/api/friends");
+}
+
+export async function createFriendInvite() {
+  return request("/api/friends/invites", { method: "POST" });
+}
+
+export async function revokeFriendInvite(id) {
+  await request(`/api/friends/invites/${id}`, { method: "DELETE" });
+}
+
+export async function previewFriendInvite(token) {
+  return request(`/api/friends/invites/${encodeURIComponent(token)}`);
+}
+
+export async function acceptFriend(token) {
+  return request("/api/friends/accept", { method: "POST", body: JSON.stringify({ token }) });
+}
+
+export async function removeFriend(id) {
+  await request(`/api/friends/${id}`, { method: "DELETE" });
+}
+
+export async function loadMyStats() {
+  return request("/api/stats/me");
+}
+
+export async function loadFriendStats(id) {
+  return request(`/api/friends/${id}/stats`);
+}
+
+export async function loadLeaderboard(trackId) {
+  return request(`/api/leaderboard?track=${encodeURIComponent(trackId)}`);
+}

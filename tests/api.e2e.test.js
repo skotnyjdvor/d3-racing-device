@@ -55,6 +55,7 @@ before(async () => {
     cwd: projectRoot,
     env: {
       ...process.env,
+      AUTH_RATE_LIMIT: "500",
       PORT: String(apiPort),
       DATABASE_URL: databaseUrl,
       JWT_SECRET: "e2e-secret",
@@ -294,4 +295,85 @@ test("sharing: owner creates and revokes read-only links, anyone with the link r
   assert.equal((await call(`/api/logs/${saved.body.id}`, { method: "DELETE", token: owner.body.token })).status, 204);
   assert.equal((await call(`/api/shared/${link}`)).status, 404);
   assert.equal(other.status, 201);
+});
+
+test("friends: single-use invites, mutual friendship, stats only with consent, friends leaderboard", { skip }, async () => {
+  const fs = await import("node:fs");
+  const { parseRaceBoxCsv } = await import("../src/domain/csv.js");
+  const raw = parseRaceBoxCsv(fs.readFileSync(new URL("../src/fixtures/viterbo-session-2026-07-10.csv", import.meta.url), "utf8"));
+  const points = raw.map((p) => ({ timeMs: p.timeMs, latitude: p.latitude, longitude: p.longitude, speed: p.speed, gForceX: p.gForceX ?? 0, gForceY: p.gForceY ?? 0, gForceZ: p.gForceZ ?? 1, lap: p.lap ?? 0 }));
+  const anna = await register("anna-friend@example.com", "anna-password-1");
+  const ben = await register("ben-friend@example.com", "ben-password-1");
+  const cara = await register("cara-friend@example.com", "cara-password-1");
+  const log = await call("/api/logs", { method: "POST", token: anna.body.token, body: { startedAt: "2026-07-10T10:00:00Z", endedAt: "2026-07-10T10:30:00Z", points } });
+  assert.equal(log.status, 201);
+  await call("/api/logs", { method: "POST", token: ben.body.token, body: { startedAt: "2026-07-11T10:00:00Z", endedAt: "2026-07-11T10:30:00Z", points } });
+
+  assert.equal((await call("/api/friends")).status, 401);
+  assert.equal((await call("/api/friends/invites", { method: "POST" })).status, 401);
+
+  // Settings: pilot name and the stats switch (closed by default).
+  const me = await call("/api/auth/me", { token: anna.body.token });
+  assert.equal(me.body.user.statsVisible, false);
+  const named = await call("/api/profile/settings", { method: "PATCH", token: anna.body.token, body: { displayName: "Anna R." } });
+  assert.equal(named.body.user.pilotName, "Anna R.");
+  assert.equal((await call("/api/profile/settings", { method: "PATCH", token: anna.body.token, body: { displayName: "x" } })).status, 400);
+  const annaId = me.body.user.id;
+
+  // Invite: cannot accept your own, a stranger can, and the link works once.
+  const invite = await call("/api/friends/invites", { method: "POST", token: anna.body.token });
+  assert.equal(invite.status, 201);
+  assert.match(invite.body.invite.url, /#friend=[A-Za-z0-9_-]{32}$/);
+  const token = invite.body.invite.token;
+  assert.equal((await call("/api/friends/accept", { method: "POST", token: anna.body.token, body: { token } })).status, 400);
+  const preview = await call(`/api/friends/invites/${token}`, { token: ben.body.token });
+  assert.equal(preview.body.inviter.name, "Anna R.");
+  assert.ok(!JSON.stringify(preview.body).includes("anna-friend@example.com"));
+  assert.equal((await call("/api/friends/accept", { method: "POST", token: ben.body.token, body: { token: "bad" } })).status, 404);
+  const accepted = await call("/api/friends/accept", { method: "POST", token: ben.body.token, body: { token } });
+  assert.equal(accepted.status, 201);
+  assert.equal((await call("/api/friends/accept", { method: "POST", token: cara.body.token, body: { token } })).status, 404, "single use");
+  assert.equal((await call("/api/friends", { token: anna.body.token })).body.invites.length, 0);
+  assert.equal((await call("/api/friends", { token: anna.body.token })).body.friends[0].name, "ben-friend");
+  assert.equal((await call("/api/friends", { token: ben.body.token })).body.friends[0].name, "Anna R.");
+
+  // Already friends: a second invite does not duplicate or consume.
+  const again = await call("/api/friends/invites", { method: "POST", token: anna.body.token });
+  const dup = await call("/api/friends/accept", { method: "POST", token: ben.body.token, body: { token: again.body.invite.token } });
+  assert.equal(dup.body.alreadyFriends, true);
+  assert.equal((await call(`/api/friends/invites/${again.body.invite.token}`, { token: cara.body.token })).status, 200, "not consumed");
+  assert.equal((await call(`/api/friends/invites/${again.body.invite.id}`, { method: "DELETE", token: ben.body.token })).status, 404);
+  assert.equal((await call(`/api/friends/invites/${again.body.invite.id}`, { method: "DELETE", token: anna.body.token })).status, 204);
+
+  // Own stats; a friend's stats stay closed until they opt in.
+  await sleep(300);
+  const mine = await call("/api/stats/me", { token: anna.body.token });
+  assert.equal(mine.body.activity.sessions, 1);
+  assert.equal(mine.body.tracks.length, 1);
+  assert.ok(mine.body.tracks[0].bestLapMs > 0);
+  const trackId = mine.body.tracks[0].trackId;
+  assert.equal((await call(`/api/friends/${annaId}/stats`, { token: ben.body.token })).status, 403);
+  assert.equal((await call(`/api/friends/${annaId}/stats`, { token: cara.body.token })).status, 404, "strangers get nothing");
+  const lonely = await call(`/api/leaderboard?track=${trackId}`, { token: ben.body.token });
+  assert.equal(lonely.body.rows.length, 1);
+  assert.equal(lonely.body.hiddenFriends, 1);
+
+  await call("/api/profile/settings", { method: "PATCH", token: anna.body.token, body: { statsVisible: true } });
+  const seen = await call(`/api/friends/${annaId}/stats`, { token: ben.body.token });
+  assert.equal(seen.status, 200);
+  assert.equal(seen.body.pilot.name, "Anna R.");
+  assert.ok(!JSON.stringify(seen.body).includes("anna-friend@example.com"));
+  const board = await call(`/api/leaderboard?track=${trackId}`, { token: ben.body.token });
+  assert.equal(board.body.rows.length, 2);
+  assert.equal(board.body.hiddenFriends, 0);
+  assert.equal(board.body.rows.filter((row) => row.you).length, 1);
+  assert.equal(board.body.rows[0].gapMs, 0);
+  assert.equal((await call(`/api/leaderboard?track=${trackId}`, { token: cara.body.token })).body.rows.length, 0);
+  assert.equal((await call("/api/leaderboard", { token: ben.body.token })).status, 400);
+
+  // Removing a friend cuts the access in both directions.
+  assert.equal((await call(`/api/friends/${annaId}`, { method: "DELETE", token: ben.body.token })).status, 204);
+  assert.equal((await call(`/api/friends/${annaId}/stats`, { token: ben.body.token })).status, 404);
+  assert.equal((await call("/api/friends", { token: anna.body.token })).body.friends.length, 0);
+  assert.equal((await call(`/api/friends/${annaId}`, { method: "DELETE", token: ben.body.token })).status, 404);
 });

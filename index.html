@@ -582,8 +582,64 @@
             <ul class="profile-order-list" id="profileOrderList"></ul>
             <p class="profile-empty" id="profileOrdersEmpty" hidden><span data-i18n="profile.ordersEmpty"></span> <a href="/shop" data-i18n="profile.toShop"></a></p>
           </section>
+          <section class="profile-card wide" id="pilotCard">
+            <p class="fx-kicker"><b>// 04</b><span data-i18n="pilot.kicker"></span></p>
+            <div class="pilot-grid">
+              <div class="pilot-col">
+                <form class="pilot-form" id="pilotForm" novalidate>
+                  <label class="shop-field"><span data-i18n="pilot.name"></span><input id="pilotNameInput" type="text" maxlength="40" autocomplete="nickname" /></label>
+                  <button class="secondary" id="pilotNameSave" type="submit" data-i18n="pilot.save"></button>
+                </form>
+                <label class="pilot-switch"><input id="pilotStatsVisible" type="checkbox" /><span><b data-i18n="pilot.showStats"></b><small data-i18n="pilot.showStatsHint"></small></span></label>
+                <p class="profile-status" id="pilotStatus" role="status" aria-live="polite"></p>
+              </div>
+              <div class="pilot-col">
+                <h2 class="pilot-sub" data-i18n="friends.title"></h2>
+                <p class="profile-empty" id="friendsEmpty" data-i18n="friends.empty"></p>
+                <ul class="friend-list" id="friendList"></ul>
+                <button class="primary" id="inviteCreateButton" type="button" data-i18n="invite.create"></button>
+                <p class="pilot-hint" data-i18n="invite.hint"></p>
+                <ul class="share-list" id="inviteList"></ul>
+                <p class="profile-status" id="friendsStatus" role="status" aria-live="polite"></p>
+              </div>
+            </div>
+          </section>
+          <section class="profile-card wide" id="statsCard">
+            <p class="fx-kicker"><b>// 05</b><span data-i18n="stats.kicker"></span></p>
+            <div class="stats-head">
+              <h2 id="statsTitle" data-i18n="stats.title"></h2>
+              <select id="statsPilot" aria-label="Pilot" hidden></select>
+            </div>
+            <div class="profile-stats stats-tiles">
+              <div class="profile-stat"><strong id="statsSessions">—</strong><span data-i18n="stats.sessions"></span></div>
+              <div class="profile-stat"><strong id="statsLaps">—</strong><span data-i18n="stats.laps"></span></div>
+              <div class="profile-stat"><strong id="statsDistance">—</strong><span data-i18n="stats.km"></span></div>
+              <div class="profile-stat"><strong id="statsTime">—</strong><span data-i18n="stats.time"></span></div>
+            </div>
+            <p class="profile-empty" id="statsTracksEmpty" hidden data-i18n="stats.empty"></p>
+            <div class="stats-table-wrap">
+              <table class="stats-table" id="statsTracksTable" hidden>
+                <caption data-i18n="stats.tracksCaption"></caption>
+                <thead><tr><th data-i18n="stats.track"></th><th class="num" data-i18n="stats.best"></th><th class="num" data-i18n="stats.ideal"></th><th class="num" data-i18n="stats.sessions"></th><th class="num" data-i18n="stats.laps"></th></tr></thead>
+                <tbody id="statsTrackBody"></tbody>
+              </table>
+            </div>
+            <div class="stats-chart" hidden><canvas id="statsChart" role="img"></canvas></div>
+            <div id="boardWrap" hidden>
+              <h2 class="pilot-sub" data-i18n="stats.boardTitle"></h2>
+              <div class="stats-table-wrap">
+                <table class="stats-table" id="boardTable" hidden>
+                  <thead><tr><th class="num">#</th><th data-i18n="stats.pilot"></th><th class="num" data-i18n="stats.best"></th><th class="num" data-i18n="stats.gap"></th><th class="num" data-i18n="stats.ideal"></th><th class="num" data-i18n="stats.sessions"></th></tr></thead>
+                  <tbody id="boardBody"></tbody>
+                </table>
+              </div>
+              <p class="pilot-hint" id="boardNote"></p>
+            </div>
+            <p class="pilot-hint" id="statsPending" hidden data-i18n="stats.pending"></p>
+            <p class="profile-status" id="statsStatus" role="status" aria-live="polite"></p>
+          </section>
           <section class="profile-card">
-            <p class="fx-kicker"><b>// 04</b><span data-i18n="profile.securityKicker"></span></p>
+            <p class="fx-kicker"><b>// 06</b><span data-i18n="profile.securityKicker"></span></p>
             <form class="profile-form" id="profilePasswordForm" novalidate>
               <label class="shop-field"><span data-i18n="profile.currentPassword"></span><input id="profileCurrentPassword" type="password" autocomplete="current-password" maxlength="200" /></label>
               <label class="shop-field"><span data-i18n="profile.newPassword"></span><input id="profileNewPassword" type="password" autocomplete="new-password" maxlength="200" /></label>
@@ -593,7 +649,7 @@
             </form>
           </section>
           <section class="profile-card">
-            <p class="fx-kicker"><b>// 05</b><span data-i18n="profile.sessionKicker"></span></p>
+            <p class="fx-kicker"><b>// 07</b><span data-i18n="profile.sessionKicker"></span></p>
             <button class="secondary profile-signout" id="profileSignOutButton" type="button" data-i18n="account.signOut"></button>
             <div class="profile-danger">
               <h2 data-i18n="profile.dangerTitle"></h2>

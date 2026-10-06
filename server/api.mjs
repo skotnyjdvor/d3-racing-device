@@ -11,6 +11,8 @@ import { migrate, requireDatabase } from "./db.mjs";
 import { sendOrderNotification, sendPasswordResetEmail, sendVerificationEmail } from "./mail.mjs";
 import { orderNumber, validateOrder } from "./orders.mjs";
 import { PUBLIC_PAGES, renderPublicPage } from "./pages.mjs";
+import { INVITE_DAYS, MAX_FRIENDS, MAX_OPEN_INVITES, cleanSettings, inviteTokenPattern, newInviteToken, orderedPair, pilotNameOf, publicFriend, publicInvite } from "./friends.mjs";
+import { ensureStats, leaderboard, statsFor, storeLogStats } from "./stats.mjs";
 import { MAX_SHARES_PER_LOG, cleanPilotName, defaultPilotName, newShareToken, publicShare, shareTokenPattern } from "./shares.mjs";
 import { createCheckout, handlePaymentWebhook, shopConfig } from "./payments.mjs";
 import { AI_MODEL, buildTelemetrySnapshot, generateAiFollowUp, generateAiReport, getOpenAiApiKey, groundAiReport, snapshotCacheKey, snapshotLapPair } from "./ai.mjs";
@@ -47,20 +49,25 @@ app.param("id", (request, response, next, id) => (uuidPattern.test(id) ? next() 
 
 // Cloudflare overwrites CF-Connecting-IP with the real visitor address; fall back to the proxied req.ip.
 const clientKey = (request) => ipKeyGenerator(String(request.headers["cf-connecting-ip"] || request.ip || ""));
-const authLimiter = rateLimit({ windowMs: 15 * 60_000, limit: 30, standardHeaders: true, legacyHeaders: false, keyGenerator: clientKey });
+const authLimiter = rateLimit({ windowMs: 15 * 60_000, limit: Number(process.env.AUTH_RATE_LIMIT) || 30, standardHeaders: true, legacyHeaders: false, keyGenerator: clientKey });
 // AI calls are authenticated, so budget them per account rather than per network.
 const aiLimiter = rateLimit({ windowMs: 60 * 60_000, limit: 10, standardHeaders: true, legacyHeaders: false, keyGenerator: (request) => request.auth?.sub || clientKey(request) });
 // Orders come from anonymous visitors too, so they are limited per network like auth.
 const orderLimiter = rateLimit({ windowMs: 60 * 60_000, limit: 6, standardHeaders: true, legacyHeaders: false, keyGenerator: clientKey });
 // Shared logs are public to anyone holding the link, so reads are limited per network.
 const sharedLimiter = rateLimit({ windowMs: 10 * 60_000, limit: 60, standardHeaders: true, legacyHeaders: false, keyGenerator: clientKey });
+// Friend and statistics actions are authenticated: budget them per account.
+const socialLimiter = rateLimit({ windowMs: 60 * 60_000, limit: 120, standardHeaders: true, legacyHeaders: false, keyGenerator: (request) => request.auth?.sub || clientKey(request) });
 // Creating share links is an authenticated action: budget it per account, not per network.
 const shareLimiter = rateLimit({ windowMs: 60 * 60_000, limit: 60, standardHeaders: true, legacyHeaders: false, keyGenerator: (request) => request.auth?.sub || clientKey(request) });
 const normalizeEmail = (email) => String(email || "").trim().toLowerCase();
 const validEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-const publicUser = (row) => ({ id: row.id, email: row.email, emailVerified: Boolean(row.email_verified_at), createdAt: row.created_at ?? null });
+const publicUser = (row) => ({
+  id: row.id, email: row.email, emailVerified: Boolean(row.email_verified_at), createdAt: row.created_at ?? null,
+  displayName: row.display_name ?? null, pilotName: pilotNameOf(row), statsVisible: Boolean(row.stats_visible),
+});
 const issueToken = (row) => jwt.sign({ sub: row.id, email: row.email, tv: row.token_version ?? 0 }, jwtSecret, { expiresIn: "30d", issuer: "laptrace" });
-const userColumns = "id, email, email_verified_at, token_version, created_at";
+const userColumns = "id, email, email_verified_at, token_version, created_at, display_name, stats_visible";
 const normalizeLanguage = (language) => (["ru", "en", "pl", "it"].includes(language) ? language : "ru");
 const hashToken = (token) => createHash("sha256").update(token).digest("hex");
 const tokenPattern = /^[A-Za-z0-9_-]{32,128}$/;
@@ -218,6 +225,158 @@ app.get("/api/profile", authenticate, async (request, response, next) => {
   } catch (error) { next(error); }
 });
 
+// Pilot settings: the name friends see and whether friends may see the statistics.
+app.patch("/api/profile/settings", authenticate, socialLimiter, async (request, response, next) => {
+  try {
+    const checked = cleanSettings(request.body);
+    if (checked.error) return response.status(400).json({ error: checked.error });
+    const { settings } = checked;
+    const sets = []; const values = [request.auth.sub];
+    if ("displayName" in settings) { values.push(settings.displayName); sets.push(`display_name = $${values.length}`); }
+    if ("statsVisible" in settings) { values.push(settings.statsVisible); sets.push(`stats_visible = $${values.length}`); }
+    const result = await requireDatabase().query(`update users set ${sets.join(", ")} where id = $1 returning ${userColumns}`, values);
+    response.json({ user: publicUser(result.rows[0]) });
+  } catch (error) { next(error); }
+});
+
+// ---- Friends: invite links, mutual friendships, statistics shared only with consent ----
+const friendOrigin = () => (process.env.APP_URL || "https://d3cf.com").replace(/\/$/, "");
+const friendIdsOf = async (database, userId) => (await database.query(
+  "select case when user_a = $1 then user_b else user_a end as friend_id from friendships where user_a = $1 or user_b = $1", [userId])).rows.map((row) => row.friend_id);
+
+app.get("/api/friends", authenticate, async (request, response, next) => {
+  try {
+    const database = requireDatabase();
+    const [friends, invites] = await Promise.all([
+      database.query(`select u.id, u.email, u.display_name, u.stats_visible, f.created_at as since from friendships f
+        join users u on u.id = case when f.user_a = $1 then f.user_b else f.user_a end
+        where f.user_a = $1 or f.user_b = $1 order by f.created_at desc`, [request.auth.sub]),
+      database.query("select id, token, created_at, expires_at from friend_invites where owner_id = $1 and used_at is null and expires_at > now() order by created_at desc", [request.auth.sub]),
+    ]);
+    response.set("Cache-Control", "no-store");
+    response.json({ friends: friends.rows.map(publicFriend), invites: invites.rows.map((row) => publicInvite(row, friendOrigin())) });
+  } catch (error) { next(error); }
+});
+
+app.post("/api/friends/invites", authenticate, socialLimiter, async (request, response, next) => {
+  try {
+    const database = requireDatabase();
+    const open = await database.query("select count(*)::int as count from friend_invites where owner_id = $1 and used_at is null and expires_at > now()", [request.auth.sub]);
+    if (open.rows[0].count >= MAX_OPEN_INVITES) return response.status(409).json({ error: "Too many open invitations. Revoke one first." });
+    const result = await database.query(`insert into friend_invites (owner_id, token, expires_at) values ($1, $2, now() + make_interval(days => $3))
+      returning id, token, created_at, expires_at`, [request.auth.sub, newInviteToken(), INVITE_DAYS]);
+    response.status(201).json({ invite: publicInvite(result.rows[0], friendOrigin()) });
+  } catch (error) { next(error); }
+});
+
+app.delete("/api/friends/invites/:id", authenticate, async (request, response, next) => {
+  try {
+    const result = await requireDatabase().query("delete from friend_invites where id = $1 and owner_id = $2 and used_at is null returning id", [request.params.id, request.auth.sub]);
+    if (!result.rows[0]) return response.status(404).json({ error: "Invitation not found" });
+    response.status(204).end();
+  } catch (error) { next(error); }
+});
+
+// Who is inviting me: the pilot name only, so the invited person can decide.
+app.get("/api/friends/invites/:token", authenticate, socialLimiter, async (request, response, next) => {
+  try {
+    if (!inviteTokenPattern.test(request.params.token)) return response.status(404).json({ error: "This invitation is no longer valid" });
+    const result = await requireDatabase().query(`select u.id, u.email, u.display_name from friend_invites i join users u on u.id = i.owner_id
+      where i.token = $1 and i.used_at is null and i.expires_at > now()`, [request.params.token]);
+    const owner = result.rows[0];
+    if (!owner) return response.status(404).json({ error: "This invitation is no longer valid" });
+    response.json({ inviter: { name: pilotNameOf(owner), isYou: owner.id === request.auth.sub } });
+  } catch (error) { next(error); }
+});
+
+app.post("/api/friends/accept", authenticate, socialLimiter, async (request, response, next) => {
+  let client;
+  try { client = await requireDatabase().connect(); } catch (error) { return next(error); }
+  try {
+    const token = String(request.body?.token || "");
+    if (!inviteTokenPattern.test(token)) return response.status(404).json({ error: "This invitation is no longer valid" });
+    await client.query("begin");
+    const invite = (await client.query(`select i.id, i.owner_id, u.email, u.display_name from friend_invites i join users u on u.id = i.owner_id
+      where i.token = $1 and i.used_at is null and i.expires_at > now() for update of i`, [token])).rows[0];
+    if (!invite) { await client.query("rollback"); return response.status(404).json({ error: "This invitation is no longer valid" }); }
+    if (invite.owner_id === request.auth.sub) { await client.query("rollback"); return response.status(400).json({ error: "This is your own invitation" }); }
+    const [a, b] = orderedPair(invite.owner_id, request.auth.sub);
+    const existing = await client.query("select 1 from friendships where user_a = $1 and user_b = $2", [a, b]);
+    if (existing.rows[0]) { await client.query("rollback"); return response.json({ friend: { id: invite.owner_id, name: pilotNameOf(invite) }, alreadyFriends: true }); }
+    const counts = await client.query("select (select count(*) from friendships where user_a = $1 or user_b = $1)::int as mine, (select count(*) from friendships where user_a = $2 or user_b = $2)::int as theirs", [request.auth.sub, invite.owner_id]);
+    if (counts.rows[0].mine >= MAX_FRIENDS || counts.rows[0].theirs >= MAX_FRIENDS) { await client.query("rollback"); return response.status(409).json({ error: "Friend limit reached" }); }
+    await client.query("insert into friendships (user_a, user_b) values ($1, $2)", [a, b]);
+    await client.query("update friend_invites set used_at = now(), used_by = $2 where id = $1", [invite.id, request.auth.sub]);
+    await client.query("commit");
+    response.status(201).json({ friend: { id: invite.owner_id, name: pilotNameOf(invite) }, alreadyFriends: false });
+  } catch (error) {
+    await client.query("rollback").catch(() => {});
+    next(error);
+  } finally { client.release(); }
+});
+
+app.delete("/api/friends/:id", authenticate, socialLimiter, async (request, response, next) => {
+  try {
+    const [a, b] = orderedPair(request.params.id, request.auth.sub);
+    const result = await requireDatabase().query("delete from friendships where user_a = $1 and user_b = $2 returning user_a", [a, b]);
+    if (!result.rows[0]) return response.status(404).json({ error: "Friend not found" });
+    response.status(204).end();
+  } catch (error) { next(error); }
+});
+
+// ---- Statistics ----
+app.get("/api/stats/me", authenticate, socialLimiter, async (request, response, next) => {
+  try {
+    const database = requireDatabase();
+    const pending = await ensureStats(database, request.auth.sub);
+    response.set("Cache-Control", "no-store");
+    response.json({ ...(await statsFor(database, request.auth.sub)), pending });
+  } catch (error) { next(error); }
+});
+
+// A friend's statistics, only while we are friends AND they allowed it.
+app.get("/api/friends/:id/stats", authenticate, socialLimiter, async (request, response, next) => {
+  try {
+    const database = requireDatabase();
+    const [a, b] = orderedPair(request.params.id, request.auth.sub);
+    const friend = await database.query(`select u.id, u.email, u.display_name, u.stats_visible from friendships f join users u on u.id = $3
+      where f.user_a = $1 and f.user_b = $2`, [a, b, request.params.id]);
+    if (!friend.rows[0]) return response.status(404).json({ error: "Friend not found" });
+    if (!friend.rows[0].stats_visible) return response.status(403).json({ error: "This pilot does not share statistics" });
+    const pending = await ensureStats(database, request.params.id);
+    response.set("Cache-Control", "no-store");
+    response.json({ pilot: { id: friend.rows[0].id, name: pilotNameOf(friend.rows[0]) }, ...(await statsFor(database, request.params.id)), pending });
+  } catch (error) { next(error); }
+});
+
+app.get("/api/leaderboard", authenticate, socialLimiter, async (request, response, next) => {
+  try {
+    const database = requireDatabase();
+    const trackId = String(request.query.track || "").slice(0, 100);
+    if (!trackId) return response.status(400).json({ error: "Choose a track" });
+    const friendIds = await friendIdsOf(database, request.auth.sub);
+    const people = await database.query("select id, email, display_name, stats_visible from users where id = any($1::uuid[])", [[request.auth.sub, ...friendIds]]);
+    const visible = people.rows.filter((row) => row.id === request.auth.sub || row.stats_visible);
+    // Bring everyone's statistics up to date (a few logs per person per call); the client asks again while pending.
+    let pending = 0;
+    for (const row of visible.slice(0, 12)) pending += await ensureStats(database, row.id, 4);
+    const rows = await leaderboard(database, visible.map((row) => row.id), trackId);
+    const names = new Map(visible.map((row) => [row.id, pilotNameOf(row)]));
+    const best = rows[0]?.best_lap_ms ?? null;
+    response.set("Cache-Control", "no-store");
+    response.json({
+      trackId,
+      rows: rows.map((row, index) => ({
+        rank: index + 1, pilotId: row.user_id, name: names.get(row.user_id), you: row.user_id === request.auth.sub,
+        bestLapMs: row.best_lap_ms, idealLapMs: row.ideal_lap_ms, gapMs: row.best_lap_ms - best, sessions: row.sessions, laps: row.laps,
+      })),
+      hiddenFriends: people.rows.length - visible.length,
+      friendCount: friendIds.length,
+      pending,
+    });
+  } catch (error) { next(error); }
+});
+
 // Changing the password revokes every other session (token_version) and hands the caller a fresh token.
 app.post("/api/auth/change-password", authenticate, authLimiter, async (request, response, next) => {
   try {
@@ -355,7 +514,9 @@ app.post("/api/logs", authenticate, async (request, response, next) => {
         device_name = excluded.device_name, ended_at = excluded.ended_at,
         point_count = excluded.point_count, payload = excluded.payload, updated_at = now()
       returning id`, [randomUUID(), request.auth.sub, String(deviceName).slice(0, 100), startedAt, endedAt, points.length, JSON.stringify({ points })]);
-    response.status(201).json({ id: result.rows[0].id });
+    const logId = result.rows[0].id;
+    storeLogStats(requireDatabase(), { logId, userId: request.auth.sub, startedAt, points }).catch((error) => console.error("Log statistics failed", error.message));
+    response.status(201).json({ id: logId });
   } catch (error) { next(error); }
 });
 

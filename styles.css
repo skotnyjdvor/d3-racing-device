@@ -1484,6 +1484,67 @@ html .profile-signout:hover { color: var(--race-bg); background: var(--race-text
 .profile-danger p:not(.profile-status) { margin: 0; color: var(--race-text-2); font: 400 14px/1.55 var(--font-body); }
 html .profile-delete { justify-self: start; min-height: 46px; padding: 0 22px; color: var(--race-red-text); background: transparent; border: 1px solid rgba(225,6,0,.6); border-radius: 0; font: 700 12px/1 var(--font-code); letter-spacing: .14em; text-transform: uppercase; cursor: pointer; transition: background-color .15s, color .15s; }
 html .profile-delete:hover { color: var(--race-curb); background: var(--race-red); }
+/* Pilot page: friends, invites, statistics */
+.pilot-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px; align-items: start; }
+.pilot-col { display: grid; gap: 14px; min-width: 0; align-content: start; }
+.pilot-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: end; }
+.pilot-form .shop-field input { height: 46px; }
+.pilot-form button { min-height: 46px; padding: 0 20px; font: 700 12px/1 var(--font-code); letter-spacing: .12em; text-transform: uppercase; }
+.pilot-switch { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 14px; align-items: start; padding: 14px 16px; border: 1px solid var(--race-line); cursor: pointer; }
+.pilot-switch input { width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--race-red); cursor: pointer; }
+.pilot-switch b { display: block; color: var(--race-text); font: 700 15px/1.3 var(--font-body); }
+.pilot-switch small { display: block; margin-top: 4px; color: var(--race-text-2); font: 400 13px/1.5 var(--font-body); }
+.pilot-sub { margin: 0; color: var(--race-text); font: 700 18px/1.1 var(--font-display); letter-spacing: .06em; text-transform: uppercase; }
+.pilot-hint { margin: 0; color: var(--race-muted); font: 400 13px/1.5 var(--font-body); }
+.pilot-hint:empty, .pilot-hint[hidden] { display: none; }
+.friend-list { margin: 0; padding: 0; list-style: none; display: grid; border: 1px solid var(--race-line); }
+.friend-list:empty { display: none; }
+.friend-item { padding: 12px 14px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; align-items: center; border-bottom: 1px solid var(--race-line); }
+.friend-item:last-child { border-bottom: 0; }
+.friend-item strong { display: block; color: var(--race-text); font: 700 15px/1.2 var(--font-body); overflow-wrap: anywhere; }
+.friend-item small { display: block; margin-top: 3px; color: var(--race-muted); font: 400 12px/1.2 var(--font-code); }
+.friend-item em { padding: 4px 8px; font: 700 12px/1 var(--font-code); font-style: normal; letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; }
+.friend-item em.open { color: var(--race-lime); border: 1px solid rgba(199,255,61,.5); }
+.friend-item em.closed { color: var(--race-muted); border: 1px solid var(--race-line-2); }
+.friend-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; }
+.friend-actions button { min-height: 40px; padding: 0 14px; font: 700 12px/1 var(--font-code); letter-spacing: .1em; text-transform: uppercase; }
+.friend-actions button:disabled { opacity: .45; cursor: not-allowed; }
+.stats-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.stats-head h2 { margin: 0; color: var(--race-text); font: 700 clamp(24px, 3vw, 34px)/1.05 var(--font-display); letter-spacing: .04em; text-transform: uppercase; overflow-wrap: anywhere; }
+.stats-head select { min-width: 200px; max-width: 100%; height: 44px; padding: 0 34px 0 12px; color: var(--race-text); background: var(--race-surface); border: 1px solid var(--race-line-2); border-radius: 0; font: 700 14px/1 var(--font-body); }
+.stats-head select:focus-visible { outline: 1px solid var(--race-red); outline-offset: 2px; }
+.stats-tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.stats-tiles .profile-stat strong { font-size: 34px; overflow-wrap: anywhere; }
+.stats-table-wrap { overflow-x: auto; }
+.stats-table { width: 100%; border-collapse: collapse; border: 1px solid var(--race-line); font: 400 14px/1.3 var(--font-body); }
+.stats-table[hidden] { display: none; }
+.stats-table caption { padding: 0 0 8px; text-align: left; color: var(--race-muted); font: 400 12px/1.3 var(--font-code); letter-spacing: .14em; text-transform: uppercase; }
+.stats-table th { padding: 10px 12px; text-align: left; color: var(--race-muted); font: 400 12px/1.2 var(--font-code); letter-spacing: .12em; text-transform: uppercase; border-bottom: 1px solid var(--race-line-2); white-space: nowrap; }
+.stats-table td { text-align: left; padding: 12px; color: var(--race-text); border-bottom: 1px solid var(--race-line); }
+.stats-table tr:last-child td { border-bottom: 0; }
+.stats-table .num { text-align: right; font-family: var(--font-code); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.stats-table td small { color: var(--race-red-text); font: 700 12px/1 var(--font-code); letter-spacing: .1em; text-transform: uppercase; }
+#statsTrackBody tr { cursor: pointer; transition: background-color .15s; }
+#statsTrackBody tr:hover { background: rgba(225,6,0,.06); }
+#statsTrackBody tr.active { background: rgba(225,6,0,.1); box-shadow: inset 3px 0 0 var(--race-red); }
+#statsTrackBody tr:focus-visible { outline: 1px solid var(--race-red); outline-offset: -2px; }
+.stats-table tr.you td { background: rgba(225,6,0,.08); }
+.stats-chart { border: 1px solid var(--race-line); padding: 10px 0 0; }
+.stats-chart[hidden], #boardWrap[hidden] { display: none; }
+.stats-chart canvas { display: block; width: 100%; }
+#boardWrap { display: grid; gap: 12px; }
+@media (max-width: 900px) {
+  .pilot-grid { grid-template-columns: 1fr; }
+  .stats-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 700px) {
+  .pilot-form { grid-template-columns: 1fr; }
+  .stats-head select { width: 100%; }
+  .stats-table th, .stats-table td { padding: 10px 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #statsTrackBody tr { transition: none; }
+}
 @media (max-width: 900px) {
   .profile-grid { grid-template-columns: 1fr; }
 }

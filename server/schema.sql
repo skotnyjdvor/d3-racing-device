@@ -95,3 +95,44 @@ create table if not exists log_shares (
 );
 
 create index if not exists log_shares_log_idx on log_shares (log_id, created_at desc);
+
+-- Pilot profile: an optional public pilot name and an opt-in switch for showing statistics to friends.
+alter table users add column if not exists display_name text;
+alter table users add column if not exists stats_visible boolean not null default false;
+
+-- Mutual friendships (one row per pair, ids stored in sorted order) created through single-use invite links.
+create table if not exists friendships (
+  user_a uuid not null references users(id) on delete cascade,
+  user_b uuid not null references users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (user_a, user_b),
+  check (user_a < user_b)
+);
+create index if not exists friendships_b_idx on friendships (user_b);
+
+create table if not exists friend_invites (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null references users(id) on delete cascade,
+  token text not null unique,
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null,
+  used_at timestamptz,
+  used_by uuid references users(id) on delete set null
+);
+create index if not exists friend_invites_owner_idx on friend_invites (owner_id, created_at desc);
+
+-- One summary row per telemetry log; pilot statistics are aggregated from these instead of re-reading the points.
+create table if not exists log_stats (
+  log_id uuid primary key references telemetry_logs(id) on delete cascade,
+  user_id uuid not null references users(id) on delete cascade,
+  started_at timestamptz not null,
+  track_id text,
+  track_name text,
+  lap_count integer not null default 0,
+  best_lap_ms integer,
+  ideal_lap_ms integer,
+  distance_m real not null default 0,
+  duration_ms integer not null default 0,
+  computed_at timestamptz not null default now()
+);
+create index if not exists log_stats_user_track_idx on log_stats (user_id, track_id);
