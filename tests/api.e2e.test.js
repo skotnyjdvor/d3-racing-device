@@ -246,3 +246,52 @@ test("profile: summary, password change with session rotation, and account delet
   assert.equal((await call("/api/auth/me", { token: fresh })).status, 401);
   assert.equal((await call("/api/auth/login", { method: "POST", body: { email: "profile@example.com", password: "second-password-2" } })).status, 401);
 });
+
+test("sharing: owner creates and revokes read-only links, anyone with the link reads that one session", { skip }, async () => {
+  const owner = await register("owner-share@example.com", "owner-password-1");
+  const rival = await register("rival-share@example.com", "rival-password-1");
+  const points = Array.from({ length: 30 }, (_, index) => ({ timeMs: index * 40, latitude: 42.48 + index * 1e-5, longitude: 12.07, speed: 50, gForceX: 0, gForceY: 0, gForceZ: 1, lap: 0 }));
+  const saved = await call("/api/logs", { method: "POST", token: owner.body.token, body: { startedAt: "2026-04-01T10:00:00Z", endedAt: "2026-04-01T10:01:00Z", points } });
+  const other = await call("/api/logs", { method: "POST", token: owner.body.token, body: { startedAt: "2026-04-02T10:00:00Z", endedAt: "2026-04-02T10:01:00Z", points: points.slice(0, 10) } });
+
+  // Only the owner can create or list links.
+  assert.equal((await call(`/api/logs/${saved.body.id}/shares`, { method: "POST", token: rival.body.token, body: { pilotName: "Thief" } })).status, 404);
+  assert.equal((await call(`/api/logs/${saved.body.id}/shares`, { method: "POST", body: {} })).status, 401);
+  assert.equal((await call(`/api/logs/${saved.body.id}/shares`, { token: rival.body.token })).body.shares?.length ?? 0, 0);
+
+  const created = await call(`/api/logs/${saved.body.id}/shares`, { method: "POST", token: owner.body.token, body: { pilotName: "  Marco  " } });
+  assert.equal(created.status, 201);
+  assert.equal(created.body.share.pilotName, "Marco");
+  assert.match(created.body.share.url, /#shared=[A-Za-z0-9_-]{32}$/);
+  const defaulted = await call(`/api/logs/${saved.body.id}/shares`, { method: "POST", token: owner.body.token, body: {} });
+  assert.equal(defaulted.body.share.pilotName, "owner-share", "defaults to the mail name without the domain");
+
+  const listed = await call(`/api/logs/${saved.body.id}/shares`, { token: owner.body.token });
+  assert.equal(listed.body.shares.length, 2);
+
+  // The link works without any account and exposes only that session.
+  const token = created.body.share.token;
+  const read = await call(`/api/shared/${token}`);
+  assert.equal(read.status, 200);
+  assert.equal(read.body.shared.pilotName, "Marco");
+  assert.equal(read.body.shared.points.length, 30);
+  assert.ok(!JSON.stringify(read.body).includes("owner-share@example.com"), "the owner's email is never exposed");
+  assert.equal((await call(`/api/shared/${"x".repeat(32)}`)).status, 404);
+  assert.equal((await call("/api/shared/short")).status, 404);
+
+  // An AI comparison against a link that does not exist (or was malformed) is refused before any model call.
+  assert.equal((await call(`/api/logs/${saved.body.id}/ai-analysis`, { method: "POST", token: owner.body.token, body: { rivalToken: "y".repeat(32) } })).status, 404);
+  assert.equal((await call(`/api/logs/${saved.body.id}/ai-analysis`, { method: "POST", token: owner.body.token, body: { rivalToken: "../x" } })).status, 404);
+
+  // Only the owner can revoke; once revoked the link stops working.
+  assert.equal((await call(`/api/shares/${created.body.share.id}`, { method: "DELETE", token: rival.body.token })).status, 404);
+  assert.equal((await call(`/api/shares/${created.body.share.id}`, { method: "DELETE", token: owner.body.token })).status, 204);
+  assert.equal((await call(`/api/shared/${token}`)).status, 404);
+  assert.equal((await call(`/api/logs/${saved.body.id}/shares`, { token: owner.body.token })).body.shares.length, 1);
+
+  // Deleting the session removes its links.
+  const link = defaulted.body.share.token;
+  assert.equal((await call(`/api/logs/${saved.body.id}`, { method: "DELETE", token: owner.body.token })).status, 204);
+  assert.equal((await call(`/api/shared/${link}`)).status, 404);
+  assert.equal(other.status, 201);
+});

@@ -637,8 +637,9 @@
     </section>
     <main class="app-main" id="appMain">
       <section class="trial-banner" id="trialBanner" hidden>
-        <div class="trial-banner-copy"><b data-i18n="trial.bannerTitle"></b><p data-i18n="trial.bannerText"></p></div>
+        <div class="trial-banner-copy"><b id="trialBannerTitle"></b><p id="trialBannerText"></p></div>
         <div class="trial-actions">
+          <button class="primary" id="trialUploadButton" type="button" data-i18n="share.bannerUpload" hidden></button>
           <button class="primary" id="trialRegisterButton" type="button" data-i18n="trial.save"></button>
           <button class="secondary" id="trialExitButton" type="button" data-i18n="trial.exit"></button>
         </div>
@@ -797,6 +798,7 @@
           >
           <button class="session-step" id="sessionOlderButton" type="button">›</button>
           <small class="session-bar-meta" id="sessionBarMeta"></small>
+          <button class="session-share" id="sessionShareButton" type="button" hidden><span aria-hidden="true">⇪</span><b data-i18n="share.button"></b></button>
         </article>
         <article class="panel lap-controls-panel">
           <div class="panel-head">
@@ -984,6 +986,20 @@
       <span>© 2026 D3CF Technology · <a href="mailto:office@d3cf.com">office@d3cf.com</a> · <a href="/shop" data-i18n="nav.shop"></a></span
       ><span id="sourceLabel" data-i18n="footer.noData"></span>
     </footer>
+    <dialog class="confirm-dialog share-dialog" id="shareDialog" aria-labelledby="shareTitle">
+      <p class="eyebrow" data-i18n="share.kicker"></p>
+      <h2 id="shareTitle" data-i18n="share.title"></h2>
+      <p class="dialog-copy" data-i18n="share.copy"></p>
+      <form class="share-form" id="shareForm" novalidate>
+        <label class="confirm-field"><span data-i18n="share.pilotName"></span><input id="sharePilotName" type="text" maxlength="40" autocomplete="nickname" /></label>
+        <button class="primary" id="shareCreateButton" type="submit" data-i18n="share.create"></button>
+      </form>
+      <p class="share-list-title" id="shareListTitle" data-i18n="share.listTitle" hidden></p>
+      <ul class="share-list" id="shareList"></ul>
+      <p class="share-status" id="shareStatus" role="status" aria-live="polite"></p>
+      <div class="confirm-actions"><button class="secondary" id="shareClose" type="button" data-i18n="dialog.close"></button></div>
+    </dialog>
+    <div class="app-notice" id="appNotice" role="status" aria-live="polite" hidden></div>
     <dialog class="confirm-dialog" id="confirmDialog" aria-labelledby="confirmTitle" aria-describedby="confirmMessage">
       <form id="confirmForm" novalidate>
         <p class="eyebrow" id="confirmKicker">D3CF</p>

@@ -169,3 +169,19 @@ export async function loadShopConfig() {
 export async function placeOrder(order) {
   return request("/api/orders", { method: "POST", body: JSON.stringify(order) });
 }
+
+export async function loadShares(logId) {
+  return request(`/api/logs/${logId}/shares`);
+}
+
+export async function createShare(logId, pilotName) {
+  return request(`/api/logs/${logId}/shares`, { method: "POST", body: JSON.stringify({ pilotName }) });
+}
+
+export async function revokeShare(shareId) {
+  await request(`/api/shares/${shareId}`, { method: "DELETE" });
+}
+
+export async function loadSharedSession(token) {
+  return request(`/api/shared/${encodeURIComponent(token)}`);
+}

@@ -11,8 +11,9 @@ import { migrate, requireDatabase } from "./db.mjs";
 import { sendOrderNotification, sendPasswordResetEmail, sendVerificationEmail } from "./mail.mjs";
 import { orderNumber, validateOrder } from "./orders.mjs";
 import { PUBLIC_PAGES, renderPublicPage } from "./pages.mjs";
+import { MAX_SHARES_PER_LOG, cleanPilotName, defaultPilotName, newShareToken, publicShare, shareTokenPattern } from "./shares.mjs";
 import { createCheckout, handlePaymentWebhook, shopConfig } from "./payments.mjs";
-import { AI_MODEL, buildTelemetrySnapshot, generateAiFollowUp, generateAiReport, getOpenAiApiKey, groundAiReport, snapshotCacheKey } from "./ai.mjs";
+import { AI_MODEL, buildTelemetrySnapshot, generateAiFollowUp, generateAiReport, getOpenAiApiKey, groundAiReport, snapshotCacheKey, snapshotLapPair } from "./ai.mjs";
 
 const app = express();
 app.disable("x-powered-by");
@@ -51,6 +52,10 @@ const authLimiter = rateLimit({ windowMs: 15 * 60_000, limit: 30, standardHeader
 const aiLimiter = rateLimit({ windowMs: 60 * 60_000, limit: 10, standardHeaders: true, legacyHeaders: false, keyGenerator: (request) => request.auth?.sub || clientKey(request) });
 // Orders come from anonymous visitors too, so they are limited per network like auth.
 const orderLimiter = rateLimit({ windowMs: 60 * 60_000, limit: 6, standardHeaders: true, legacyHeaders: false, keyGenerator: clientKey });
+// Shared logs are public to anyone holding the link, so reads are limited per network.
+const sharedLimiter = rateLimit({ windowMs: 10 * 60_000, limit: 60, standardHeaders: true, legacyHeaders: false, keyGenerator: clientKey });
+// Creating share links is an authenticated action: budget it per account, not per network.
+const shareLimiter = rateLimit({ windowMs: 60 * 60_000, limit: 60, standardHeaders: true, legacyHeaders: false, keyGenerator: (request) => request.auth?.sub || clientKey(request) });
 const normalizeEmail = (email) => String(email || "").trim().toLowerCase();
 const validEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 const publicUser = (row) => ({ id: row.id, email: row.email, emailVerified: Boolean(row.email_verified_at), createdAt: row.created_at ?? null });
@@ -378,6 +383,53 @@ app.delete("/api/logs/:id", authenticate, async (request, response, next) => {
   } catch (error) { next(error); }
 });
 
+// ---- Sharing: the owner creates read-only links to one log and can revoke them ----
+const shareOrigin = () => (process.env.APP_URL || "https://d3cf.com").replace(/\/$/, "");
+
+app.get("/api/logs/:id/shares", authenticate, async (request, response, next) => {
+  try {
+    const result = await requireDatabase().query(`select s.id, s.token, s.pilot_name, s.created_at from log_shares s
+      join telemetry_logs l on l.id = s.log_id where s.log_id = $1 and l.user_id = $2 order by s.created_at desc`, [request.params.id, request.auth.sub]);
+    response.set("Cache-Control", "no-store");
+    response.json({ shares: result.rows.map((row) => publicShare(row, shareOrigin())) });
+  } catch (error) { next(error); }
+});
+
+app.post("/api/logs/:id/shares", authenticate, shareLimiter, async (request, response, next) => {
+  try {
+    const database = requireDatabase();
+    const owned = await database.query("select l.id, u.email from telemetry_logs l join users u on u.id = l.user_id where l.id = $1 and l.user_id = $2", [request.params.id, request.auth.sub]);
+    if (!owned.rows[0]) return response.status(404).json({ error: "Log not found" });
+    const count = await database.query("select count(*)::int as count from log_shares where log_id = $1", [request.params.id]);
+    if (count.rows[0].count >= MAX_SHARES_PER_LOG) return response.status(409).json({ error: "Too many active links for this session. Revoke one first." });
+    const pilotName = cleanPilotName(request.body?.pilotName, defaultPilotName(owned.rows[0].email));
+    const result = await database.query("insert into log_shares (log_id, owner_id, token, pilot_name) values ($1, $2, $3, $4) returning id, token, pilot_name, created_at",
+      [request.params.id, request.auth.sub, newShareToken(), pilotName]);
+    response.status(201).json({ share: publicShare(result.rows[0], shareOrigin()) });
+  } catch (error) { next(error); }
+});
+
+app.delete("/api/shares/:id", authenticate, async (request, response, next) => {
+  try {
+    const result = await requireDatabase().query("delete from log_shares where id = $1 and owner_id = $2 returning id", [request.params.id, request.auth.sub]);
+    if (!result.rows[0]) return response.status(404).json({ error: "Link not found" });
+    response.status(204).end();
+  } catch (error) { next(error); }
+});
+
+// Public read of a shared session: whoever holds the link sees this one log, nothing else about the owner.
+app.get("/api/shared/:token", sharedLimiter, async (request, response, next) => {
+  try {
+    if (!shareTokenPattern.test(request.params.token)) return response.status(404).json({ error: "This link is no longer available" });
+    const result = await requireDatabase().query(`select s.pilot_name, l.title, l.started_at, l.ended_at, l.point_count, l.payload
+      from log_shares s join telemetry_logs l on l.id = s.log_id where s.token = $1`, [request.params.token]);
+    const row = result.rows[0];
+    if (!row) return response.status(404).json({ error: "This link is no longer available" });
+    response.set("Cache-Control", "no-store");
+    response.json({ shared: { pilotName: row.pilot_name, title: row.title, startedAt: row.started_at, endedAt: row.ended_at, pointCount: row.point_count, points: row.payload.points } });
+  } catch (error) { next(error); }
+});
+
 app.post("/api/logs/:id/ai-analysis", authenticate, aiLimiter, async (request, response, next) => {
   try {
     const database = requireDatabase();
@@ -387,7 +439,16 @@ app.post("/api/logs/:id/ai-analysis", authenticate, aiLimiter, async (request, r
     );
     const log = logResult.rows[0];
     if (!log) return response.status(404).json({ error: "Log not found" });
+    // Optional: compare with a lap from another pilot's shared session (the link token proves access to it).
+    let rival = null;
+    if (request.body.rivalToken) {
+      if (!shareTokenPattern.test(String(request.body.rivalToken))) return response.status(404).json({ error: "This link is no longer available" });
+      const shared = await database.query("select l.payload from log_shares s join telemetry_logs l on l.id = s.log_id where s.token = $1", [request.body.rivalToken]);
+      if (!shared.rows[0]) return response.status(404).json({ error: "This link is no longer available" });
+      rival = shared.rows[0].payload.points;
+    }
     const snapshot = buildTelemetrySnapshot(log.payload.points, {
+      rival,
       primaryLap: request.body.primaryLap,
       comparisonLap: request.body.comparisonLap,
       mode: request.body.mode === "single" ? "single" : "compare",
@@ -412,7 +473,7 @@ app.post("/api/logs/:id/ai-analysis", authenticate, aiLimiter, async (request, r
         provider_response_id = excluded.provider_response_id, created_at = now()
       returning id, model, report, usage, created_at`,
     [randomUUID(), request.auth.sub, log.id, cacheKey, generated.model || AI_MODEL,
-      snapshot.comparison.primaryLap, snapshot.comparison.comparisonLap, snapshot.question,
+      snapshotLapPair(snapshot).primaryLap, snapshotLapPair(snapshot).comparisonLap, snapshot.question,
       JSON.stringify(snapshot), JSON.stringify(generated.report), JSON.stringify(generated.usage), generated.responseId]);
     response.status(201).json({ analysis: saved.rows[0], cached: false });
   } catch (error) { next(error); }
@@ -421,7 +482,8 @@ app.post("/api/logs/:id/ai-analysis", authenticate, aiLimiter, async (request, r
 app.get("/api/logs/:id/ai-analyses", authenticate, async (request, response, next) => {
   try {
     const result = await requireDatabase().query(`select id, model, primary_lap, comparison_lap, question, report, usage, created_at,
-      coalesce(snapshot->>'language', 'ru') as language, snapshot->>'schema' as schema
+      coalesce(snapshot->>'language', 'ru') as language, snapshot->>'schema' as schema,
+      coalesce((snapshot->'comparison'->>'otherPilot')::boolean, false) as other_pilot
       from ai_analyses where log_id = $1 and user_id = $2 order by created_at desc limit 20`,
     [request.params.id, request.auth.sub]);
     response.json({ analyses: result.rows });

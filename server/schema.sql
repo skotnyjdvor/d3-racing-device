@@ -83,3 +83,15 @@ create table if not exists orders (
 
 create index if not exists orders_user_created_idx on orders (user_id, created_at desc);
 create index if not exists orders_email_idx on orders (email);
+
+-- Read-only links to one log, so a pilot can compare laps with someone else's session.
+create table if not exists log_shares (
+  id uuid primary key default gen_random_uuid(),
+  log_id uuid not null references telemetry_logs(id) on delete cascade,
+  owner_id uuid not null references users(id) on delete cascade,
+  token text not null unique,
+  pilot_name text not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists log_shares_log_idx on log_shares (log_id, created_at desc);

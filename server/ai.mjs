@@ -264,21 +264,48 @@ function buildSingleLapSnapshot({ options, track, prepared, analysis, primaryLap
   };
 }
 
+// Another pilot's shared session, prepared the same way: it must be on the same recognised track to be comparable.
+function prepareOtherPilot(rivalPoints, track) {
+  const rivalTrack = identifyTrack(rivalPoints, TRACKS);
+  if (!track || !rivalTrack || rivalTrack.id !== track.id) {
+    throw Object.assign(new Error("The other pilot's session was recorded on a different track"), { status: 422 });
+  }
+  const lapped = splitSessionIntoLaps(rivalPoints, rivalTrack);
+  const rivalAnalysis = analyzeSession(lapped);
+  if (!rivalAnalysis.laps.length) throw Object.assign(new Error("The other pilot's session has no completed laps"), { status: 422 });
+  return { points: lapped, analysis: rivalAnalysis };
+}
+
+// Lap numbers to store for a report: the user's lap first, the other lap second, whichever way the snapshot orients them.
+export const snapshotLapPair = (snapshot) => (snapshot.comparison?.otherPilot
+  ? { primaryLap: snapshot.comparison.userLap, comparisonLap: snapshot.comparison.otherPilotLap }
+  : { primaryLap: snapshot.comparison?.primaryLap ?? null, comparisonLap: snapshot.comparison?.comparisonLap ?? null });
+
 export function buildTelemetrySnapshot(points, options = {}) {
   const track = identifyTrack(points, TRACKS);
   const prepared = splitSessionIntoLaps(points, track);
   const analysis = analyzeSession(prepared);
   const available = analysis.laps.map((lap) => lap.number);
-  const primaryLap = available.includes(Number(options.primaryLap)) ? Number(options.primaryLap) : analysis.fastestLap?.number;
-  const comparisonLap = available.includes(Number(options.comparisonLap)) && Number(options.comparisonLap) !== primaryLap
+  const userLap = available.includes(Number(options.primaryLap)) ? Number(options.primaryLap) : analysis.fastestLap?.number;
+  const other = options.rival?.length && userLap ? prepareOtherPilot(options.rival, track) : null;
+  let primaryLap = userLap;
+  let comparisonLap = available.includes(Number(options.comparisonLap)) && Number(options.comparisonLap) !== primaryLap
     ? Number(options.comparisonLap)
     : analysis.laps.find((lap) => lap.number !== primaryLap)?.number ?? null;
+  let otherLap = null;
+  if (other) {
+    // Oriented for a driver learning from someone: the other pilot's lap is the reference ("primary"),
+    // the user's lap is the one that "loses" time, so the zones show where the user gives time away.
+    otherLap = other.analysis.laps.some((lap) => lap.number === Number(options.comparisonLap)) ? Number(options.comparisonLap) : other.analysis.fastestLap.number;
+    primaryLap = otherLap;
+    comparisonLap = userLap;
+  }
   // A single lap is analysed on request, or when the session has no second lap to compare with.
-  if (primaryLap && (options.mode === "single" || !comparisonLap)) {
+  if (!other && primaryLap && (options.mode === "single" || !comparisonLap)) {
     return buildSingleLapSnapshot({ options, track, prepared, analysis, primaryLap, lapTimes: analysis.laps.map((lap) => lap.durationMs / 1000) });
   }
-  const primaryPoints = prepared.filter((point) => point.lap === primaryLap);
-  const comparisonPoints = comparisonLap ? prepared.filter((point) => point.lap === comparisonLap) : [];
+  const primaryPoints = other ? other.points.filter((point) => point.lap === otherLap) : prepared.filter((point) => point.lap === primaryLap);
+  const comparisonPoints = comparisonLap ? prepared.filter((point) => point.lap === (other ? userLap : comparisonLap)) : [];
   const primaryProfile = lapProfile(primaryPoints);
   const comparisonProfile = lapProfile(comparisonPoints);
   const primaryEvents = extractLapEvents(primaryPoints);
@@ -337,6 +364,13 @@ export function buildTelemetrySnapshot(points, options = {}) {
     comparison: {
       primaryLap,
       comparisonLap,
+      ...(other ? {
+        otherPilot: true,
+        userLap,
+        otherPilotLap: otherLap,
+        roles: "The primary lap was driven by ANOTHER pilot and is the reference; the comparison lap is the USER's own lap. Zones show where the user's lap loses time to the other pilot.",
+        otherPilotLapDetails: (() => { const lap = other.analysis.laps.find((item) => item.number === otherLap); return { timeSeconds: rounded(lap.durationMs / 1000), averageSpeedKph: rounded(lap.averageSpeed, 1), maxSpeedKph: rounded(lap.maxSpeed, 1) }; })(),
+      } : {}),
       trace,
       deltaLossZones: {
         methodology: "Authoritative zones computed where the smoothed primary-minus-comparison cumulative delta decreases. Positive deltaSeconds means the comparison lap lost this amount of time to the primary lap in the interval. G-force samples are synchronized by normalized lap distance; signed peaks preserve the device-axis polarity.",
@@ -425,11 +459,19 @@ function groundSingleLapReport(report, snapshot) {
   };
 }
 
+const OTHER_PILOT_OBSERVATION = {
+  ru: "На этом участке вы теряете время относительно круга другого пилота.",
+  en: "In this section you lose time compared with the other pilot's lap.",
+  pl: "Na tym odcinku tracisz czas względem okrążenia drugiego kierowcy.",
+  it: "In questo tratto perdi tempo rispetto al giro dell'altro pilota.",
+};
+
 export function groundAiReport(report, snapshot) {
   if (isSingleLapSnapshot(snapshot)) return groundSingleLapReport(report, snapshot);
   const zones = snapshot.comparison?.deltaLossZones?.zones || [];
   const qualityLevel = snapshot.session?.dataQuality?.assessment?.level || "good";
   const generatedByZone = new Map((report.timeLosses || []).map((item) => [item.zoneId, item]));
+  const otherPilotObservation = snapshot.comparison?.otherPilot ? OTHER_PILOT_OBSERVATION[snapshot.language] || OTHER_PILOT_OBSERVATION.en : null;
   const fallback = snapshot.language === "ru" ? {
     observation: () => "На этом участке сравниваемый круг теряет время относительно основного.",
     hypothesis: "По доступным данным нельзя уверенно назвать причину.", recommendation: "На следующем круге сравнить момент торможения, скорость в повороте и начало разгона.",
@@ -452,7 +494,7 @@ export function groundAiReport(report, snapshot) {
         : qualityLevel === "warning" && generatedConfidence === "high" ? "medium" : generatedConfidence;
       return {
         zoneId: zone.id,
-        observation: generated.observation || fallback.observation(zone),
+        observation: generated.observation || otherPilotObservation || fallback.observation(zone),
         hypothesis: generated.hypothesis || fallback.hypothesis,
         recommendation: generated.recommendation || fallback.recommendation,
         confidence,
@@ -496,6 +538,15 @@ const COMPARISON_INSTRUCTIONS = [
   ...SHARED_CLOSING_INSTRUCTIONS,
 ];
 
+// Added to the comparison instructions when the reference lap belongs to a different pilot.
+export const OTHER_PILOT_INSTRUCTIONS = [
+  "This comparison is between the user and ANOTHER pilot: comparison.otherPilot is true. The primary lap is the other pilot's reference lap and the comparison lap is the user's own lap.",
+  "Write to the user in the second person: say 'you' and 'your lap' for the comparison data and 'the other pilot' for the primary data. Never guess who the other pilot is.",
+  "deltaLossZones show where the user loses time compared with the other pilot. Describe what the other pilot does differently and what the user can try; never judge talent or skill.",
+  "Different vehicles, tyres, engines, weight, setup or conditions can explain differences: say so when the evidence is weak, and keep confidence low where a car difference is the likelier cause.",
+  "In strengths, name what the user does as well as or better than the other pilot, using only the supplied evidence.",
+];
+
 export const SINGLE_LAP_INSTRUCTIONS = [
   "You are a racing coach who explains measured telemetry in language every track driver can understand.",
   AI_PILOT_LANGUAGE_RULES,
@@ -537,7 +588,7 @@ export async function generateAiReport(snapshot, { apiKey = getOpenAiApiKey(), m
       model,
       store: false,
       reasoning: { effort: "medium" },
-      instructions: (isSingleLapSnapshot(snapshot) ? SINGLE_LAP_INSTRUCTIONS : COMPARISON_INSTRUCTIONS).join(" "),
+      instructions: [...(isSingleLapSnapshot(snapshot) ? SINGLE_LAP_INSTRUCTIONS : COMPARISON_INSTRUCTIONS), ...(snapshot.comparison?.otherPilot ? OTHER_PILOT_INSTRUCTIONS : [])].join(" "),
       input: JSON.stringify(snapshot),
       text: {
         verbosity: "low",

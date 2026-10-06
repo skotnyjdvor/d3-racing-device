@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { parseRaceBoxCsv } from "../src/domain/csv.js";
-import { AI_FOLLOWUP_SCHEMA, AI_PILOT_LANGUAGE_RULES, AI_REPORT_SCHEMA, AI_STANDARD_REPORT_RULES, SINGLE_LAP_INSTRUCTIONS, buildTelemetrySnapshot, generateAiFollowUp, groundAiReport, isSingleLapSnapshot, snapshotCacheKey } from "../server/ai.mjs";
+import { AI_FOLLOWUP_SCHEMA, AI_PILOT_LANGUAGE_RULES, AI_REPORT_SCHEMA, AI_STANDARD_REPORT_RULES, OTHER_PILOT_INSTRUCTIONS, SINGLE_LAP_INSTRUCTIONS, buildTelemetrySnapshot, generateAiFollowUp, groundAiReport, isSingleLapSnapshot, snapshotCacheKey, snapshotLapPair } from "../server/ai.mjs";
 
 const points = parseRaceBoxCsv(fs.readFileSync(new URL("../src/fixtures/viterbo-session-2026-07-10.csv", import.meta.url), "utf8"));
 
@@ -187,4 +187,44 @@ test("single-lap instructions forbid comparisons and explain the zone types", ()
   assert.match(text, /cornerSpeed/);
   assert.match(text, /never present it as a fact/);
   assert.match(text, /Do not include digits/);
+});
+
+test("comparing with another pilot's session orients the reference lap to the other pilot", () => {
+  // The same fixture stands in for the other pilot's session: lap 3 is the fast reference, lap 5 is the user's slow lap.
+  const snapshot = buildTelemetrySnapshot(points, { rival: points, primaryLap: 5, comparisonLap: 3, language: "en" });
+  assert.equal(isSingleLapSnapshot(snapshot), false);
+  assert.equal(snapshot.comparison.otherPilot, true);
+  assert.equal(snapshot.comparison.userLap, 5);
+  assert.equal(snapshot.comparison.otherPilotLap, 3);
+  assert.equal(snapshot.comparison.primaryLap, 3, "the other pilot's lap is the reference");
+  assert.equal(snapshot.comparison.comparisonLap, 5, "the user's lap is the one that loses time");
+  assert.deepEqual(snapshotLapPair(snapshot), { primaryLap: 5, comparisonLap: 3 });
+  assert.ok(snapshot.comparison.otherPilotLapDetails.timeSeconds > 50);
+  const zones = snapshot.comparison.deltaLossZones.zones;
+  assert.ok(zones.length >= 1 && zones.every((zone) => zone.deltaSeconds > 0));
+  assert.ok(JSON.stringify(snapshot).length < 27_000);
+  const normal = buildTelemetrySnapshot(points, { primaryLap: 5, comparisonLap: 3 });
+  assert.deepEqual(snapshotLapPair(normal), { primaryLap: 5, comparisonLap: 3 });
+  assert.notEqual(snapshotCacheKey("log-1", snapshot), snapshotCacheKey("log-1", normal));
+});
+
+test("a rival session on a different track or with no laps is rejected", () => {
+  const far = points.map((point) => ({ ...point, latitude: point.latitude + 1 }));
+  assert.throws(() => buildTelemetrySnapshot(points, { rival: far, primaryLap: 3 }), (error) => error.status === 422 && /different track/.test(error.message));
+  const noLaps = points.map((point) => ({ ...point, lap: 0 })).slice(0, 40);
+  assert.throws(() => buildTelemetrySnapshot(points, { rival: noLaps, primaryLap: 3 }), (error) => error.status === 422);
+});
+
+test("other-pilot reports address the user and use localised fallback wording", () => {
+  for (const [language, word] of [["ru", /вы теряете/], ["en", /you lose/], ["pl", /tracisz/], ["it", /perdi/]]) {
+    const snapshot = buildTelemetrySnapshot(points, { rival: points, primaryLap: 5, comparisonLap: 3, language });
+    const report = groundAiReport({ timeLosses: [] }, snapshot);
+    assert.match(report.timeLosses[0].observation, word);
+    assert.doesNotMatch(report.timeLosses[0].observation, /\d/);
+  }
+  const text = OTHER_PILOT_INSTRUCTIONS.join(" ");
+  assert.match(text, /ANOTHER pilot/);
+  assert.match(text, /second person/);
+  assert.match(text, /never judge talent or skill/);
+  assert.match(text, /Different vehicles/);
 });
