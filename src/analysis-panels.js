@@ -62,10 +62,26 @@ function loadChannels() {
   } catch { return [...DEFAULT_CHANNELS]; }
 }
 
+const YZOOM_KEY = "d3-stack-yzoom";
+const MAX_YZOOM = 8;
+function loadYZoom() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(YZOOM_KEY));
+    if (!saved || typeof saved !== "object") return {};
+    return Object.fromEntries(Object.entries(saved)
+      .filter(([id, factor]) => id in STACK_CHANNELS && Number.isFinite(factor))
+      .map(([id, factor]) => [id, Math.max(1, Math.min(MAX_YZOOM, factor))]));
+  } catch { return {}; }
+}
+// Slider position 0..100 maps to a zoom factor of 1..8 on a log scale.
+const sliderToFactor = (value) => 2 ** (value / 100 * Math.log2(MAX_YZOOM));
+const factorToSlider = (factor) => Math.round(Math.log2(factor) / Math.log2(MAX_YZOOM) * 100);
+
 export function createAnalysisPanels(ctx) {
   const { state, elements, t } = ctx;
   let selected = loadChannels();
-  let markerProgress = null;
+  let selection = null; // { from, to } while a stretch is being dragged out
+  let yZoom = loadYZoom();
   let cacheSource = null;
   const cache = new Map();
 
@@ -157,7 +173,7 @@ export function createAnalysisPanels(ctx) {
     drawStack();
   });
 
-  const STACK_PADDING = { left: 60, right: 14, top: 6, bottom: 24 };
+  const STACK_PADDING = { left: 76, right: 14, top: 6, bottom: 24 };
   const stackX = (progress, plotWidth) => STACK_PADDING.left + (progress - state.chartView.start) / Math.max(state.chartView.end - state.chartView.start, 1e-6) * plotWidth;
   function stackProgress(clientX) {
     const rect = elements.stackCanvas.getBoundingClientRect();
@@ -171,7 +187,17 @@ export function createAnalysisPanels(ctx) {
     return data.channels.get(id);
   }
 
-  function scaleFor(channel, values) {
+  // The automatic scale, narrowed around its middle by the strip's slider (zero stays centred on ± channels).
+  function scaleFor(channel, values, factor = 1) {
+    const [min, max] = autoScale(channel, values);
+    if (factor <= 1) return [min, max];
+    const finite = values.filter(Number.isFinite);
+    const center = min < 0 || !finite.length ? (min + max) / 2 : (Math.min(...finite) + Math.max(...finite)) / 2;
+    const half = (max - min) / 2 / factor;
+    const low = Math.max(min, Math.min(max - 2 * half, center - half));
+    return [low, low + 2 * half];
+  }
+  function autoScale(channel, values) {
     const finite = values.filter(Number.isFinite);
     const peak = finite.length ? Math.max(...finite.map(Math.abs)) : 1;
     if (channel.scale === "speed") return [0, niceCeil(Math.max(...finite, 20), 20)];
@@ -241,15 +267,18 @@ export function createAnalysisPanels(ctx) {
         const primarySeries = channel.delta ? deltaValues : seriesFor(id, primary);
         const comparisonSeries = channel.delta ? [] : seriesFor(id, comparison);
         const visible = [...primarySeries, ...comparisonSeries].filter((item) => inView(item.progress)).map((item) => item.value);
-        const [min, max] = scaleFor(channel, visible);
+        const factor = yZoom[id] ?? 1;
+        const [min, max] = scaleFor(channel, visible, factor);
         const stripTop = top + index * stripHeight;
         const stripBottom = stripTop + stripHeight;
-        const y = (value) => stripTop + 18 + (max - Math.max(min, Math.min(max, value))) / Math.max(max - min, 1e-6) * (stripHeight - 24);
+        // Zoomed in by the slider, values past the scale run off the strip (clipped) instead of flattening at its edge.
+        const clamp = (value) => (factor > 1 ? value : Math.max(min, Math.min(max, value)));
+        const y = (value) => stripTop + 18 + (max - clamp(value)) / Math.max(max - min, 1e-6) * (stripHeight - 24);
         context.strokeStyle = GRID; context.lineWidth = 1;
         context.beginPath(); context.moveTo(STACK_PADDING.left, stripBottom); context.lineTo(width - STACK_PADDING.right, stripBottom); context.stroke();
         if (min < 0) { context.strokeStyle = "rgba(255,255,255,.18)"; context.beginPath(); context.moveTo(STACK_PADDING.left, y(0)); context.lineTo(width - STACK_PADDING.right, y(0)); context.stroke(); }
         context.fillStyle = MUTED; context.textAlign = "right"; context.textBaseline = "middle";
-        const digits = channel.scale === "speed" || channel.scale === "radius" || channel.unit === "°" ? 0 : 1;
+        const digits = (channel.scale === "speed" || channel.scale === "radius" || channel.unit === "°" ? 0 : 1) + (factor >= 3 ? 1 : 0);
         context.fillText(max.toFixed(digits), STACK_PADDING.left - 8, y(max));
         context.fillText(min.toFixed(digits), STACK_PADDING.left - 8, y(min));
 
@@ -268,7 +297,7 @@ export function createAnalysisPanels(ctx) {
         line(comparisonSeries, RED, 1.5);
         line(primarySeries, WHITE, 1.8);
         const unit = channel.unit.startsWith("unit.") ? t(channel.unit) : channel.unit;
-        const strip = { id, channel, primarySeries, comparisonSeries, stripTop, y, name: `${t(`chan.${id}`)}, ${unit}` };
+        const strip = { id, channel, primarySeries, comparisonSeries, stripTop, stripHeight, y, name: `${t(`chan.${id}`)}, ${unit}` };
         drawStripLabel(context, strip, null);
         return strip;
       });
@@ -282,27 +311,22 @@ export function createAnalysisPanels(ctx) {
       }
       return { plotWidth, strips };
     });
-    if (!geometry) { renderReadout(null, null); return; }
+    if (!geometry) { placeScaleSliders([]); renderReadout(null, null); return; }
 
-    // Overlay: values under the cursor, the measured stretch, marker A and the cursor line.
+    // Overlay: values under the cursor, the stretch being selected and the cursor line.
     const { plotWidth, strips } = geometry;
+    if (!ctx.isOverlayFrame()) placeScaleSliders(strips);
     const cursor = state.cursorProgress;
     if (cursor !== null) strips.forEach((strip) => drawStripLabel(context, strip, cursor));
     const plotBottom = height - STACK_PADDING.bottom;
-    if (markerProgress !== null && cursor !== null) {
-      const from = stackX(Math.min(markerProgress, cursor), plotWidth);
-      const to = stackX(Math.max(markerProgress, cursor), plotWidth);
-      context.fillStyle = "rgba(199,255,61,.07)";
-      context.fillRect(Math.max(STACK_PADDING.left, from), STACK_PADDING.top, Math.min(to, width - STACK_PADDING.right) - Math.max(STACK_PADDING.left, from), plotBottom - STACK_PADDING.top);
-    }
-    if (markerProgress !== null && inView(markerProgress)) {
-      const x = stackX(markerProgress, plotWidth);
+    if (selection) {
+      const from = Math.max(STACK_PADDING.left, stackX(Math.min(selection.from, selection.to), plotWidth));
+      const to = Math.min(width - STACK_PADDING.right, stackX(Math.max(selection.from, selection.to), plotWidth));
+      context.fillStyle = "rgba(199,255,61,.1)";
+      context.fillRect(from, STACK_PADDING.top, to - from, plotBottom - STACK_PADDING.top);
       context.strokeStyle = LIME; context.lineWidth = 1.2; context.setLineDash([5, 4]);
-      context.beginPath(); context.moveTo(x, STACK_PADDING.top); context.lineTo(x, plotBottom); context.stroke(); context.setLineDash([]);
-      context.fillStyle = LIME; context.fillRect(x - 8, plotBottom - 16, 16, 16);
-      context.fillStyle = "#08080c"; context.textAlign = "center"; context.font = "700 12px 'JetBrains Mono', ui-monospace, monospace";
-      context.fillText("A", x, plotBottom - 4);
-      context.font = FONT;
+      [from, to].forEach((x) => { context.beginPath(); context.moveTo(x, STACK_PADDING.top); context.lineTo(x, plotBottom); context.stroke(); });
+      context.setLineDash([]);
     }
     if (cursor !== null && inView(cursor)) {
       const x = stackX(cursor, plotWidth);
@@ -340,23 +364,20 @@ export function createAnalysisPanels(ctx) {
     readoutHtml = html;
     elements.stackReadout.innerHTML = html;
   }
+  // While a stretch is being dragged out: its length and times. When zoomed in: the same for the visible part.
   function renderReadout(primary, comparison) {
-    const cursor = state.cursorProgress;
-    if (!primary || markerProgress === null) {
+    const zoomed = state.chartView.end - state.chartView.start < .999;
+    if (!primary || (!selection && !zoomed)) {
       setReadout(`<span class="stack-hint">${t("measure.hint")}</span>${selected.includes("phase") ? `<span class="stack-hint">${t("phase.legend")}</span>` : ""}`);
       return;
     }
-    const clear = `<button type="button" class="stack-clear" data-stack-clear>${t("measure.clear")}</button>`;
-    if (cursor === null) {
-      setReadout(`<b class="stack-a">A ${Math.round(markerProgress * 100)}%</b><span class="stack-hint">${t("measure.moveCursor")}</span>${clear}`);
-      return;
-    }
-    const from = Math.min(markerProgress, cursor); const to = Math.max(markerProgress, cursor);
+    const from = selection ? Math.min(selection.from, selection.to) : state.chartView.start;
+    const to = selection ? Math.max(selection.from, selection.to) : state.chartView.end;
     const time = (data) => (data ? (timeAtProgress(data.series, to) - timeAtProgress(data.series, from)) / 1000 : null);
     const primaryTime = time(primary); const comparisonTime = time(comparison);
     const speeds = primary.series.filter((item) => item.progress >= from && item.progress <= to).map((item) => item.d.speed);
     const parts = [
-      `<b class="stack-a">A → ${Math.round(to === cursor ? cursor * 100 : from * 100)}%</b>`,
+      `<b class="stack-a">${Math.round(from * 100)}–${Math.round(to * 100)}%</b>`,
       `<span>${Math.round((to - from) * primary.length)} ${t("measure.meters")}</span>`,
       `<span class="val-primary">${t("measure.lap", { lap: state.selectedLapNumber })} ${primaryTime.toFixed(3)} ${t("unit.seconds")}</span>`,
     ];
@@ -366,37 +387,86 @@ export function createAnalysisPanels(ctx) {
       parts.push(`<span class="${gap > 0 ? "loss" : "gain"}">Δ ${gap > 0 ? "+" : "−"}${Math.abs(gap).toFixed(3)} ${t("unit.seconds")}</span>`);
     }
     if (speeds.length) parts.push(`<span>${t("measure.min")} ${Math.round(Math.min(...speeds))} · ${t("measure.max")} ${Math.round(Math.max(...speeds))} ${t("unit.speed")}</span>`);
-    setReadout(parts.join("") + clear);
+    const reset = selection ? "" : `<button type="button" class="stack-clear" data-stack-clear>${t("measure.clear")}</button>`;
+    setReadout(parts.join("") + reset);
   }
   elements.stackReadout.addEventListener("click", (event) => {
-    if (!event.target.closest("[data-stack-clear]")) return;
-    markerProgress = null;
-    drawStack();
+    if (event.target.closest("[data-stack-clear]")) ctx.resetChartZoom();
   });
 
-  // Hover moves the shared cursor; a click drops (or removes) marker A; the wheel zooms the distance axis.
+  // ---- Vertical scale sliders, one per strip, in the left gutter ----
+  const scales = document.createElement("div");
+  scales.className = "stack-scales";
+  elements.stackCanvas.after(scales);
+  // Inputs are kept per channel and only moved, so a slider being dragged is never replaced under the mouse.
+  const scaleInputs = new Map();
+  function placeScaleSliders(strips) {
+    const ids = new Set(strips.map((strip) => strip.id));
+    scaleInputs.forEach((input, id) => { if (!ids.has(id)) { input.remove(); scaleInputs.delete(id); } });
+    strips.forEach((strip) => {
+      let input = scaleInputs.get(strip.id);
+      if (!input) {
+        input = document.createElement("input");
+        input.type = "range"; input.min = "0"; input.max = "100"; input.step = "1";
+        input.className = "stack-scale";
+        input.dataset.channel = strip.id;
+        scaleInputs.set(strip.id, input);
+        scales.append(input);
+      }
+      if (document.activeElement !== input) input.value = String(factorToSlider(yZoom[strip.id] ?? 1));
+      input.title = t("chan.scale");
+      input.setAttribute("aria-label", `${t("chan.scale")}: ${t(`chan.${strip.id}`)}`);
+      const top = `${elements.stackCanvas.offsetTop + strip.stripTop + 20}px`;
+      const height = `${Math.max(24, strip.stripHeight - 24)}px`;
+      if (input.style.top !== top) input.style.top = top;
+      if (input.style.height !== height) input.style.height = height;
+    });
+  }
+  function setYZoom(id, factor) {
+    const { [id]: _previous, ...rest } = yZoom;
+    yZoom = factor > 1.001 ? { ...rest, [id]: factor } : rest;
+    try { localStorage.setItem(YZOOM_KEY, JSON.stringify(yZoom)); } catch {}
+    drawStack();
+  }
+  scales.addEventListener("input", (event) => {
+    const input = event.target.closest(".stack-scale");
+    if (input) setYZoom(input.dataset.channel, sliderToFactor(Number(input.value)));
+  });
+  scales.addEventListener("dblclick", (event) => {
+    const input = event.target.closest(".stack-scale");
+    if (!input) return;
+    input.value = "0";
+    setYZoom(input.dataset.channel, 1);
+  });
+
+  // Hover moves the shared cursor; dragging across the graph selects a stretch and zooms into it on release;
+  // the wheel zooms the distance axis and a double click shows the whole lap again.
   {
     const canvas = elements.stackCanvas;
+    const DRAG_PX = 6;
     let press = null;
     canvas.addEventListener("pointermove", (event) => {
-      if (event.pointerType === "mouse" || press) ctx.setCursorProgress(stackProgress(event.clientX));
+      if (event.pointerType !== "mouse" && !press) return;
+      const progress = stackProgress(event.clientX);
+      if (press && (selection || Math.abs(event.clientX - press.x) >= DRAG_PX)) selection = { from: press.progress, to: progress };
+      ctx.setCursorProgress(progress);
     });
     canvas.addEventListener("pointerdown", (event) => {
       if (event.button !== 0) return;
-      press = { x: event.clientX };
-      ctx.setCursorProgress(stackProgress(event.clientX));
+      press = { x: event.clientX, progress: stackProgress(event.clientX) };
+      canvas.setPointerCapture?.(event.pointerId);
+      ctx.setCursorProgress(press.progress);
     });
-    canvas.addEventListener("pointerup", (event) => {
-      if (press && Math.abs(event.clientX - press.x) < 5) {
-        const progress = stackProgress(event.clientX);
-        const rect = canvas.getBoundingClientRect();
-        const plotWidth = rect.width - STACK_PADDING.left - STACK_PADDING.right;
-        const nearMarker = markerProgress !== null && Math.abs(stackX(markerProgress, plotWidth) - stackX(progress, plotWidth)) < 8;
-        markerProgress = nearMarker ? null : progress;
-        drawStack();
-      }
-      press = null;
-    });
+    const finish = (apply) => {
+      const range = selection;
+      press = null; selection = null;
+      if (apply && range && Math.abs(range.to - range.from) > 1e-4) {
+        ctx.setChartRange(Math.min(range.from, range.to), Math.max(range.from, range.to));
+      } else drawStack();
+    };
+    canvas.addEventListener("pointerup", () => finish(true));
+    canvas.addEventListener("pointercancel", () => finish(false));
+    window.addEventListener("keydown", (event) => { if (event.key === "Escape" && selection) finish(false); });
     canvas.addEventListener("pointerleave", (event) => { if (event.pointerType === "mouse" && !event.buttons) ctx.setCursorProgress(null); });
     canvas.addEventListener("wheel", (event) => {
       event.preventDefault();

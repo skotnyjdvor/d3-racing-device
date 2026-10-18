@@ -602,6 +602,15 @@ function setChartZoom(center, nextSpan) {
   drawCharts();
 }
 
+// Show exactly [start, end] of the lap (a stretch selected with the mouse).
+function setChartRange(start, end) {
+  const span = Math.max(.02, Math.min(1, end - start));
+  const from = Math.max(0, Math.min(1 - span, start));
+  state.chartView = { start: from, end: from + span };
+  elements.chartZoomReset.textContent = `${Math.round(100 / span)}%`;
+  drawCharts();
+}
+
 function resetChartZoom() {
   state.chartView = { start: 0, end: 1 };
   elements.chartZoomReset.textContent = "100%";
@@ -1229,7 +1238,7 @@ elements.chartZoomReset.addEventListener("click", resetChartZoom);
 analysisPanels = createAnalysisPanels({
   state, elements, t, onLanguageChange,
   lapPoints, comparisonLapPoints, distancePoints, canvasContext, sectorFractions, paintLayers, isOverlayFrame,
-  setCursorProgress, setChartZoom, resetChartZoom,
+  setCursorProgress, setChartZoom, setChartRange, resetChartZoom,
 });
 renderMapMode();
 elements.mapMode.addEventListener("click", (event) => {
