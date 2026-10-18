@@ -38,7 +38,7 @@ export default {
   "ws.panel.stack": "Canali",
   "ws.panel.gg": "Diagramma G-G",
   "ws.edit": "Layout",
-  "ws.hint": "Trascina un pannello dall'intestazione in un altro punto, o sul bordo di una colonna per aprirne una nuova. Trascina i bordi o usa le frecce per ridimensionare.",
+  "ws.hint": "Fai clic su un pannello per selezionarlo. Trascinalo per spostarlo: gli altri si spostano subito. Le maniglie del pannello selezionato lo ridimensionano. Tastiera: frecce per spostare, Maiusc+frecce per ridimensionare, Canc per nascondere.",
   "ws.panels": "Pannelli",
   "ws.presets": "Modelli",
   "ws.reset": "Ripristina",

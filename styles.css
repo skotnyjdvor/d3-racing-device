@@ -1956,7 +1956,7 @@ html.app-mode body.auth-locked .app-welcome { min-height: calc(100vh - var(--top
 }
 
 /* ---------- Desktop workspace for the analysis screen (src/workspace.js, body.ws-on) ---------- */
-.ws-toggle, .ws-hide { display: none; }
+.ws-toggle { display: none; }
 html.app-mode body.ws-on.has-session:not(.auth-locked, .view-device, .view-logs, .view-ai, .view-profile, .view-shop) .ws-toggle { height: 34px; padding: 0 12px; display: inline-flex; align-items: center; gap: 8px; color: var(--race-text-2); background: transparent; border: 1px solid var(--race-line-2); font: 700 12px/1 var(--font-code); letter-spacing: .12em; text-transform: uppercase; cursor: pointer; transition: color .15s, border-color .15s, background-color .15s; }
 .ws-toggle svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; }
 .ws-toggle:hover { color: var(--race-text); border-color: var(--race-text-2); }
@@ -2000,17 +2000,40 @@ html.app-mode body.ws-on .ws-column .telemetry-tabs { display: none; }
 .ws-chip[aria-pressed="true"]::before { content: "✓ "; color: var(--race-lime); }
 .ws-chip:disabled { opacity: .5; cursor: default; }
 html .ws-bar .ws-done { min-height: 32px; height: 32px; padding: 0 16px; font: 700 12px/1 var(--font-code); letter-spacing: .12em; text-transform: uppercase; }
-body.ws-editing .ws-area .panel { outline: 1px dashed rgba(225,6,0,.5); outline-offset: -1px; }
-body.ws-editing .ws-area .panel-head { cursor: grab; background: rgba(225,6,0,.05); }
+/* Layout mode: panels become tiles for arranging; their contents are covered and inactive. */
+.ws-shield { display: none; }
 body.ws-editing .ws-area .panel { position: relative; }
-html.app-mode body.ws-editing .ws-area .panel-head { padding-right: 48px; }
-body.ws-editing .ws-area .panel-head .ws-hide { position: absolute; top: 6px; right: 8px; z-index: 2; width: 28px; height: 28px; margin: 0; padding: 0; display: grid; place-items: center; color: var(--race-text-2); background: var(--race-bg); border: 1px solid var(--race-line-2); font: 400 18px/1 var(--font-code); cursor: pointer; }
-body.ws-editing .ws-area .panel-head .ws-hide:hover:not(:disabled) { color: var(--race-text); border-color: var(--race-red); }
-body.ws-editing .ws-area .panel-head .ws-hide:disabled { opacity: .35; cursor: default; }
-.ws-dragging { opacity: .35; }
-.ws-drop { position: absolute; left: 0; top: 0; z-index: 5; background: var(--race-red); box-shadow: 0 0 18px rgba(225,6,0,.6); pointer-events: none; }
-.ws-drop[hidden] { display: none; }
-.ws-ghost { position: fixed; left: 0; top: 0; z-index: 100; padding: 8px 12px; color: var(--race-text); background: var(--race-surface); border: 1px solid var(--race-red); box-shadow: 0 10px 30px rgba(0,0,0,.5); font: 700 12px/1 var(--font-code); letter-spacing: .12em; text-transform: uppercase; pointer-events: none; }
+body.ws-editing .ws-area .ws-shield { position: absolute; inset: 0; z-index: 6; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; background: rgba(8,8,12,.8); border: 1px dashed rgba(255,255,255,.18); cursor: grab; user-select: none; touch-action: none; transition: background-color .15s, border-color .15s; }
+body.ws-editing .ws-area .ws-shield:hover { background: rgba(8,8,12,.72); border-color: rgba(255,255,255,.35); }
+body.ws-editing .ws-area .ws-shield:focus-visible { outline: none; border-color: var(--race-text); }
+.ws-shield-name { max-width: calc(100% - 24px); padding: 8px 14px; color: var(--race-text); background: #08080c; border: 1px solid var(--race-line-2); font: 700 18px/1.1 var(--font-display); letter-spacing: .06em; text-transform: uppercase; text-align: center; }
+.ws-shield-size { padding: 3px 8px; color: var(--race-text-2); background: #08080c; font: 400 12px/1 var(--font-code); font-variant-numeric: tabular-nums; }
+body.ws-editing .ws-area .panel.ws-selected .ws-shield { background: rgba(30,6,8,.78); border: 2px solid var(--race-red); }
+body.ws-editing .ws-area .panel.ws-selected .ws-shield-name { border-color: var(--race-red); }
+body.ws-editing .ws-area .panel.ws-selected .ws-shield-name { color: #fff; }
+/* The slot of the panel being moved: the other panels make room around it. */
+body.ws-editing .ws-area .panel.ws-placeholder .ws-shield { background: repeating-linear-gradient(135deg, rgba(225,6,0,.16) 0 10px, rgba(225,6,0,.06) 10px 20px); border: 2px dashed var(--race-red); cursor: grabbing; }
+body.ws-editing .ws-area .panel.ws-placeholder .ws-shield > :not(.ws-shield-name) { visibility: hidden; }
+body.ws-moving, body.ws-moving * { cursor: grabbing !important; }
+body.ws-resizing-col, body.ws-resizing-col * { cursor: col-resize !important; }
+body.ws-resizing-row, body.ws-resizing-row * { cursor: row-resize !important; }
+
+/* Hide button and edge handles of the selected panel. */
+.ws-shield .ws-hide { position: absolute; top: 8px; right: 8px; width: 30px; height: 30px; padding: 0; display: none; place-items: center; color: var(--race-text-2); background: var(--race-bg); border: 1px solid var(--race-line-2); font: 400 18px/1 var(--font-code); cursor: pointer; }
+body.ws-editing .ws-area .panel.ws-selected .ws-hide { display: grid; }
+.ws-shield .ws-hide:hover:not(:disabled) { color: var(--race-text); border-color: var(--race-red); }
+.ws-shield .ws-hide:disabled { opacity: .35; cursor: default; }
+.ws-handle { position: absolute; z-index: 1; display: block; }
+.ws-handle[hidden] { display: none; }
+.ws-handle::after { content: ""; position: absolute; background: var(--race-red); border-radius: 2px; transition: transform .12s; }
+.ws-handle-left, .ws-handle-right { top: 0; bottom: 0; width: 14px; cursor: col-resize; }
+.ws-handle-left { left: 0; } .ws-handle-right { right: 0; }
+.ws-handle-top, .ws-handle-bottom { left: 0; right: 0; height: 14px; cursor: row-resize; }
+.ws-handle-top { top: 0; } .ws-handle-bottom { bottom: 0; }
+.ws-handle-left::after, .ws-handle-right::after { left: 4px; top: 50%; width: 4px; height: 44px; margin-top: -22px; }
+.ws-handle-top::after, .ws-handle-bottom::after { top: 4px; left: 50%; height: 4px; width: 44px; margin-left: -22px; }
+.ws-handle:hover::after, .ws-handle.active::after { transform: scale(1.35); }
+.ws-ghost { position: fixed; left: 0; top: 0; z-index: 100; display: grid; place-items: center; padding: 8px 12px; color: var(--race-text); background: rgba(15,15,22,.92); border: 2px solid var(--race-red); box-shadow: 0 14px 40px rgba(0,0,0,.55); font: 700 14px/1.2 var(--font-display); letter-spacing: .06em; text-transform: uppercase; text-align: center; pointer-events: none; }
 @media (prefers-reduced-motion: reduce) { .ws-split::after, .ws-toggle { transition: none; } }
 
 /* ---------- Track map colouring (src/analysis-panels.js) ---------- */
