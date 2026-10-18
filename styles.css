@@ -2060,3 +2060,6 @@ body.ws-editing .ws-area .panel-head .ws-hide:disabled { opacity: .35; cursor: d
 .trajectory-legend[hidden] { display: none; }
 .track-panel .panel-head > div:first-child { min-width: 0; }
 .track-panel .panel-head h2 { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+/* The apps require an account: no guest CSV trial on their sign-in screen. */
+html.app-mode #appTrialButton, html.app-mode #appTrialStatus { display: none; }

@@ -33,9 +33,10 @@ const requestValue = (request) => new Promise((resolve, reject) => {
   request.onerror = () => reject(request.error);
 });
 
-export async function listLocalSessions() {
+export async function listLocalSessions(owner) {
   const db = await database();
-  return requestValue(db.transaction("sessions").objectStore("sessions").getAll());
+  const all = await requestValue(db.transaction("sessions").objectStore("sessions").getAll());
+  return all.filter((session) => session.owner === owner);
 }
 
 export async function loadLocalPoints(id) {

@@ -34,8 +34,7 @@ const trackAiMarkerAreas = new WeakMap();
 const testMode = new URLSearchParams(location.search).has("mock");
 // Native apps (and ?app=1) use the telemetry-app layout; public/app-boot.js sets the class before paint.
 const appMode = document.documentElement.classList.contains("app-mode");
-// Without an account only the website gates features; the apps keep everything on the device.
-const accountRequired = () => !state.user && !testMode && !appMode;
+const accountRequired = () => !state.user && !testMode;
 let accountMode = "signin";
 // AI report mode: "single" analyses one lap on its own, "compare" explains the difference between two laps.
 let aiModePreference = "single";
@@ -1650,6 +1649,10 @@ async function selectSession(id) {
       const record = await loadLog(session.cloudId);
       session.points = record?.points ?? [];
       session.pointCount = session.points.length;
+      if (appMode && session.points.length) {
+        const meta = ownedSession(makeLocalSession(session.points, { title: session.title, deviceName: session.deviceName }));
+        void saveLocalSession({ ...meta, owner: state.user?.id ?? null, cloudId: session.cloudId }, session.points).catch(() => {});
+      }
       if (state.selectedSession !== session) return false;
     } catch (error) {
       setAccountMessage(error.message, true);
@@ -1691,7 +1694,7 @@ function setAccountMessage(message = "", error = false) {
 // A guest who opened a shared link sees the app (read-only) without an account, like in the CSV trial.
 function viewingShared() { return state.sessions.some((session) => session.source === "shared"); }
 function updateAccess() {
-  const unlocked = Boolean(state.user) || testMode || appMode || state.trial || viewingShared();
+  const unlocked = Boolean(state.user) || testMode || (!appMode && (state.trial || viewingShared()));
   document.body.classList.toggle("auth-locked", !unlocked);
   elements.authGate.hidden = unlocked;
   renderTrialBanner();
@@ -1851,12 +1854,18 @@ async function applyUser(user) {
     if (!testMode && state.client) await state.client.disconnect();
     state.cloudLogs = [];
     state.aiHistory = []; state.aiHistoryLoading = false; state.aiHistoryError = "";
-    state.sessions = state.sessions.filter((session) => session.source !== "cloud");
-    if (state.selectedSession?.source === "cloud") state.selectedSession = null;
+    state.sessions = state.sessions.filter((session) => session.source !== "cloud" && session.source !== "local");
+    if (state.selectedSession?.source === "cloud" || state.selectedSession?.source === "local") state.selectedSession = null;
     showView(viewFromHash() === "shop" ? "shop" : "analysis", false); renderAccount(); renderSessions(); renderAiHistory();
     return;
   }
   renderAccount();
+  if (appMode) {
+    state.sessions = state.sessions.filter((session) => session.source !== "local" || session.owner === user.id);
+    await loadLocalSessions();
+    if (user.offline) { showView(viewFromHash(), false); return; }
+    void syncLocalToCloud();
+  }
   await saveTrialLogs();
   await syncCloudLogs();
   showView(viewFromHash(), false);
@@ -1989,18 +1998,47 @@ async function handleAuthLink() {
 }
 
 // Apps: every downloaded or imported session is kept on the device (IndexedDB).
+const ownedSession = (meta) => ({ ...meta, id: `${state.user?.id ?? "guest"}:${meta.id}` });
 async function storeLocally(points, options) {
-  const meta = makeLocalSession(points, options);
+  // One library per pilot on a shared device: the owner is part of the id.
+  const meta = ownedSession(makeLocalSession(points, options));
   const existing = state.sessions.find((item) => item.id === meta.id);
-  const session = { ...meta, title: existing?.title || meta.title, cloudId: existing?.cloudId, points };
+  const session = { ...meta, owner: state.user?.id ?? null, title: existing?.title || meta.title, cloudId: existing?.cloudId ?? options.cloudId, points };
   await saveLocalSession(session, points);
   state.sessions = mergeSessions(state.sessions.filter((item) => item.id !== session.id), [session]);
   return state.sessions.find((item) => item.id === session.id);
 }
 
+// Automatic sync: sessions recorded or imported on this device are uploaded as soon as there is a network.
+let syncing = null;
+function syncLocalToCloud() {
+  if (!appMode || !state.user || !navigator.onLine) return Promise.resolve();
+  if (syncing) return syncing;
+  syncing = (async () => {
+    await Promise.resolve(); // the flag must be set before the body (and its finally) runs
+    try {
+      for (const session of state.sessions.filter((item) => item.source === "local" && !item.cloudId && item.owner === state.user?.id)) {
+        const points = session.points ?? await loadLocalPoints(session.id);
+        if (!points.length || !state.user) continue;
+        session.cloudId = await saveLog({ ...session, points }, session.deviceName);
+        if (session.title) await renameLog(session.cloudId, session.title).catch(() => {});
+        await updateLocalSession(session.id, { cloudId: session.cloudId });
+      }
+      renderSessions();
+      if (state.selectedSession?.source === "local" && state.selectedSession.cloudId) {
+        elements.analyzeAiButton.disabled = !state.analysis?.laps.length;
+        elements.copyStatus.textContent = t("ai.ready");
+      }
+    } catch (error) { console.warn("Sync paused:", error.message); }
+    finally { syncing = null; }
+  })();
+  return syncing;
+}
+window.addEventListener("online", () => { if (state.user?.offline) void currentUser().then(applyUser); else void syncLocalToCloud(); });
+
 async function loadLocalSessions() {
   try {
-    const stored = await listLocalSessions();
+    const stored = await listLocalSessions(state.user?.id ?? null);
     if (!stored.length) return;
     const known = new Set(state.sessions.map((item) => item.id));
     state.sessions = mergeSessions(state.sessions, stored.filter((item) => !known.has(item.id)));
@@ -2056,6 +2094,7 @@ async function importLogFile(file) {
       const points = parseRaceBoxCsv(await file.text());
       const session = await storeLocally(points, { title: file.name.replace(/\.csv$/i, "") });
       renderSessions(); await selectSession(session.id);
+      void syncLocalToCloud();
       showNotice(t("logsPage.importedLocal"));
     } catch (error) { showNotice(error.message, true); }
     finally { elements.importLogInput.value = ""; }
@@ -2150,7 +2189,7 @@ async function downloadHistory() {
       const stored = [];
       for (const session of sessions) stored.push(await storeLocally(session.points, { deviceName: state.deviceName }));
       renderSessions(); await selectSession(stored.at(-1).id);
-      if (state.user) await saveDownloadedLogs(stored.filter((session) => !session.cloudId));
+      void syncLocalToCloud();
     } else {
       state.sessions = sessions; state.selectedSession = sessions.at(-1);
       renderSessions(); selectSession(state.selectedSession.id);
@@ -2659,7 +2698,6 @@ initProfile({
 });
 initStats({ askDialog, showNotice, onUserUpdated(user) { state.user = { ...state.user, ...user }; } });
 if (viewFromHash() === "shop") showView("shop", false);
-if (appMode) void loadLocalSessions();
 if (cloudConfigured) {
   currentUser().then(applyUser).then(handleAuthLink).then(handleSharedLink).then(handleFriendLink);
 } else {

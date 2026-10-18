@@ -3,6 +3,8 @@ const nativeApp = ["capacitor:", "ionic:", "app:"].includes(globalThis.location?
   || globalThis.Capacitor?.isNativePlatform?.();
 const apiBase = (import.meta.env.VITE_API_URL || (nativeApp ? "https://d3cf.com" : "")).replace(/\/$/, "");
 const tokenKey = "laptrace-access-token";
+// Last known profile, so a signed-in pilot can keep using the app offline.
+const userKey = "laptrace-user";
 const listeners = new Set();
 
 const getToken = () => localStorage.getItem(tokenKey);
@@ -18,22 +20,39 @@ async function request(path, options = {}) {
     },
   });
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body.error || `API error ${response.status}`);
+  if (!response.ok) throw Object.assign(new Error(body.error || `API error ${response.status}`), { status: response.status });
   return body;
+}
+
+function rememberUser(user) {
+  try { if (user) localStorage.setItem(userKey, JSON.stringify(user)); } catch {}
+  return user;
+}
+function forget() {
+  localStorage.removeItem(tokenKey);
+  localStorage.removeItem(userKey);
 }
 
 function rememberAuth(data) {
   if (data.token) localStorage.setItem(tokenKey, data.token);
+  rememberUser(data.user);
   listeners.forEach((listener) => listener(data.user ?? null));
   return data.user ?? null;
 }
 
 export const cloudConfigured = Boolean(apiBase) || (import.meta.env.PROD && location.protocol.startsWith("http"));
 
+// Only a rejected token signs the pilot out; without a network the cached profile is used (offline: true).
 export async function currentUser() {
   if (!getToken()) return null;
-  try { return (await request("/api/auth/me")).user; }
-  catch { localStorage.removeItem(tokenKey); return null; }
+  try { return rememberUser((await request("/api/auth/me")).user); }
+  catch (error) {
+    if (error.status === 401 || error.status === 403) { forget(); return null; }
+    try {
+      const cached = JSON.parse(localStorage.getItem(userKey));
+      return cached?.id ? { ...cached, offline: true } : null;
+    } catch { return null; }
+  }
 }
 
 export async function signIn(email, password) {
@@ -75,7 +94,7 @@ export async function deleteAccount(password) {
 }
 
 export async function signOut() {
-  localStorage.removeItem(tokenKey);
+  forget();
   listeners.forEach((listener) => listener(null));
 }
 
