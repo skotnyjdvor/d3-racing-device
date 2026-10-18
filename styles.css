@@ -1967,25 +1967,16 @@ html.app-mode body.ws-on.has-session:not(.auth-locked, .view-device, .view-logs,
 html.app-mode body.ws-on #appMain > :is(.summary-grid, .trial-banner) { flex: none; }
 html.app-mode body.ws-on #appMain > .dashboard { flex: 1 1 auto; min-height: 0; margin-top: 8px; grid-template-columns: minmax(340px, 420px) minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr); grid-template-areas: "session laps" "bar bar" "ws ws"; }
 html.app-mode body.ws-on .dashboard > .ws-bar { grid-area: bar; }
-html.app-mode body.ws-on .dashboard > .ws-area { grid-area: ws; position: relative; min-height: 0; display: flex; }
-.ws-column { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
-html.app-mode body.ws-on .ws-column > .panel { min-width: 0; min-height: 0; margin: 0; display: flex; flex-direction: column; overflow: hidden; }
-html.app-mode body.ws-on .ws-column > .panel > :not(canvas, .sector-table-wrap, .insights) { flex: none; }
-html.app-mode body.ws-on .ws-column > .panel > canvas { flex: 1 1 0; height: auto; min-height: 0; }
-html.app-mode body.ws-on .ws-column .sector-table-wrap { flex: 1 1 auto; min-height: 0; max-height: none; overflow: auto; }
-html.app-mode body.ws-on .ws-column .insights { flex: 1 1 auto; min-height: 0; overflow: auto; columns: auto; }
-html.app-mode body.ws-on .ws-column .sector-note { display: none; }
-html.app-mode body.ws-on .ws-column .telemetry-tabs { display: none; }
+html.app-mode body.ws-on .dashboard > .ws-area { grid-area: ws; position: relative; min-height: 0; display: grid; grid-template-columns: repeat(var(--ws-cols, 24), minmax(0, 1fr)); grid-template-rows: repeat(var(--ws-rows, 12), minmax(0, 1fr)); gap: 8px; }
+html.app-mode body.ws-on .ws-area > .panel { min-width: 0; min-height: 0; margin: 0; display: flex; flex-direction: column; overflow: hidden; }
+html.app-mode body.ws-on .ws-area > .panel > :not(canvas, .sector-table-wrap, .insights) { flex: none; }
+html.app-mode body.ws-on .ws-area > .panel > canvas { flex: 1 1 0; height: auto; min-height: 0; }
+html.app-mode body.ws-on .ws-area .sector-table-wrap { flex: 1 1 auto; min-height: 0; max-height: none; overflow: auto; }
+html.app-mode body.ws-on .ws-area .insights { flex: 1 1 auto; min-height: 0; overflow: auto; columns: auto; }
+html.app-mode body.ws-on .ws-area .sector-note { display: none; }
+html.app-mode body.ws-on .ws-area .telemetry-tabs { display: none; }
 
 /* Borders between columns and between stacked panels. */
-.ws-split { position: relative; flex: 0 0 8px; touch-action: none; }
-.ws-split-col { cursor: col-resize; }
-.ws-split-row { cursor: row-resize; }
-.ws-split::after { content: ""; position: absolute; background: transparent; transition: background-color .15s; }
-.ws-split-col::after { inset: 0 3px; }
-.ws-split-row::after { inset: 3px 0; }
-.ws-split:hover::after, .ws-split.active::after, .ws-split:focus-visible::after { background: var(--race-red); }
-.ws-split:focus-visible { outline: none; }
 
 /* Layout mode. */
 .ws-bar { padding: 10px 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 20px; background: rgba(225,6,0,.06); border: 1px solid rgba(225,6,0,.35); }
@@ -2015,26 +2006,37 @@ body.ws-editing .ws-area .panel.ws-selected .ws-shield-name { color: #fff; }
 body.ws-editing .ws-area .panel.ws-placeholder .ws-shield { background: repeating-linear-gradient(135deg, rgba(225,6,0,.16) 0 10px, rgba(225,6,0,.06) 10px 20px); border: 2px dashed var(--race-red); cursor: grabbing; }
 body.ws-editing .ws-area .panel.ws-placeholder .ws-shield > :not(.ws-shield-name) { visibility: hidden; }
 body.ws-moving, body.ws-moving * { cursor: grabbing !important; }
-body.ws-resizing-col, body.ws-resizing-col * { cursor: col-resize !important; }
-body.ws-resizing-row, body.ws-resizing-row * { cursor: row-resize !important; }
+body.ws-resizing[data-ws-resize="e"] *, body.ws-resizing[data-ws-resize="w"] * { cursor: ew-resize !important; }
+body.ws-resizing[data-ws-resize="n"] *, body.ws-resizing[data-ws-resize="s"] * { cursor: ns-resize !important; }
+body.ws-resizing[data-ws-resize="ne"] *, body.ws-resizing[data-ws-resize="sw"] * { cursor: nesw-resize !important; }
+body.ws-resizing[data-ws-resize="nw"] *, body.ws-resizing[data-ws-resize="se"] * { cursor: nwse-resize !important; }
 
 /* Hide button and edge handles of the selected panel. */
 .ws-shield .ws-hide { position: absolute; top: 8px; right: 8px; width: 30px; height: 30px; padding: 0; display: none; place-items: center; color: var(--race-text-2); background: var(--race-bg); border: 1px solid var(--race-line-2); font: 400 18px/1 var(--font-code); cursor: pointer; }
 body.ws-editing .ws-area .panel.ws-selected .ws-hide { display: grid; }
 .ws-shield .ws-hide:hover:not(:disabled) { color: var(--race-text); border-color: var(--race-red); }
 .ws-shield .ws-hide:disabled { opacity: .35; cursor: default; }
-.ws-handle { position: absolute; z-index: 1; display: block; }
-.ws-handle[hidden] { display: none; }
+.ws-handle { position: absolute; z-index: 1; display: none; }
+body.ws-editing .ws-area .panel.ws-selected .ws-handle { display: block; }
 .ws-handle::after { content: ""; position: absolute; background: var(--race-red); border-radius: 2px; transition: transform .12s; }
-.ws-handle-left, .ws-handle-right { top: 0; bottom: 0; width: 14px; cursor: col-resize; }
-.ws-handle-left { left: 0; } .ws-handle-right { right: 0; }
-.ws-handle-top, .ws-handle-bottom { left: 0; right: 0; height: 14px; cursor: row-resize; }
-.ws-handle-top { top: 0; } .ws-handle-bottom { bottom: 0; }
-.ws-handle-left::after, .ws-handle-right::after { left: 4px; top: 50%; width: 4px; height: 44px; margin-top: -22px; }
-.ws-handle-top::after, .ws-handle-bottom::after { top: 4px; left: 50%; height: 4px; width: 44px; margin-left: -22px; }
-.ws-handle:hover::after, .ws-handle.active::after { transform: scale(1.35); }
+.ws-handle-e, .ws-handle-w { top: 18px; bottom: 18px; width: 14px; cursor: ew-resize; }
+.ws-handle-e { right: 0; } .ws-handle-w { left: 0; }
+.ws-handle-n, .ws-handle-s { left: 18px; right: 18px; height: 14px; cursor: ns-resize; }
+.ws-handle-n { top: 0; } .ws-handle-s { bottom: 0; }
+.ws-handle-e::after, .ws-handle-w::after { left: 4px; top: 50%; width: 4px; height: 44px; margin-top: -22px; }
+.ws-handle-n::after, .ws-handle-s::after { top: 4px; left: 50%; height: 4px; width: 44px; margin-left: -22px; }
+.ws-handle-ne, .ws-handle-nw, .ws-handle-se, .ws-handle-sw { width: 20px; height: 20px; }
+.ws-handle-ne { top: 0; right: 0; cursor: nesw-resize; } .ws-handle-sw { bottom: 0; left: 0; cursor: nesw-resize; }
+.ws-handle-nw { top: 0; left: 0; cursor: nwse-resize; } .ws-handle-se { bottom: 0; right: 0; cursor: nwse-resize; }
+.ws-handle-ne::after, .ws-handle-nw::after, .ws-handle-se::after, .ws-handle-sw::after { width: 10px; height: 10px; border-radius: 0; }
+.ws-handle-ne::after { top: 3px; right: 3px; } .ws-handle-nw::after { top: 3px; left: 3px; } .ws-handle-se::after { bottom: 3px; right: 3px; } .ws-handle-sw::after { bottom: 3px; left: 3px; }
+.ws-handle:hover::after { transform: scale(1.35); }
+/* The grid cells show through in Layout mode, so snapping is visible. */
+body.ws-editing .ws-area { background-image: linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px), linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px); background-size: calc((100% + 8px) / var(--ws-cols, 24)) calc((100% + 8px) / var(--ws-rows, 12)); }
+.ws-notice { flex: 1 1 100%; margin: 0; min-height: 0; color: var(--race-red-text); font: 400 13px/1.4 var(--font-body); }
+.ws-notice:empty { display: none; }
 .ws-ghost { position: fixed; left: 0; top: 0; z-index: 100; display: grid; place-items: center; padding: 8px 12px; color: var(--race-text); background: rgba(15,15,22,.92); border: 2px solid var(--race-red); box-shadow: 0 14px 40px rgba(0,0,0,.55); font: 700 14px/1.2 var(--font-display); letter-spacing: .06em; text-transform: uppercase; text-align: center; pointer-events: none; }
-@media (prefers-reduced-motion: reduce) { .ws-split::after, .ws-toggle { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .ws-toggle { transition: none; } }
 
 /* ---------- Track map colouring (src/analysis-panels.js) ---------- */
 .map-mode { margin-left: auto; display: inline-flex; border: 1px solid var(--race-line-2); }

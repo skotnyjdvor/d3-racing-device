@@ -1,139 +1,160 @@
-// Desktop workspace layout for the analysis screen: columns of stacked panels.
-// Widths of the columns and sizes of the panels inside a column are fractions that sum to 1.
+// Desktop workspace layout for the analysis screen: panels placed freely on a COLS x ROWS grid that
+// fills the window. Every panel has its own x, y, width and height (in grid cells), so it can be
+// resized on both axes. When a move or resize overlaps other panels, they go to the nearest free spot;
+// if there is none, the change is refused. Free cells are allowed.
 // Every function returns a new layout object and never mutates its input.
 
 export const PANELS = ["sectors", "track", "stack", "gg", "telemetry", "delta", "insights"];
-export const MAX_COLUMNS = 4;
+export const COLS = 24;
+export const ROWS = 12;
+export const MIN_W = 4;
+export const MIN_H = 2;
 
-const column = (width, panels) => ({ width, panels: panels.map(([id, size]) => ({ id, size })) });
-
+const box = (id, x, y, w, h) => ({ id, x, y, w, h });
 export const PRESETS = {
   // Timing screen: lap table and G-G on the left, map in the middle, stacked channels on the right.
-  timing: { columns: [column(.28, [["sectors", .6], ["gg", .4]]), column(.36, [["track", 1]]), column(.36, [["stack", 1]])], hidden: ["telemetry", "delta", "insights"] },
+  timing: { items: [box("sectors", 0, 0, 7, 7), box("gg", 0, 7, 7, 5), box("track", 7, 0, 9, 12), box("stack", 16, 0, 8, 12)], hidden: ["telemetry", "delta", "insights"] },
   // Big map with the channels and the lap table next to it.
-  map: { columns: [column(.58, [["track", 1]]), column(.42, [["stack", .62], ["sectors", .38]])], hidden: ["gg", "telemetry", "delta", "insights"] },
+  map: { items: [box("track", 0, 0, 14, 12), box("stack", 14, 0, 10, 7), box("sectors", 14, 7, 10, 5)], hidden: ["gg", "telemetry", "delta", "insights"] },
   // Channels first, map and G-G on the side.
-  charts: { columns: [column(.62, [["stack", 1]]), column(.38, [["track", .55], ["gg", .45]])], hidden: ["sectors", "telemetry", "delta", "insights"] },
+  charts: { items: [box("stack", 0, 0, 15, 12), box("track", 15, 0, 9, 7), box("gg", 15, 7, 9, 5)], hidden: ["sectors", "telemetry", "delta", "insights"] },
 };
 export const DEFAULT_LAYOUT = PRESETS.timing;
 
-const clone = (layout) => ({
-  columns: layout.columns.map((item) => ({ width: item.width, panels: item.panels.map((panel) => ({ ...panel })) })),
-  hidden: [...layout.hidden],
-});
-const positive = (value) => (typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null);
-const scaled = (values) => {
-  const total = values.reduce((sum, value) => sum + value, 0);
-  return values.map((value) => value / total);
+const clone = (layout) => ({ items: layout.items.map((item) => ({ ...item })), hidden: [...layout.hidden] });
+const overlaps = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+const clampRect = ({ x, y, w, h }) => {
+  const width = Math.max(MIN_W, Math.min(COLS, Math.round(w)));
+  const height = Math.max(MIN_H, Math.min(ROWS, Math.round(h)));
+  return {
+    x: Math.max(0, Math.min(COLS - width, Math.round(x))),
+    y: Math.max(0, Math.min(ROWS - height, Math.round(y))),
+    w: width,
+    h: height,
+  };
 };
-const withWidths = (columns) => scaled(columns.map((item) => item.width)).map((width, index) => ({ ...columns[index], width }));
-const withSizes = (item) => ({ ...item, panels: scaled(item.panels.map((panel) => panel.size)).map((size, index) => ({ ...item.panels[index], size })) });
-// Drop empty columns and make every set of fractions sum to 1 again.
-const tidy = (layout) => ({ columns: withWidths(layout.columns.filter((item) => item.panels.length).map(withSizes)), hidden: layout.hidden });
 
-export const visiblePanels = (layout) => layout.columns.flatMap((item) => item.panels.map((panel) => panel.id));
+export const visiblePanels = (layout) => layout.items.map((item) => item.id);
 
-// Accept a layout from storage only after checking every field; anything unusable falls back to the default.
-export function normalizeLayout(raw) {
-  if (!raw || typeof raw !== "object" || !Array.isArray(raw.columns)) return clone(DEFAULT_LAYOUT);
-  const seen = new Set();
-  const columns = [];
-  for (const candidate of raw.columns) {
-    if (!candidate || typeof candidate !== "object" || !Array.isArray(candidate.panels)) continue;
-    const panels = [];
-    for (const panel of candidate.panels) {
-      const id = panel?.id;
-      if (!PANELS.includes(id) || seen.has(id)) continue;
-      if (columns.length >= MAX_COLUMNS) continue;
-      seen.add(id);
-      panels.push({ id, size: positive(panel.size) ?? 1 });
+// Nearest position (Manhattan distance from `near`) where a w x h box fits without overlapping `placed`.
+function freeSpot(placed, w, h, near) {
+  let best = null;
+  for (let y = 0; y + h <= ROWS; y++) {
+    for (let x = 0; x + w <= COLS; x++) {
+      const candidate = { x, y, w, h };
+      if (placed.some((item) => overlaps(item, candidate))) continue;
+      const distance = Math.abs(x - near.x) + Math.abs(y - near.y);
+      if (!best || distance < best.distance) best = { x, y, distance };
     }
-    if (panels.length) columns.push({ width: positive(candidate.width) ?? 1 / Math.max(1, raw.columns.length), panels });
   }
-  if (!columns.length) return clone(DEFAULT_LAYOUT);
-  return tidy({ columns, hidden: PANELS.filter((id) => !seen.has(id)) });
+  return best;
 }
 
-function locate(layout, id) {
-  for (let columnIndex = 0; columnIndex < layout.columns.length; columnIndex++) {
-    const index = layout.columns[columnIndex].panels.findIndex((panel) => panel.id === id);
-    if (index >= 0) return { column: columnIndex, index };
+// A displaced panel keeps its size if it can; otherwise it shrinks (largest area first, down to the
+// minimum) to the nearest free spot. null when there is no room even at the minimum size.
+function relocate(placed, item) {
+  const exact = freeSpot(placed, item.w, item.h, item);
+  if (exact) return { x: exact.x, y: exact.y, w: item.w, h: item.h };
+  const sizes = [];
+  for (let w = item.w; w >= MIN_W; w--) for (let h = item.h; h >= MIN_H; h--) sizes.push([w, h]);
+  sizes.sort((a, b) => b[0] * b[1] - a[0] * a[1]);
+  for (const [w, h] of sizes) {
+    const spot = freeSpot(placed, w, h, item);
+    if (spot) return { x: spot.x, y: spot.y, w, h };
   }
   return null;
 }
 
-// target is { column, index } (index in that column as it is now) or { newColumn } (position among the columns now).
-export function movePanel(layout, id, target) {
-  const from = locate(layout, id);
-  if (!from) return layout;
-  if (target?.newColumn !== undefined) {
-    if (layout.columns.length >= MAX_COLUMNS) return layout;
-    const position = Math.max(0, Math.min(layout.columns.length, Math.trunc(target.newColumn)));
-    const columns = layout.columns.map((item, columnIndex) => (columnIndex === from.column ? { ...item, panels: item.panels.filter((panel) => panel.id !== id) } : item));
-    const fresh = { width: 1 / layout.columns.length, panels: [{ id, size: 1 }] };
-    columns.splice(position, 0, fresh);
-    return tidy({ columns, hidden: [...layout.hidden] });
+// Put `id` at `rect`; panels it now overlaps move (and shrink if needed) to the nearest free spot,
+// or the change is refused.
+function place(layout, id, rect) {
+  const moving = { id, ...rect };
+  const others = layout.items.filter((item) => item.id !== id);
+  const blocked = others.filter((item) => overlaps(item, moving)).sort((a, b) => a.y - b.y || a.x - b.x);
+  const placed = [moving, ...others.filter((item) => !overlaps(item, moving))];
+  for (const item of blocked) {
+    const spot = relocate(placed, item);
+    if (!spot) return null;
+    placed.push({ ...item, ...spot });
   }
-  const targetColumn = layout.columns[target?.column];
-  if (!targetColumn) return layout;
-  let index = Math.max(0, Math.min(targetColumn.panels.length, Math.trunc(target.index ?? targetColumn.panels.length)));
-  if (target.column === from.column && from.index < index) index -= 1;
-  const columns = layout.columns.map((item) => ({ ...item, panels: [...item.panels] }));
-  const [moving] = columns[from.column].panels.splice(from.index, 1);
-  const destination = columns[target.column].panels;
-  if (target.column === from.column) {
-    // Reordering inside one column keeps every panel's height.
-    destination.splice(index, 0, moving);
-  } else {
-    // A panel joining a column takes an equal share; the others shrink proportionally.
-    const share = 1 / (destination.length + 1);
-    const total = destination.reduce((sum, item) => sum + item.size, 0);
-    columns[target.column].panels = destination.map((panel) => ({ ...panel, size: panel.size / total * (1 - share) }));
-    columns[target.column].panels.splice(index, 0, { ...moving, size: share });
-  }
-  return tidy({ columns, hidden: [...layout.hidden] });
+  const order = new Map(layout.items.map((item, index) => [item.id, index]));
+  return { items: placed.sort((a, b) => order.get(a.id) - order.get(b.id)), hidden: [...layout.hidden] };
+}
+
+const same = (a, b) => a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
+
+export function moveItem(layout, id, x, y) {
+  const current = layout.items.find((item) => item.id === id);
+  if (!current) return layout;
+  const rect = clampRect({ x, y, w: current.w, h: current.h });
+  if (same(rect, current)) return layout;
+  return place(layout, id, rect) ?? layout;
+}
+
+export function resizeItem(layout, id, rect) {
+  const current = layout.items.find((item) => item.id === id);
+  if (!current) return layout;
+  const next = clampRect(rect);
+  if (same(next, current)) return layout;
+  return place(layout, id, next) ?? layout;
 }
 
 export function hidePanel(layout, id) {
-  const from = locate(layout, id);
-  if (!from || visiblePanels(layout).length <= 1) return layout;
-  const columns = layout.columns.map((item, columnIndex) => (columnIndex === from.column ? { ...item, panels: item.panels.filter((panel) => panel.id !== id) } : item));
-  return tidy({ columns, hidden: [...layout.hidden, id] });
+  if (!layout.items.some((item) => item.id === id) || layout.items.length <= 1) return layout;
+  return { items: layout.items.filter((item) => item.id !== id).map((item) => ({ ...item })), hidden: [...layout.hidden, id] };
 }
 
-// A panel coming back goes to the end of the least crowded column (the rightmost one on a tie).
+// A panel coming back takes the largest of a few sizes that still fits into free space.
 export function showPanel(layout, id) {
   if (!layout.hidden.includes(id)) return layout;
-  let target = 0;
-  layout.columns.forEach((item, columnIndex) => { if (item.panels.length <= layout.columns[target].panels.length) target = columnIndex; });
-  const columns = layout.columns.map((item, columnIndex) => {
-    if (columnIndex !== target) return item;
-    const share = 1 / (item.panels.length + 1);
-    return { ...item, panels: [...item.panels.map((panel) => ({ ...panel, size: panel.size * (1 - share) })), { id, size: share }] };
+  for (const [w, h] of [[8, 6], [8, 4], [6, 4], [MIN_W, 4], [MIN_W, MIN_H]]) {
+    const spot = freeSpot(layout.items, w, h, { x: 0, y: 0 });
+    if (spot) return { items: [...layout.items.map((item) => ({ ...item })), box(id, spot.x, spot.y, w, h)], hidden: layout.hidden.filter((hiddenId) => hiddenId !== id) };
+  }
+  return layout;
+}
+
+// Column layouts saved by earlier versions: widths become x/w, panel sizes become y/h.
+function fromColumns(raw) {
+  const columns = raw.columns.filter((column) => Array.isArray(column?.panels) && column.panels.length);
+  const widths = columns.map((column) => (Number(column.width) > 0 ? Number(column.width) : 1));
+  const totalWidth = widths.reduce((sum, value) => sum + value, 0) || 1;
+  const items = [];
+  let edge = 0;
+  columns.forEach((column, index) => {
+    const x = Math.round(edge / totalWidth * COLS);
+    edge += widths[index];
+    const right = Math.round(edge / totalWidth * COLS);
+    const sizes = column.panels.map((panel) => (Number(panel.size) > 0 ? Number(panel.size) : 1));
+    const totalSize = sizes.reduce((sum, value) => sum + value, 0) || 1;
+    let top = 0;
+    column.panels.forEach((panel, panelIndex) => {
+      const y = Math.round(top / totalSize * ROWS);
+      top += sizes[panelIndex];
+      items.push({ id: panel?.id, x, y, w: right - x, h: Math.round(top / totalSize * ROWS) - y });
+    });
   });
-  return tidy({ columns, hidden: layout.hidden.filter((hiddenId) => hiddenId !== id) });
+  return { items, hidden: raw.hidden };
 }
 
-const shiftBorder = (values, index, delta, min) => {
-  const total = values[index] + values[index + 1];
-  const first = Math.max(min, Math.min(total - min, values[index] + delta));
-  return values.map((value, position) => (position === index ? first : position === index + 1 ? total - first : value));
-};
-
-// Move the border between column `index` and the next one by `delta` (a fraction of the whole width).
-export function resizeColumns(layout, index, delta, min = .12) {
-  if (index < 0 || index + 1 >= layout.columns.length) return layout;
-  const widths = shiftBorder(layout.columns.map((item) => item.width), index, delta, min);
-  return { columns: layout.columns.map((item, position) => ({ ...item, width: widths[position] })), hidden: [...layout.hidden] };
-}
-
-// Move the border between panel `index` and the next one in a column by `delta` (a fraction of the column height).
-export function resizePanels(layout, columnIndex, index, delta, min = .12) {
-  const target = layout.columns[columnIndex];
-  if (!target || index < 0 || index + 1 >= target.panels.length) return layout;
-  const sizes = shiftBorder(target.panels.map((panel) => panel.size), index, delta, min);
-  return {
-    columns: layout.columns.map((item, position) => (position === columnIndex ? { ...item, panels: item.panels.map((panel, panelIndex) => ({ ...panel, size: sizes[panelIndex] })) } : item)),
-    hidden: [...layout.hidden],
-  };
+// Accept a layout from storage only after checking every field; anything unusable falls back to the default.
+export function normalizeLayout(raw) {
+  if (raw && typeof raw === "object" && Array.isArray(raw.columns)) raw = fromColumns(raw);
+  if (!raw || typeof raw !== "object" || !Array.isArray(raw.items)) return clone(DEFAULT_LAYOUT);
+  const placed = [];
+  for (const candidate of raw.items) {
+    const id = candidate?.id;
+    if (!PANELS.includes(id) || placed.some((item) => item.id === id)) continue;
+    const numbers = ["x", "y", "w", "h"].map((key) => Number(candidate[key]));
+    if (numbers.some((value) => !Number.isFinite(value))) continue;
+    let rect = clampRect({ x: numbers[0], y: numbers[1], w: numbers[2], h: numbers[3] });
+    if (placed.some((item) => overlaps(item, rect))) {
+      const spot = relocate(placed, rect);
+      if (!spot) continue;
+      rect = spot;
+    }
+    placed.push({ id, ...rect });
+  }
+  if (!placed.length) return clone(DEFAULT_LAYOUT);
+  return { items: placed, hidden: PANELS.filter((id) => !placed.some((item) => item.id === id)) };
 }

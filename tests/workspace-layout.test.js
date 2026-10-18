@@ -1,95 +1,121 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  PANELS, DEFAULT_LAYOUT, PRESETS, MAX_COLUMNS,
-  normalizeLayout, movePanel, hidePanel, showPanel, resizeColumns, resizePanels, visiblePanels,
+  PANELS, COLS, ROWS, MIN_W, MIN_H, DEFAULT_LAYOUT, PRESETS,
+  normalizeLayout, moveItem, resizeItem, hidePanel, showPanel, visiblePanels,
 } from "../src/domain/workspace-layout.js";
 
-const sum = (values) => values.reduce((total, value) => total + value, 0);
-const close = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-9, `${actual} ≈ ${expected}`);
-const ids = (layout) => layout.columns.map((column) => column.panels.map((panel) => panel.id));
+const overlap = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+function assertValid(layout) {
+  const seen = new Set();
+  for (const item of layout.items) {
+    assert.ok(PANELS.includes(item.id), item.id);
+    assert.ok(!seen.has(item.id), `duplicate ${item.id}`);
+    seen.add(item.id);
+    assert.ok(Number.isInteger(item.x) && Number.isInteger(item.y) && Number.isInteger(item.w) && Number.isInteger(item.h));
+    assert.ok(item.x >= 0 && item.y >= 0 && item.x + item.w <= COLS && item.y + item.h <= ROWS, JSON.stringify(item));
+    assert.ok(item.w >= MIN_W && item.h >= MIN_H, JSON.stringify(item));
+  }
+  layout.items.forEach((a, i) => layout.items.slice(i + 1).forEach((b) => assert.ok(!overlap(a, b), `${a.id} overlaps ${b.id}`)));
+  assert.deepEqual([...seen, ...layout.hidden].sort(), [...PANELS].sort());
+}
+const item = (layout, id) => layout.items.find((entry) => entry.id === id);
+const grid = (items, hidden) => normalizeLayout({ items, hidden });
 
-test("default layout and presets place every panel exactly once", () => {
+test("presets are valid layouts that fill the whole grid", () => {
   for (const layout of [DEFAULT_LAYOUT, ...Object.values(PRESETS)]) {
-    const placed = [...visiblePanels(layout), ...layout.hidden];
-    assert.deepEqual([...placed].sort(), [...PANELS].sort());
-    close(sum(layout.columns.map((column) => column.width)), 1);
-    layout.columns.forEach((column) => close(sum(column.panels.map((panel) => panel.size)), 1));
+    assertValid(layout);
+    assert.equal(layout.items.reduce((sum, entry) => sum + entry.w * entry.h, 0), COLS * ROWS);
   }
 });
 
 test("normalizeLayout repairs stored layouts instead of trusting them", () => {
   assert.deepEqual(normalizeLayout(null), DEFAULT_LAYOUT);
   assert.deepEqual(normalizeLayout("garbage"), DEFAULT_LAYOUT);
-  assert.deepEqual(normalizeLayout({ columns: [] }), DEFAULT_LAYOUT);
-  const repaired = normalizeLayout({
+  assert.deepEqual(normalizeLayout({ items: [] }), DEFAULT_LAYOUT);
+  const repaired = normalizeLayout({ items: [
+    { id: "track", x: -3, y: 0, w: 99, h: 1.4 },     // clamped into the grid, min size
+    { id: "track", x: 0, y: 0, w: 6, h: 4 },         // duplicate
+    { id: "evil", x: 0, y: 0, w: 6, h: 4 },          // unknown
+    { id: "delta", x: 0, y: 0, w: 6, h: 4 },         // overlaps track: moved to a free spot
+  ], hidden: ["nope"] });
+  assertValid(repaired);
+  assert.deepEqual(item(repaired, "track"), { id: "track", x: 0, y: 0, w: COLS, h: MIN_H });
+  assert.ok(item(repaired, "delta"));
+});
+
+test("old column layouts are converted to the grid", () => {
+  const converted = normalizeLayout({
     columns: [
-      { width: 3, panels: [{ id: "track", size: 2 }, { id: "track", size: 1 }, { id: "evil", size: 1 }] },
-      { width: -1, panels: [] },
-      { width: 1, panels: [{ id: "delta", size: "x" }] },
+      { width: .5, panels: [{ id: "track", size: 1 }] },
+      { width: .5, panels: [{ id: "stack", size: .6 }, { id: "gg", size: .4 }] },
     ],
-    hidden: ["delta", "nope"],
+    hidden: ["sectors", "telemetry", "delta", "insights"],
   });
-  assert.deepEqual(ids(repaired), [["track"], ["delta"]]);
-  assert.deepEqual([...repaired.hidden].sort(), PANELS.filter((id) => id !== "track" && id !== "delta").sort());
-  close(sum(repaired.columns.map((column) => column.width)), 1);
-  close(repaired.columns[0].width, .75);
-  repaired.columns.forEach((column) => close(sum(column.panels.map((panel) => panel.size)), 1));
+  assertValid(converted);
+  assert.deepEqual(item(converted, "track"), { id: "track", x: 0, y: 0, w: 12, h: 12 });
+  assert.deepEqual(item(converted, "stack"), { id: "stack", x: 12, y: 0, w: 12, h: 7 });
+  assert.deepEqual(item(converted, "gg"), { id: "gg", x: 12, y: 7, w: 12, h: 5 });
 });
 
-test("normalizeLayout keeps at most MAX_COLUMNS columns", () => {
-  const columns = PANELS.map((id) => ({ width: 1, panels: [{ id, size: 1 }] }));
-  const layout = normalizeLayout({ columns, hidden: [] });
-  assert.equal(layout.columns.length, MAX_COLUMNS);
-  assert.deepEqual([...visiblePanels(layout), ...layout.hidden].sort(), [...PANELS].sort());
+test("a panel can be resized on both axes; the space it frees stays free", () => {
+  const start = grid([{ id: "track", x: 0, y: 0, w: 12, h: 12 }, { id: "stack", x: 12, y: 0, w: 12, h: 12 }], ["sectors", "gg", "telemetry", "delta", "insights"]);
+  const smaller = resizeItem(start, "track", { x: 0, y: 0, w: 8, h: 6 });
+  assertValid(smaller);
+  assert.deepEqual(item(smaller, "track"), { id: "track", x: 0, y: 0, w: 8, h: 6 });
+  assert.deepEqual(item(smaller, "stack"), item(start, "stack"));
+  assert.deepEqual(item(start, "track"), { id: "track", x: 0, y: 0, w: 12, h: 12 }, "input is not mutated");
 });
 
-test("movePanel reorders inside a column and between columns", () => {
-  const start = normalizeLayout({ columns: [{ width: .5, panels: [{ id: "track", size: .5 }, { id: "sectors", size: .5 }] }, { width: .5, panels: [{ id: "telemetry", size: .6 }, { id: "delta", size: .4 }] }], hidden: ["insights"] });
-  assert.deepEqual(ids(movePanel(start, "sectors", { column: 0, index: 0 })), [["sectors", "track"], ["telemetry", "delta"]]);
-  const moved = movePanel(start, "delta", { column: 0, index: 1 });
-  assert.deepEqual(ids(moved), [["track", "delta", "sectors"], ["telemetry"]]);
-  moved.columns.forEach((column) => close(sum(column.panels.map((panel) => panel.size)), 1));
-  assert.deepEqual(ids(start), [["track", "sectors"], ["telemetry", "delta"]], "input is not mutated");
+test("growing or moving into a neighbour pushes it to the nearest free spot", () => {
+  const start = grid([
+    { id: "track", x: 0, y: 0, w: 8, h: 6 },
+    { id: "gg", x: 8, y: 0, w: 6, h: 6 },
+  ], ["sectors", "stack", "telemetry", "delta", "insights"]);
+  const wider = resizeItem(start, "track", { x: 0, y: 0, w: 12, h: 6 });
+  assertValid(wider);
+  assert.equal(item(wider, "track").w, 12);
+  assert.ok(!overlap(item(wider, "track"), item(wider, "gg")));
+  const moved = moveItem(start, "gg", 0, 0);
+  assertValid(moved);
+  assert.deepEqual(item(moved, "gg"), { id: "gg", x: 0, y: 0, w: 6, h: 6 });
+  assert.ok(!overlap(item(moved, "gg"), item(moved, "track")));
 });
 
-test("movePanel can open a new column and drops columns left empty", () => {
-  const start = normalizeLayout({ columns: [{ width: .5, panels: [{ id: "track", size: 1 }] }, { width: .5, panels: [{ id: "telemetry", size: .5 }, { id: "delta", size: .5 }] }], hidden: ["sectors", "insights"] });
-  const opened = movePanel(start, "delta", { newColumn: 0 });
-  assert.deepEqual(ids(opened), [["delta"], ["track"], ["telemetry"]]);
-  close(sum(opened.columns.map((column) => column.width)), 1);
-  const merged = movePanel(start, "track", { column: 1, index: 2 });
-  assert.deepEqual(ids(merged), [["telemetry", "delta", "track"]]);
-  close(merged.columns[0].width, 1);
+test("a move or resize with no room for the others is refused", () => {
+  const full = PRESETS.timing;
+  const first = full.items[0];
+  const tooBig = resizeItem(full, first.id, { x: 0, y: 0, w: COLS, h: ROWS });
+  assert.equal(tooBig, full);
+  assert.equal(moveItem(full, first.id, first.x, first.y), full, "no-op move returns the same layout");
 });
 
-test("movePanel refuses a fifth column and unknown panels", () => {
-  const four = normalizeLayout({ columns: ["track", "telemetry", "delta", "sectors"].map((id) => ({ width: .25, panels: [{ id, size: 1 }] })), hidden: ["insights"] });
-  assert.equal(movePanel(four, "track", { newColumn: 4 }), four);
-  assert.equal(movePanel(four, "nope", { column: 0, index: 0 }), four);
+test("sizes and positions are clamped to the grid and the minimum size", () => {
+  const start = grid([{ id: "track", x: 0, y: 0, w: 8, h: 6 }], PANELS.filter((id) => id !== "track"));
+  assert.deepEqual(item(resizeItem(start, "track", { x: 0, y: 0, w: 1, h: 1 }), "track"), { id: "track", x: 0, y: 0, w: MIN_W, h: MIN_H });
+  assert.deepEqual(item(moveItem(start, "track", 50, 50), "track"), { id: "track", x: COLS - 8, y: ROWS - 6, w: 8, h: 6 });
 });
 
-test("hidePanel and showPanel round-trip and never hide the last panel", () => {
-  const hidden = hidePanel(DEFAULT_LAYOUT, "delta");
-  assert.ok(hidden.hidden.includes("delta"));
-  assert.ok(!visiblePanels(hidden).includes("delta"));
-  const shown = showPanel(hidden, "delta");
-  assert.ok(visiblePanels(shown).includes("delta"));
-  assert.ok(!shown.hidden.includes("delta"));
+test("in a full grid a moved panel swaps with a neighbour, shrinking it if needed", () => {
+  const swapped = moveItem(PRESETS.timing, "track", 16, 0);
+  assertValid(swapped);
+  assert.equal(item(swapped, "track").x, 15);
+  assert.equal(item(swapped, "stack").x, 7, "the channels take the old place of the map");
+  const grown = resizeItem(PRESETS.timing, "track", { x: 7, y: 0, w: 13, h: 12 });
+  assertValid(grown);
+  assert.equal(item(grown, "track").w, 13);
+  assert.ok(item(grown, "stack").w < 8, "the neighbour got smaller");
+});
+
+test("hiding and showing panels", () => {
+  const hidden = hidePanel(DEFAULT_LAYOUT, "gg");
+  assertValid(hidden);
+  assert.ok(!visiblePanels(hidden).includes("gg"));
+  const shown = showPanel(hidden, "gg");
+  assertValid(shown);
+  assert.ok(visiblePanels(shown).includes("gg"), "fits into the space gg left");
+  assert.equal(showPanel(DEFAULT_LAYOUT, "insights"), DEFAULT_LAYOUT, "no free space: refused");
   let only = DEFAULT_LAYOUT;
   for (const id of visiblePanels(DEFAULT_LAYOUT).slice(1)) only = hidePanel(only, id);
-  assert.equal(visiblePanels(only).length, 1);
-  assert.equal(hidePanel(only, visiblePanels(only)[0]), only);
-});
-
-test("resizeColumns and resizePanels move one border and respect the minimum", () => {
-  const layout = normalizeLayout({ columns: [{ width: .5, panels: [{ id: "track", size: .5 }, { id: "delta", size: .5 }] }, { width: .5, panels: [{ id: "telemetry", size: 1 }] }], hidden: ["sectors", "insights"] });
-  const wider = resizeColumns(layout, 0, .1, .15);
-  close(wider.columns[0].width, .6); close(wider.columns[1].width, .4);
-  const clamped = resizeColumns(layout, 0, .9, .15);
-  close(clamped.columns[1].width, .15); close(clamped.columns[0].width, .85);
-  const taller = resizePanels(layout, 0, 0, -.2, .1);
-  close(taller.columns[0].panels[0].size, .3); close(taller.columns[0].panels[1].size, .7);
-  assert.equal(resizeColumns(layout, 1, .1, .15), layout, "no border after the last column");
-  assert.equal(resizePanels(layout, 1, 0, .1, .1), layout, "no border after the last panel");
+  assert.equal(hidePanel(only, visiblePanels(only)[0]), only, "the last panel stays");
 });

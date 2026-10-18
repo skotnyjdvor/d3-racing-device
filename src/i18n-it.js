@@ -38,7 +38,7 @@ export default {
   "ws.panel.stack": "Canali",
   "ws.panel.gg": "Diagramma G-G",
   "ws.edit": "Layout",
-  "ws.hint": "Fai clic su un pannello per selezionarlo. Trascinalo per spostarlo: gli altri si spostano subito. Le maniglie del pannello selezionato lo ridimensionano. Tastiera: frecce per spostare, Maiusc+frecce per ridimensionare, Canc per nascondere.",
+  "ws.hint": "Fai clic su un pannello per selezionarlo. Trascinalo per spostarlo; le maniglie su lati e angoli cambiano larghezza e altezza — i pannelli d'intralcio si spostano o si rimpiccioliscono subito. Tastiera: frecce per spostare, Maiusc+frecce per ridimensionare, Canc per nascondere.", "ws.noRoom": "Nessuno spazio libero: rimpicciolisci o nascondi un altro pannello.",
   "ws.panels": "Pannelli",
   "ws.presets": "Modelli",
   "ws.reset": "Ripristina",
