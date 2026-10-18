@@ -1,0 +1,11 @@
+{
+  "name": "d3cf-desktop",
+  "productName": "D3CF",
+  "version": "0.1.0",
+  "description": "D3CF — LapTrace telemetry and AI lap analysis",
+  "author": "D3CF Technology <office@d3cf.com>",
+  "homepage": "https://d3cf.com",
+  "license": "UNLICENSED",
+  "private": true,
+  "main": "main.cjs"
+}

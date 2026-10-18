@@ -6,7 +6,7 @@ let plist;
 try {
   plist = await readFile(plistPath, "utf8");
 } catch {
-  throw new Error("iOS project is missing. Run npm run ios:add on a Mac first.");
+  throw new Error("iOS project is missing (ios/). Restore it from git or run npx cap add ios.");
 }
 
 if (!plist.includes("NSBluetoothAlwaysUsageDescription")) {

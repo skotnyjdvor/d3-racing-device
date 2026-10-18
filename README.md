@@ -6,7 +6,8 @@ Web app and API for the LapTrace telemetry logger: download sessions over Blueto
 
 - `index.html`, `styles.css`, `src/` — the single-page app (Vite). Public pages live on real paths (`/`, `/features`, `/shop`, `/contact`); the signed-in views use hashes (`/#analysis`, `/#logs`, `/#ai`, `/#profile`).
 - `src/domain/` — CSV/UBX parsing, lap splitting, sectors, analysis and the track catalog.
-- `src/ble/` — Web Bluetooth, Capacitor (iOS) and mock LapTrace clients.
+- `src/ble/` — Web Bluetooth, Capacitor (Android, iOS) and mock LapTrace clients.
+- `android/`, `ios/`, `desktop/` — the native app projects (see below).
 - `server/` — Express API: accounts (JWT), log library, AI reports (OpenAI), shop pre-orders, transactional email (Resend), PostgreSQL schema.
 - `tests/` — unit tests plus API end-to-end tests that run against PostgreSQL when `TEST_DATABASE_URL` is set.
 
@@ -30,16 +31,17 @@ npm run build
 
 `main` deploys to Render after CI passes; see [docs/render-setup.md](docs/render-setup.md) for environment variables, the shop and database backups.
 
-## iPhone / iOS
+## Apps: Android, iOS, Windows, macOS, Linux
 
-Safari has no Web Bluetooth, so the iOS app wraps the same web build with Capacitor and uses CoreBluetooth. Build on a Mac with Xcode:
+The same web build ships as native apps: Capacitor for Android (`android/`) and iOS (`ios/`), Electron for the desktop (`desktop/`).
 
 ```bash
-npm install
-npm run ios:add
-npm run ios:open
+npm run desktop:build   # desktop installer for this computer, in release/
+npm run android:sync    # then npm run android:open (Android Studio)
+npm run ios:sync        # on a Mac, then npm run ios:open (Xcode)
 ```
 
-In Xcode pick your Apple Development Team, connect a real iPhone (Bluetooth does not work in the Simulator) and run the `App` target. After web changes run `npm run ios:sync`. `ios:add` adds the required `NSBluetoothAlwaysUsageDescription` to `Info.plist`. The app talks to `https://d3cf.com`, and the API accepts its `capacitor://localhost` origin.
+GitHub Actions (`Apps` workflow) builds all of them in the cloud; pushing a tag `app-vX.Y.Z` publishes a release.
+Building, signing and store publishing: [docs/apps.md](docs/apps.md).
 
 App name: **D3CF**, bundle ID: `com.d3racinglab.laptrace`.

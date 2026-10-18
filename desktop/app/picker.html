@@ -1,0 +1,44 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'" />
+    <title>Bluetooth</title>
+    <style>
+      :root { color-scheme: dark; --bg: #08080c; --surface: #0f0f16; --line: #1f1f2a; --line-2: #2e2e3d; --red: #e10600; --lime: #c7ff3d; --text: #fff; --muted: #8a8b90; }
+      * { box-sizing: border-box; }
+      body { margin: 0; height: 100vh; display: flex; flex-direction: column; color: var(--text); background: var(--bg); font: 14px/1.45 "Segoe UI", system-ui, sans-serif; }
+      header { padding: 20px 20px 14px; border-bottom: 1px solid var(--line); }
+      h1 { margin: 0; font-size: 18px; letter-spacing: .02em; }
+      .status { margin: 6px 0 0; display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
+      .status i { width: 6px; height: 6px; border-radius: 50%; background: var(--lime); animation: pulse 1.6s ease-in-out infinite; }
+      @keyframes pulse { 50% { opacity: .35; } }
+      ul { flex: 1; margin: 0; padding: 8px; overflow-y: auto; list-style: none; }
+      li button { width: 100%; padding: 12px 14px; display: grid; gap: 2px; text-align: left; color: var(--text); background: transparent; border: 1px solid transparent; font: inherit; cursor: pointer; }
+      li button:hover, li button:focus-visible { background: var(--surface); border-color: var(--line-2); outline: none; }
+      li button[aria-pressed="true"] { border-color: var(--red); background: var(--surface); }
+      li small { color: var(--muted); font: 12px ui-monospace, Consolas, monospace; }
+      li button.more { color: var(--muted); font-size: 13px; }
+      li button.more:hover { color: var(--text); }
+      .empty { padding: 24px 16px; color: var(--muted); }
+      footer { padding: 14px 20px 18px; display: flex; justify-content: flex-end; gap: 10px; border-top: 1px solid var(--line); }
+      footer button { min-height: 38px; padding: 0 18px; color: var(--text); background: transparent; border: 1px solid var(--line-2); font: 600 13px "Segoe UI", system-ui, sans-serif; cursor: pointer; }
+      footer button:hover { border-color: var(--text); }
+      #connect { background: var(--red); border-color: var(--red); }
+      #connect:disabled { opacity: .4; cursor: default; }
+      @media (prefers-reduced-motion: reduce) { .status i { animation: none; } }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1 id="title"></h1>
+      <p class="status"><i></i><span id="scanning"></span></p>
+    </header>
+    <ul id="list"></ul>
+    <footer>
+      <button id="cancel" type="button"></button>
+      <button id="connect" type="button" disabled></button>
+    </footer>
+    <script src="picker.js"></script>
+  </body>
+</html>

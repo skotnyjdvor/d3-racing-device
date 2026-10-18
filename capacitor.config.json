@@ -2,8 +2,9 @@
   "appId": "com.d3racinglab.laptrace",
   "appName": "D3CF",
   "webDir": "dist",
+  "backgroundColor": "#08080c",
   "ios": {
-    "contentInset": "automatic",
+    "contentInset": "never",
     "preferredContentMode": "mobile"
   },
   "plugins": {
@@ -14,6 +15,10 @@
         "availableDevices": "Доступные устройства",
         "noDeviceFound": "LapTrace не найден"
       }
+    },
+    "SystemBars": {
+      "insetsHandling": "css",
+      "style": "DARK"
     }
   }
 }

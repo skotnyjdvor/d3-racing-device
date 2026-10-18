@@ -1,4 +1,5 @@
-const nativeApp = ["capacitor:", "ionic:"].includes(globalThis.location?.protocol)
+// The iOS app (capacitor:), the desktop app (app:) and the Android app (Capacitor native) call the live API.
+const nativeApp = ["capacitor:", "ionic:", "app:"].includes(globalThis.location?.protocol)
   || globalThis.Capacitor?.isNativePlatform?.();
 const apiBase = (import.meta.env.VITE_API_URL || (nativeApp ? "https://d3cf.com" : "")).replace(/\/$/, "");
 const tokenKey = "laptrace-access-token";

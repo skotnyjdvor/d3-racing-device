@@ -11,6 +11,9 @@ import { initProfile, onProfileShown, setProfileUser } from "./profile.js";
 import { acceptInviteFlow, initStats, onStatsShown, setStatsUser } from "./stats.js";
 import { initShare, openShareDialog } from "./share.js";
 import { PAGE_PATHS, currentPage, interceptLinks, navigate, upgradeLegacyHash } from "./router.js";
+import { initWorkspace } from "./workspace.js";
+import { createAnalysisPanels } from "./analysis-panels.js";
+import { deltaSeries } from "./domain/delta.js";
 import "./demo.js";
 import "./ai-sample.js";
 
@@ -18,6 +21,8 @@ const elements = Object.fromEntries([...document.querySelectorAll("[id]")].map((
 const state = { client: null, connected: false, deviceName: "", deviceModel: "", latestTelemetry: null, storage: null, sessions: [], selectedSession: null, analysis: null, sectors: null, trial: false, rival: null, comparisonRival: false, selectedLapNumber: null, comparisonLapNumber: null, cursorProgress: null, chartView: { start: 0, end: 1 }, trackView: { scale: 1, offsetX: 0, offsetY: 0 }, telemetryMetric: "speed", track: null, user: null, cloudLogs: [], pollTimer: null, memoryBusy: false, aiReport: null, aiReportLanguage: null, aiAnalysisId: null, aiPending: false, aiHistory: [], aiHistoryLoading: false, aiHistoryError: "", aiHoverIndex: null, aiSelectedIndex: null };
 const trackAiMarkerAreas = new WeakMap();
 const testMode = new URLSearchParams(location.search).has("mock");
+// Native apps (and ?app=1) use the telemetry-app layout; public/app-boot.js sets the class before paint.
+const appMode = document.documentElement.classList.contains("app-mode");
 let accountMode = "signin";
 // AI report mode: "single" analyses one lap on its own, "compare" explains the difference between two laps.
 let aiModePreference = "single";
@@ -53,6 +58,7 @@ const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character
 function setStatus(text, active = false) {
   elements.deviceStatus.textContent = text;
   elements.statusDot.classList.toggle("live", active);
+  elements.railDeviceDot.classList.toggle("live", active);
   elements.deviceSummaryStatus.textContent = text;
   elements.deviceSummaryDot.classList.toggle("live", active);
 }
@@ -66,6 +72,7 @@ function setHint(text, isError = false) {
 }
 
 function viewFromHash() {
+  if (location.hash === "#device") return "device";
   if (location.hash === "#logs") return "logs";
   if (location.hash === "#ai") return "ai";
   if (currentPage() === "shop") return "shop";
@@ -274,11 +281,26 @@ async function removeAiHistoryReport(id) {
   }
 }
 
+// App shell: screen title in the top bar and the highlighted rail / tab-bar item.
+const APP_VIEW_TITLES = { device: "nav.device", analysis: "nav.analysis", logs: "profile.logs", ai: "nav.ai", profile: "profile.title" };
+let currentView = "analysis";
+function renderAppChrome() {
+  if (!appMode) return;
+  elements.appTitle.textContent = t(APP_VIEW_TITLES[currentView] ?? "nav.analysis");
+  elements.appRail.querySelectorAll("[data-app-view]").forEach((button) => {
+    if (button.dataset.appView === currentView) button.setAttribute("aria-current", "page");
+    else button.removeAttribute("aria-current");
+  });
+}
+
 function showView(view, updateHash = true) {
+  const device = view === "device";
   const logs = view === "logs";
   const ai = view === "ai";
   const shop = view === "shop";
   const profile = view === "profile";
+  currentView = view === "shop" ? "analysis" : view;
+  document.body.classList.toggle("view-device", device);
   document.body.classList.toggle("view-logs", logs);
   document.body.classList.toggle("view-ai", ai);
   document.body.classList.toggle("view-shop", shop);
@@ -288,9 +310,11 @@ function showView(view, updateHash = true) {
   elements.aiNavButton.classList.toggle("active", ai);
   if (ai) renderAiPageContext();
   if (updateHash) {
-    const url = shop ? PAGE_PATHS.shop : `/${logs ? "#logs" : ai ? "#ai" : profile ? "#profile" : "#analysis"}`;
+    const url = shop ? PAGE_PATHS.shop : `/${device ? "#device" : logs ? "#logs" : ai ? "#ai" : profile ? "#profile" : "#analysis"}`;
     if (url !== location.pathname + location.hash) { history.pushState(null, "", url); routedUrl = location.href; syncGuestPage(); }
   }
+  renderAppChrome();
+  if (appMode) window.scrollTo(0, 0);
   if (shop) { window.scrollTo(0, 0); onShopShown(); }
   else if (profile) { window.scrollTo(0, 0); onProfileShown(); onStatsShown(); }
   else {
@@ -350,9 +374,17 @@ function connectionErrorMessage(error) {
 function canvasContext(canvas) {
   const ratio = window.devicePixelRatio || 1;
   const rect = canvas.getBoundingClientRect();
-  canvas.width = Math.max(1, Math.round(rect.width * ratio));
-  canvas.height = Math.max(1, Math.round(rect.height * ratio));
+  const width = Math.max(1, Math.round(rect.width * ratio));
+  const height = Math.max(1, Math.round(rect.height * ratio));
+  // Resizing reallocates the backing store; charts redraw on every cursor move, so only do it when needed.
+  if (canvas.width !== width) canvas.width = width;
+  if (canvas.height !== height) canvas.height = height;
   const context = canvas.getContext("2d");
+  // Without a resize the drawing state survives between frames: put back the defaults the charts expect.
+  Object.assign(context, { globalAlpha: 1, globalCompositeOperation: "source-over", shadowBlur: 0, shadowColor: "rgba(0,0,0,0)", lineCap: "butt", lineJoin: "miter", textAlign: "start", textBaseline: "alphabetic" });
+  context.setLineDash([]);
+  context.setTransform(1, 0, 0, 1, 0, 0);
+  context.clearRect(0, 0, width, height);
   context.setTransform(ratio, 0, 0, ratio, 0, 0);
   return { context, width: rect.width, height: rect.height };
 }
@@ -437,20 +469,19 @@ function pointAtProgress(series, progress) {
   return series[low];
 }
 
-function interpolatedTimeAtProgress(series, progress) {
-  if (!series.length) return null;
-  if (progress <= series[0].progress) return series[0].point.timeMs;
-  if (progress >= series.at(-1).progress) return series.at(-1).point.timeMs;
-  let low = 0; let high = series.length - 1;
-  while (low + 1 < high) {
-    const middle = Math.floor((low + high) / 2);
-    if (series[middle].progress <= progress) low = middle;
-    else high = middle;
-  }
-  const before = series[low]; const after = series[high];
-  const span = Math.max(after.progress - before.progress, 1e-9);
-  const ratio = Math.max(0, Math.min(1, (progress - before.progress) / span));
-  return before.point.timeMs + (after.point.timeMs - before.point.timeMs) * ratio;
+// Track map colouring: plain laps, gain/loss against the comparison lap, or speed.
+const MAP_MODES = ["laps", "delta", "speed"];
+let analysisPanels = null;
+try { state.mapMode = MAP_MODES.includes(localStorage.getItem("d3-map-mode")) ? localStorage.getItem("d3-map-mode") : "laps"; } catch { state.mapMode = "laps"; }
+function renderMapMode() {
+  elements.mapMode.querySelectorAll("[data-map-mode]").forEach((button) => button.setAttribute("aria-checked", String(button.dataset.mapMode === state.mapMode)));
+}
+function renderMapLegend(html) {
+  if (elements.mapLegend.dataset.html === html) return;
+  elements.mapLegend.dataset.html = html;
+  elements.mapLegend.innerHTML = html;
+  elements.mapLegend.hidden = !html;
+  elements.trackCanvas.closest(".track-panel").querySelector(".trajectory-legend").hidden = Boolean(html);
 }
 
 const SECTOR_COLOR = "#b36bff";
@@ -586,6 +617,7 @@ function drawTrackCanvas(canvas) {
   const comparisonPoints = comparisonSeries.map((item) => item.point);
   const boundsPoints = [...primaryPoints, ...comparisonPoints];
   if (primaryPoints.length < 2) {
+    if (canvas === elements.trackCanvas) renderMapLegend("");
     context.fillStyle = "#8c8d93";
     context.font = "13px system-ui";
     context.fillText(t("track.canvasEmpty"), 24, 38);
@@ -620,8 +652,30 @@ function drawTrackCanvas(canvas) {
     points.forEach((point, index) => { const [x, y] = project(point); index ? context.lineTo(x, y) : context.moveTo(x, y); });
     context.stroke();
   };
-  drawTrajectory(comparisonPoints, "#e10600", 2.6);
-  drawTrajectory(primaryPoints, "#f4f4ee", 3.2);
+  const coloring = canvas === elements.trackCanvas && state.mapMode !== "laps" && analysisPanels
+    ? analysisPanels.mapColors(state.mapMode, primarySeries)
+    : { colors: null, legend: "" };
+  if (canvas === elements.trackCanvas) renderMapLegend(coloring.legend);
+  if (coloring.colors) {
+    drawTrajectory(comparisonPoints, "rgba(225,6,0,.35)", 1.6);
+    context.strokeStyle = "rgba(255,255,255,.08)"; context.lineWidth = 10; context.beginPath();
+    primaryPoints.forEach((point, index) => { const [x, y] = project(point); index ? context.lineTo(x, y) : context.moveTo(x, y); });
+    context.stroke();
+    context.lineWidth = 4.2;
+    let runStart = 0;
+    for (let index = 1; index <= primaryPoints.length; index++) {
+      if (index < primaryPoints.length && coloring.colors[index] === coloring.colors[runStart] && index - runStart < 400) continue;
+      const end = Math.min(index, primaryPoints.length - 1);
+      context.strokeStyle = coloring.colors[runStart];
+      context.beginPath();
+      for (let point = runStart; point <= end; point++) { const [x, y] = project(primaryPoints[point]); point === runStart ? context.moveTo(x, y) : context.lineTo(x, y); }
+      context.stroke();
+      runStart = index;
+    }
+  } else {
+    drawTrajectory(comparisonPoints, "#e10600", 2.6);
+    drawTrajectory(primaryPoints, "#f4f4ee", 3.2);
+  }
 
   if (canvas === elements.trackCanvas && state.sectors) {
     // Sector gates as short ticks across the line, sector numbers at the middle of each sector.
@@ -978,17 +1032,7 @@ function drawDeltaChart() {
   const primary = distancePoints(lapPoints(state.selectedLapNumber));
   const comparison = distancePoints(comparisonLapPoints());
   if (primary.length < 2 || comparison.length < 2) return;
-  const primaryStart = primary[0].point.timeMs;
-  const comparisonStart = comparison[0].point.timeMs;
-  const delta = Array.from({ length: 801 }, (_, index) => {
-    const progress = index / 800;
-    const primaryTime = interpolatedTimeAtProgress(primary, progress);
-    const comparisonTime = interpolatedTimeAtProgress(comparison, progress);
-    return {
-      progress,
-      value: ((primaryTime - primaryStart) - (comparisonTime - comparisonStart)) / 1000,
-    };
-  }).filter((item) => Number.isFinite(item.value));
+  const delta = deltaSeries(primary, comparison, 800);
   if (delta.length < 2) return;
 
   const padding = { left: 52, right: 18, top: 18, bottom: 30 };
@@ -1056,6 +1100,7 @@ function drawDeltaChart() {
 function drawCharts() {
   drawComparisonChart(elements.telemetryCanvas, state.telemetryMetric, { speed: state.telemetryMetric === "speed" });
   drawDeltaChart();
+  analysisPanels?.draw();
 }
 
 let cursorFrame = 0;
@@ -1115,6 +1160,21 @@ function updateCursorFromEvent(event) {
 });
 
 elements.chartZoomReset.addEventListener("click", resetChartZoom);
+
+analysisPanels = createAnalysisPanels({
+  state, elements, t, onLanguageChange,
+  lapPoints, comparisonLapPoints, distancePoints, canvasContext, sectorFractions,
+  setCursorProgress, setChartZoom, resetChartZoom,
+});
+renderMapMode();
+elements.mapMode.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-map-mode]");
+  if (!button) return;
+  state.mapMode = button.dataset.mapMode;
+  try { localStorage.setItem("d3-map-mode", state.mapMode); } catch {}
+  renderMapMode();
+  drawTrack();
+});
 
 {
   const canvas = elements.trackCanvas;
@@ -1619,8 +1679,10 @@ function renderTrialBanner() {
 // until the visitor registers, at which point the log is saved to the new account.
 const TRIAL_MAX_BYTES = 60 * 1024 * 1024;
 function setTrialStatus(message = "", error = false) {
-  elements.trialStatus.textContent = message;
-  elements.trialStatus.classList.toggle("error", error);
+  for (const status of [elements.trialStatus, elements.appTrialStatus]) {
+    status.textContent = message;
+    status.classList.toggle("error", error);
+  }
 }
 
 async function startTrial(file) {
@@ -1999,6 +2061,8 @@ async function downloadHistory() {
     elements.progressBar.value = 100; elements.progressLabel.textContent = t("progress.done", { count: sessions.length });
     elements.cancelButton.hidden = true;
     setStatus(t("state.loaded", { name: state.deviceName }), true); setHint(t("state.loaded", { name: state.deviceName }));
+    // In the app the device controls have their own tab: show the fresh session straight away.
+    if (appMode && currentView === "device") showView("analysis");
   } catch (error) { elements.cancelButton.hidden = true; setStatus(t("state.downloadFailed", { name: state.deviceName }), true); setHint(error.message, true); }
   finally { elements.downloadButton.disabled = false; }
 }
@@ -2033,6 +2097,7 @@ async function eraseDeviceMemory() {
 
 elements.connectButton.addEventListener("click", connect);
 elements.onboardConnectButton.addEventListener("click", () => {
+  if (appMode) showView("device");
   if (!bluetoothAvailable()) { elements.bluetoothNotice.scrollIntoView({ behavior: "smooth", block: "center" }); return; }
   elements.connectButton.scrollIntoView({ behavior: "smooth", block: "center" });
   void connect();
@@ -2042,6 +2107,31 @@ elements.onboardImportButton.addEventListener("click", () => {
   elements.importLogInput.click();
 });
 elements.onboardDemoButton.addEventListener("click", openDemoSession);
+// App shell navigation: the rail on wide screens, the tab bar on phones.
+const railActions = {
+  device: () => showView("device"),
+  analysis: () => showView("analysis"),
+  logs: () => elements.logsNavButton.click(),
+  ai: () => elements.aiNavButton.click(),
+  profile: () => elements.accountButton.click(),
+};
+elements.appRail.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-app-view]");
+  if (button) railActions[button.dataset.appView]?.();
+});
+elements.appSignInButton.addEventListener("click", () => openAccountDialog("signin"));
+elements.appRegisterButton.addEventListener("click", () => openAccountDialog("register"));
+elements.appTrialButton.addEventListener("click", () => elements.trialInput.click());
+onLanguageChange(renderAppChrome);
+// Desktop app: the analysis panels form an editable workspace (columns, resizable borders, Layout mode).
+initWorkspace({
+  dashboard: elements.dashboard,
+  actions: elements.topbar.querySelector(".header-actions"),
+  enabled: () => appMode,
+  redraw: () => { drawTrack(); drawCharts(); },
+  t,
+  onLanguageChange,
+});
 onLanguageChange(renderBluetoothSupport);
 renderBluetoothSupport();
 renderSessionState();

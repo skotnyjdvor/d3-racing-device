@@ -27,8 +27,8 @@ if (!jwtSecret) throw new Error("JWT_SECRET is required");
 
 const allowedOrigins = (process.env.APP_ORIGIN || "http://127.0.0.1:4173,http://localhost:4173")
   .split(",").map((origin) => origin.trim()).filter(Boolean)
-  // The iOS app (Capacitor) calls the API from its own scheme.
-  .concat("capacitor://localhost", "ionic://localhost");
+  // The apps call the API from their own origins: iOS (Capacitor), Android (Capacitor) and the desktop app (Electron).
+  .concat("capacitor://localhost", "ionic://localhost", "https://localhost", "app://d3cf");
 app.use(cors({ origin: (origin, callback) => callback(null, !origin || allowedOrigins.includes(origin)) }));
 app.use((request, response, next) => {
   response.set({

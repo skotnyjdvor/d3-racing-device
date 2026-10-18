@@ -1,0 +1,36 @@
+# Desktop installers for Windows, macOS and Linux. Run `npm run desktop:build` (builds for the current OS).
+appId: com.d3racinglab.laptrace
+productName: D3CF
+copyright: © 2026 D3CF Technology
+directories:
+  app: desktop/app
+  output: release
+  buildResources: resources
+files:
+  - "**/*"
+icon: resources/icon-only.png
+asar: true
+beforeBuild: desktop/before-build.cjs
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  artifactName: D3CF-Setup-${version}.${ext}
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  shortcutName: D3CF
+mac:
+  target:
+    - target: dmg
+      arch: [universal]
+  category: public.app-category.sports
+  artifactName: D3CF-${version}-mac.${ext}
+  extendInfo:
+    NSBluetoothAlwaysUsageDescription: D3CF uses Bluetooth to connect to the LapTrace logger and download recorded sessions.
+linux:
+  target: [AppImage]
+  category: Utility
+  artifactName: D3CF-${version}-linux.${ext}

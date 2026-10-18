@@ -29,9 +29,19 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Manrope:wght@400;500;600;700&family=Oswald:wght@500;700&display=swap" />
+    <script src="/app-boot.js"></script>
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body class="auth-locked">
+    <!-- Native apps only (html.app-mode): side rail on wide screens, bottom tab bar on phones. -->
+    <nav class="app-rail" id="appRail" aria-label="D3CF">
+      <span class="app-rail-logo"><svg viewBox="60 80 1565 735" aria-hidden="true"><path class="brand-mark-badge" d="M236 97H1375C1510 97 1605 170 1605 282C1605 352 1576 402 1542 446C1531 461 1535 520 1535 562C1535 702 1440 795 1265 795H80L245 413H88Z" /><path class="brand-mark-letters" d="M272 180H720C870 180 940 250 940 332C940 442 880 560 802 632C742 690 662 717 602 717H200L357 355H525L427 597H575C650 597 700 562 732 482C760 412 770 372 765 350C757 322 727 305 692 305H215Z M1037 180H1385C1490 180 1530 232 1530 282C1530 352 1490 420 1410 440C1450 452 1470 482 1468 522C1465 622 1400 717 1255 717H828L915 597H1225C1270 597 1290 562 1295 532C1298 516 1290 507 1270 507H1052L1102 388H1300C1330 388 1350 360 1355 337C1358 318 1350 305 1330 305H985Z" /></svg></span>
+      <button type="button" data-app-view="device"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10-5 4V3l5 4L7 17" /></svg><span data-i18n="nav.device"></span><i class="status-dot" id="railDeviceDot"></i></button>
+      <button type="button" data-app-view="analysis"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20h18M4 16l5-6 4 3 7-8" /></svg><span data-i18n="nav.analysis"></span></button>
+      <button type="button" data-app-view="logs"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h11" /></svg><span data-i18n="profile.logs"></span></button>
+      <button type="button" data-app-view="ai"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 3l1.9 5.1L18 10l-5.1 1.9L11 17l-1.9-5.1L4 10l5.1-1.9zM18.5 15l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z" /></svg><span data-i18n="app.ai"></span></button>
+      <button type="button" data-app-view="profile"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4" /><path d="M4 21c1.5-4 4.4-6 8-6s6.5 2 8 6" /></svg><span data-i18n="profile.title"></span></button>
+    </nav>
     <header class="topbar" id="topbar">
       <a class="brand" href="/" aria-label="D3"
         ><span class="brand-mark-frame"
@@ -44,6 +54,7 @@
           ><small>Technology</small></span
         ></a
       >
+      <b class="app-title" id="appTitle"></b>
       <nav class="app-nav" id="appNav" aria-label="Application">
         <button class="active" id="analysisNavButton" type="button" data-i18n="nav.analysis"></button>
         <button id="logsNavButton" type="button" data-i18n="nav.logs"></button>
@@ -691,6 +702,20 @@
         </div>
       </article>
     </section>
+    <section class="app-welcome" id="appWelcome" aria-labelledby="appWelcomeTitle">
+      <div class="app-welcome-card">
+        <span class="app-welcome-logo"><svg viewBox="60 80 1565 735" aria-hidden="true"><path class="brand-mark-badge" d="M236 97H1375C1510 97 1605 170 1605 282C1605 352 1576 402 1542 446C1531 461 1535 520 1535 562C1535 702 1440 795 1265 795H80L245 413H88Z" /><path class="brand-mark-letters" d="M272 180H720C870 180 940 250 940 332C940 442 880 560 802 632C742 690 662 717 602 717H200L357 355H525L427 597H575C650 597 700 562 732 482C760 412 770 372 765 350C757 322 727 305 692 305H215Z M1037 180H1385C1490 180 1530 232 1530 282C1530 352 1490 420 1410 440C1450 452 1470 482 1468 522C1465 622 1400 717 1255 717H828L915 597H1225C1270 597 1290 562 1295 532C1298 516 1290 507 1270 507H1052L1102 388H1300C1330 388 1350 360 1355 337C1358 318 1350 305 1330 305H985Z" /></svg></span>
+        <p class="app-welcome-kicker" data-i18n="app.welcomeKicker"></p>
+        <h1 id="appWelcomeTitle" data-i18n="app.welcomeTitle"></h1>
+        <p class="app-welcome-text" data-i18n="app.welcomeText"></p>
+        <div class="app-welcome-actions">
+          <button class="primary" id="appSignInButton" type="button" data-i18n="account.signIn"></button>
+          <button class="secondary" id="appRegisterButton" type="button" data-i18n="account.register"></button>
+        </div>
+        <button class="app-welcome-trial" id="appTrialButton" type="button"><span aria-hidden="true">＋</span><b data-i18n="trial.cta"></b></button>
+        <p class="app-welcome-status" id="appTrialStatus" role="status" aria-live="polite"></p>
+      </div>
+    </section>
     <main class="app-main" id="appMain">
       <section class="trial-banner" id="trialBanner" hidden>
         <div class="trial-banner-copy"><b id="trialBannerTitle"></b><p id="trialBannerText"></p></div>
@@ -893,6 +918,9 @@
               <p class="eyebrow" data-i18n="track.kicker"></p>
               <h2 id="trackTitle" data-i18n="track.empty"></h2>
             </div>
+            <div class="map-mode" id="mapMode" role="radiogroup">
+              <button type="button" role="radio" data-map-mode="laps" data-i18n="map.laps"></button><button type="button" role="radio" data-map-mode="delta" data-i18n="map.delta"></button><button type="button" role="radio" data-map-mode="speed" data-i18n="map.speed"></button>
+            </div>
             <button class="chart-zoom-reset" id="trackZoomReset" type="button" title="Reset zoom" aria-label="Reset zoom">⤢ 100%</button>
           </div>
           <div class="track-stats">
@@ -904,6 +932,7 @@
             <span class="trajectory-comparison" data-i18n="laps.compare"></span>
             <span class="trajectory-ai" id="aiTrackLegend" hidden>AI POINTS</span>
           </div>
+          <div class="legend map-legend" id="mapLegend" hidden></div>
         </article>
         <article class="panel chart-panel telemetry-panel">
           <div class="panel-head">
@@ -964,6 +993,23 @@
           <ol class="insights" id="insightsList">
             <li data-i18n="insights.empty"></li>
           </ol>
+        </article>
+        <!-- Desktop workspace panels (shown only inside the workspace, see .ws-only). -->
+        <article class="panel stack-panel ws-only" id="stackPanel">
+          <div class="panel-head">
+            <div><h2 data-i18n="chan.title"></h2></div>
+            <div class="stack-channels" id="stackChannels" role="group"></div>
+            <button class="chart-zoom-reset" id="stackZoomReset" type="button" title="Reset zoom" aria-label="Reset zoom">⤢ 100%</button>
+          </div>
+          <p class="stack-readout" id="stackReadout"></p>
+          <canvas id="stackCanvas"></canvas>
+        </article>
+        <article class="panel gg-panel ws-only" id="ggPanel">
+          <div class="panel-head">
+            <div><h2 data-i18n="gg.title"></h2></div>
+            <span class="gg-stats" id="ggStats"></span>
+          </div>
+          <canvas id="ggCanvas"></canvas>
         </article>
       </section>
     </main>

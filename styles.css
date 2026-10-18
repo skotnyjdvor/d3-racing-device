@@ -1792,3 +1792,271 @@ html .trial-actions .primary[hidden] { display: none; }
   .share-item-actions button { flex: 1 1 auto; }
 }
 @media (prefers-reduced-motion: reduce) { .app-notice { animation-name: fadeIn; } }
+
+/* =====================================================================
+   Native apps: telemetry-app layout. html.app-mode is set by public/app-boot.js
+   inside Capacitor / Electron (or with ?app=1). The website never gets this class.
+   ===================================================================== */
+.app-rail, .app-welcome, .app-title { display: none; }
+html.app-mode { --rail-w: 92px; --app-bar-h: 52px; --safe-top: env(safe-area-inset-top, 0px); --safe-bottom: env(safe-area-inset-bottom, 0px); }
+html.app-mode body { --topbar-h: calc(var(--app-bar-h) + var(--safe-top)); min-height: 100vh; background: var(--race-bg); }
+html.app-mode :is(.landing, .landing-subbar, .landing-nav, .app-nav, footer, .shop-page) { display: none !important; }
+
+/* Top bar: screen title on the left, language / account / device state on the right. */
+html.app-mode body .topbar { height: var(--topbar-h); padding: var(--safe-top) 16px 0; gap: 12px; border-top: 0; border-bottom: 1px solid var(--race-line); background: rgba(8,8,12,.94); backdrop-filter: blur(16px); }
+html.app-mode body .topbar .brand small { display: none; }
+html.app-mode body:not(.auth-locked) .topbar .brand { display: none; }
+html.app-mode body:not(.auth-locked) .app-title { display: block; min-width: 0; margin-right: auto; overflow: hidden; color: var(--race-text); font: 700 18px/1 var(--font-display); letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; text-overflow: ellipsis; }
+html.app-mode body .header-actions { margin-left: auto; gap: 8px; }
+html.app-mode body.auth-locked .account-button { display: none; }
+html.app-mode body:not(.auth-locked) .device-state { display: flex; align-items: center; gap: 8px; color: var(--race-text-2); font: 400 12px/1 var(--font-code); letter-spacing: .06em; text-transform: uppercase; }
+
+/* Side rail (wide screens). */
+html.app-mode body:not(.auth-locked) { padding-left: var(--rail-w); }
+html.app-mode body:not(.auth-locked) .app-rail { position: fixed; z-index: 30; inset: 0 auto 0 0; width: var(--rail-w); padding: calc(10px + var(--safe-top)) 8px 12px; display: flex; flex-direction: column; gap: 4px; background: #0b0b11; border-right: 1px solid var(--race-line); }
+.app-rail-logo { height: 44px; margin-bottom: 14px; display: grid; place-items: center; }
+.app-rail-logo svg, .app-welcome-logo svg { width: 52px; height: auto; overflow: visible; }
+.app-rail-logo .brand-mark-badge, .app-welcome-logo .brand-mark-badge { fill: none; stroke: #fff; stroke-width: 40; stroke-linejoin: round; }
+.app-rail-logo .brand-mark-letters, .app-welcome-logo .brand-mark-letters { fill: #fff; }
+.app-rail button { position: relative; min-height: 64px; padding: 10px 2px 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: var(--race-muted); background: none; border: 0; border-radius: 0; font: 600 12px/1.15 var(--font-body); text-align: center; cursor: pointer; transition: color .15s, background-color .15s; -webkit-tap-highlight-color: transparent; }
+.app-rail button svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.app-rail button span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app-rail button:focus-visible { outline: 1px solid var(--race-red); outline-offset: -2px; }
+.app-rail button[aria-current="page"] { color: var(--race-text); background: rgba(225,6,0,.1); }
+.app-rail button[aria-current="page"]::before { content: ""; position: absolute; left: -8px; top: 10px; bottom: 10px; width: 3px; background: var(--race-red); }
+.app-rail .status-dot { position: absolute; top: 10px; right: 18px; width: 7px; height: 7px; box-shadow: none; }
+@media (hover: hover) { .app-rail button:hover { color: var(--race-text); } }
+
+/* Content fills the window next to the rail instead of a centred website column. */
+html.app-mode body :is(main, .logs-page, .ai-page) { width: auto; max-width: none; margin: 0; }
+html.app-mode body main { padding: 12px 16px 24px; }
+html.app-mode body :is(.logs-page, .ai-page) { min-height: 0; padding: 16px 16px 32px; }
+html.app-mode body .profile-inner { width: auto; max-width: 1280px; margin: 0; padding: 16px 16px 32px; }
+
+/* Screen heads: compact titles instead of website headlines. */
+html.app-mode body :is(.logs-page-head, .ai-page-head) { margin-bottom: 14px; gap: 16px; }
+html.app-mode body :is(.logs-page-head, .ai-page-head) .eyebrow { display: none; }
+html.app-mode body :is(.logs-page-head h1, .ai-page-head h1, .profile-head h1) { margin: 0 0 6px; font-size: 26px; line-height: 1.05; letter-spacing: .02em; }
+html.app-mode body :is(.logs-page-head > div > p:last-child, .ai-page-head > div:first-child > p:last-child) { margin: 0; font-size: 14px; }
+html.app-mode body .profile-head { margin-bottom: 16px; }
+/* The top bar already names the screen and the rail navigates: drop page headlines and "back" buttons. */
+html.app-mode body .logs-page-head, html.app-mode body .ai-page-head > div:first-child { display: none; }
+html.app-mode body :is(#logsBackButton, #aiBackButton) { display: none; }
+/* AI: session, mode and laps as one toolbar row. */
+html.app-mode body .ai-page-head { display: block; }
+html.app-mode body .ai-page-context { padding: 10px 12px; grid-template-columns: minmax(200px, 1fr) minmax(280px, 1.3fr) minmax(260px, 1.2fr); align-items: end; gap: 10px 12px; }
+html.app-mode body .ai-page-context > * { margin: 0; min-width: 0; }
+@media (max-width: 1100px) { html.app-mode body .ai-page-context { grid-template-columns: minmax(0, 1fr); } }
+
+/* Device screen: the LapTrace control panel gets its own tab. */
+html.app-mode body:not(.view-device) .device-hero { display: none; }
+html.app-mode body.view-device :is(.onboarding, .summary-grid, .dashboard, .trial-banner) { display: none; }
+html.app-mode body.view-device .device-hero { min-height: 0; padding: 4px 0 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
+/* The screen title says "Device"; the website headline is dropped, the short how-to stays. */
+html.app-mode body.view-device .device-hero > div:first-child { display: block; max-width: 760px; order: 2; }
+html.app-mode body.view-device .device-hero :is(.eyebrow, h1) { display: none; }
+html.app-mode body.view-device .device-hero .hero-copy { margin: 0; color: var(--race-muted); font-size: 13px; }
+/* Telemetry tiles are always on screen; before connecting they are dimmed and show "—". */
+html.app-mode body.view-device .device-panel > :is(.device-health, .storage-state)[hidden] { display: grid; opacity: .45; }
+html.app-mode body.view-device .device-panel { max-width: 980px; padding: 18px; display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(240px, .75fr); grid-auto-flow: row dense; align-items: start; gap: 10px 16px; }
+html.app-mode body.view-device .device-panel > :is(.device-health, .storage-state, .unlock-form, .erase-progress, .download-progress, .bt-support, p) { grid-column: 1; }
+html.app-mode body.view-device .device-panel > button:not(.device-summary) { grid-column: 2; width: 100%; }
+html.app-mode .device-summary { display: none !important; }
+
+/* Analysis: dense panels, no website headlines. */
+html.app-mode body .onboarding { margin: 4px 0 16px; }
+html.app-mode body .onboarding-head { margin-bottom: 12px; }
+html.app-mode body .onboarding-head h2 { font-size: 24px; }
+html.app-mode body .onboarding-head > p:last-child { font-size: 14px; }
+html.app-mode body .onboarding-card { min-height: 120px; padding: 16px; }
+html.app-mode body .summary-grid { margin-bottom: 0; }
+html.app-mode body .summary-grid .metric { min-height: 0; padding: 8px 14px; display: flex; flex-direction: row; align-items: baseline; gap: 10px; }
+html.app-mode body .summary-grid .metric strong { margin: 0 0 0 auto; order: 2; font-size: 20px; line-height: 1; }
+html.app-mode body .summary-grid .metric small { order: 3; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+html.app-mode body .dashboard { gap: 8px; margin-top: 8px; }
+html.app-mode body .dashboard .panel-head { min-height: 0; padding: 8px 12px; }
+html.app-mode body .dashboard .panel-head .eyebrow { display: none; }
+html.app-mode body .dashboard .panel-head h2 { font: 700 12px/1.3 var(--font-code); letter-spacing: .12em; color: var(--race-text-2); text-transform: uppercase; }
+html.app-mode body .lap-controls-panel .comparison-legend { display: none; }
+html.app-mode body .telemetry-panel .panel-head { flex-wrap: nowrap; }
+html.app-mode body .telemetry-selector { min-width: 0; width: min(240px, 45%); }
+html.app-mode body .telemetry-selector > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+html.app-mode body .telemetry-selector select { height: 34px; padding-top: 0; padding-bottom: 0; }
+html.app-mode body .dashboard .chart-zoom-reset { flex: none; min-width: 0; min-height: 30px; padding: 0 8px; }
+html.app-mode body .sector-table th, html.app-mode body .sector-table td { padding: 6px 8px; }
+html.app-mode body .sector-table-wrap { margin: 10px 10px 0; }
+@media (min-width: 701px) {
+  html.app-mode body .lap-controls-panel .lap-panel-heading { display: none; }
+  html.app-mode body .lap-controls-panel .panel-head { min-height: 0; padding: 8px 12px; }
+  html.app-mode body .session-bar { padding: 8px 12px; }
+  html.app-mode body .session-bar-field > span, html.app-mode body .lap-selectors label > span { font-size: 12px; letter-spacing: .14em; }
+  html.app-mode body .track-panel canvas { height: clamp(280px, calc(100vh - 330px), 820px); }
+  html.app-mode body .telemetry-panel canvas { height: clamp(160px, calc((100vh - 360px) * .6), 470px); }
+  html.app-mode body .delta-panel canvas { height: clamp(100px, calc((100vh - 360px) * .4), 300px); }
+}
+/* Wide windows: lap/sector table on the left like a timing screen, map in the middle, traces on the right. */
+@media (min-width: 1280px) {
+  html.app-mode body .dashboard { grid-template-columns: minmax(360px, 420px) minmax(0, 1.1fr) minmax(0, 1fr); grid-template-areas: "session laps laps" "sectors track telemetry" "sectors track delta" "insights insights insights"; }
+  html.app-mode body .session-bar { grid-template-columns: 36px minmax(0, 1fr) 36px; }
+  html.app-mode body .session-bar .session-step { width: 36px; }
+  html.app-mode body .session-bar-meta { display: none; }
+  html.app-mode body .track-panel canvas { height: clamp(280px, calc(100vh - 290px), 820px); }
+  html.app-mode body .telemetry-panel canvas { height: clamp(160px, calc((100vh - 330px) * .6), 470px); }
+  html.app-mode body .delta-panel canvas { height: clamp(100px, calc((100vh - 330px) * .4), 300px); }
+  html.app-mode body .sectors-panel { align-self: stretch; }
+  html.app-mode body .sectors-panel .panel-head { flex-wrap: wrap; }
+  html.app-mode body .sectors-panel .sector-table-wrap { max-height: calc(100vh - 300px); overflow: auto; }
+}
+
+/* Guests: an app sign-in screen instead of the marketing landing. */
+html.app-mode body.auth-locked .app-welcome { min-height: calc(100vh - var(--topbar-h)); padding: 24px 16px calc(24px + var(--safe-bottom)); display: grid; place-items: center; background-image: linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px); background-size: 48px 48px; }
+.app-welcome-card { position: relative; width: min(440px, 100%); padding: 32px 28px 26px; display: grid; justify-items: start; gap: 14px; background: rgba(15,15,22,.92); border: 1px solid var(--race-line-2); }
+.app-welcome-card::before { content: ""; position: absolute; left: -1px; top: -1px; width: 16px; height: 16px; border-left: 2px solid var(--race-red); border-top: 2px solid var(--race-red); }
+.app-welcome-logo svg { width: 64px; }
+.app-welcome-kicker { margin: 6px 0 0; color: var(--race-red); font: 700 12px/1 var(--font-code); letter-spacing: .2em; text-transform: uppercase; }
+.app-welcome-card h1 { margin: 0; color: var(--race-text); font: 700 32px/1 var(--font-display); letter-spacing: .02em; text-transform: uppercase; }
+.app-welcome-text { margin: 0; color: var(--race-text-2); font: 400 15px/1.55 var(--font-body); }
+.app-welcome-actions { width: 100%; margin-top: 6px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.app-welcome-actions button { min-height: 48px; padding: 0 12px; font: 700 12px/1 var(--font-code); letter-spacing: .14em; text-transform: uppercase; }
+.app-welcome-trial { width: 100%; min-height: 48px; padding: 0 14px; display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--race-text); background: transparent; border: 1px dashed var(--race-line-2); font: 700 12px/1.3 var(--font-code); letter-spacing: .08em; text-transform: uppercase; cursor: pointer; transition: border-color .15s; }
+.app-welcome-trial span { color: var(--race-lime); font-size: 16px; }
+.app-welcome-trial:hover { border-color: var(--race-text-2); }
+.app-welcome-status { min-height: 1.4em; margin: 0; color: var(--race-text-2); font: 400 13px/1.4 var(--font-body); }
+.app-welcome-status.error { color: var(--race-red-text); }
+
+/* Phones: bottom tab bar instead of the rail. */
+@media (max-width: 700px) {
+  html.app-mode { --rail-w: 0px; --tabbar-h: 60px; }
+  html.app-mode body:not(.auth-locked) { padding-left: 0; padding-bottom: calc(var(--tabbar-h) + var(--safe-bottom)); }
+  html.app-mode body:not(.auth-locked) .app-rail { inset: auto 0 0 0; width: auto; height: calc(var(--tabbar-h) + var(--safe-bottom)); padding: 0 4px var(--safe-bottom); flex-direction: row; gap: 0; border-right: 0; border-top: 1px solid var(--race-line); background: rgba(11,11,17,.97); backdrop-filter: blur(16px); }
+  html.app-mode .app-rail-logo { display: none; }
+  html.app-mode .app-rail button { flex: 1 1 0; min-width: 0; min-height: var(--tabbar-h); padding: 8px 0 6px; gap: 4px; }
+  html.app-mode .app-rail button[aria-current="page"] { background: none; }
+  html.app-mode .app-rail button[aria-current="page"]::before { left: 22%; right: 22%; top: 0; bottom: auto; width: auto; height: 2px; }
+  html.app-mode .app-rail .status-dot { top: 8px; right: calc(50% - 18px); }
+  html.app-mode body .topbar { padding: var(--safe-top) 12px 0; }
+  html.app-mode body:not(.auth-locked) .device-state #deviceStatus { display: none; }
+  html.app-mode body main { padding: 8px 8px 16px; }
+  html.app-mode body :is(.logs-page, .ai-page) { padding: 12px 10px 24px; }
+  html.app-mode body .profile-inner { padding: 12px 10px 24px; }
+  html.app-mode body :is(.logs-page-head h1, .ai-page-head h1, .profile-head h1) { font-size: 22px; }
+  /* Device tab shows the whole control panel; the fold-away summary row is only for the website. */
+  html.app-mode body.view-device .device-hero { padding: 4px 0 0; gap: 12px; }
+  html.app-mode body.view-device .device-hero h1 { font-size: 24px; }
+  html.app-mode body.view-device .device-panel { padding: 14px; grid-template-columns: minmax(0, 1fr); }
+  html.app-mode body.view-device .device-panel > :is(.device-health, .storage-state, .unlock-form, .erase-progress, .download-progress, .bt-support, p, button) { grid-column: 1; }
+  html.app-mode body.view-device .device-panel > button:not(.device-summary) { grid-column: 1; display: block; }
+  html.app-mode body.view-device .device-panel > :is(.device-health, .storage-state):not([hidden]) { display: grid; }
+  html.app-mode body.view-device .device-panel > :is(.bt-support, .unlock-form, .erase-progress, .download-progress):not([hidden]) { display: block; }
+  html.app-mode body.view-device .device-panel > p { display: block; }
+  html.app-mode body.view-device .device-hero > div:first-child { display: block; }
+  html.app-mode body .onboarding-grid { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  html.app-mode body .onboarding-card { min-height: 0; }
+  .app-welcome-card { padding: 26px 20px 22px; }
+}
+
+/* ---------- Desktop workspace for the analysis screen (src/workspace.js, body.ws-on) ---------- */
+.ws-toggle, .ws-hide { display: none; }
+html.app-mode body.ws-on.has-session:not(.auth-locked, .view-device, .view-logs, .view-ai, .view-profile, .view-shop) .ws-toggle { height: 34px; padding: 0 12px; display: inline-flex; align-items: center; gap: 8px; color: var(--race-text-2); background: transparent; border: 1px solid var(--race-line-2); font: 700 12px/1 var(--font-code); letter-spacing: .12em; text-transform: uppercase; cursor: pointer; transition: color .15s, border-color .15s, background-color .15s; }
+.ws-toggle svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; }
+.ws-toggle:hover { color: var(--race-text); border-color: var(--race-text-2); }
+.ws-toggle[aria-pressed="true"] { color: var(--race-text); border-color: var(--race-red); background: rgba(225,6,0,.12); }
+
+/* The analysis screen fills the window; panels share the space instead of scrolling the page. */
+html.app-mode body.ws-on.has-session:not(.auth-locked, .view-device, .view-logs, .view-ai, .view-profile, .view-shop) #appMain { height: calc(100vh - var(--topbar-h)); padding-bottom: 12px; display: flex; flex-direction: column; overflow: hidden; }
+html.app-mode body.ws-on #appMain > :is(.summary-grid, .trial-banner) { flex: none; }
+html.app-mode body.ws-on #appMain > .dashboard { flex: 1 1 auto; min-height: 0; margin-top: 8px; grid-template-columns: minmax(340px, 420px) minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr); grid-template-areas: "session laps" "bar bar" "ws ws"; }
+html.app-mode body.ws-on .dashboard > .ws-bar { grid-area: bar; }
+html.app-mode body.ws-on .dashboard > .ws-area { grid-area: ws; position: relative; min-height: 0; display: flex; }
+.ws-column { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+html.app-mode body.ws-on .ws-column > .panel { min-width: 0; min-height: 0; margin: 0; display: flex; flex-direction: column; overflow: hidden; }
+html.app-mode body.ws-on .ws-column > .panel > :not(canvas, .sector-table-wrap, .insights) { flex: none; }
+html.app-mode body.ws-on .ws-column > .panel > canvas { flex: 1 1 0; height: auto; min-height: 0; }
+html.app-mode body.ws-on .ws-column .sector-table-wrap { flex: 1 1 auto; min-height: 0; max-height: none; overflow: auto; }
+html.app-mode body.ws-on .ws-column .insights { flex: 1 1 auto; min-height: 0; overflow: auto; columns: auto; }
+html.app-mode body.ws-on .ws-column .sector-note { display: none; }
+html.app-mode body.ws-on .ws-column .telemetry-tabs { display: none; }
+
+/* Borders between columns and between stacked panels. */
+.ws-split { position: relative; flex: 0 0 8px; touch-action: none; }
+.ws-split-col { cursor: col-resize; }
+.ws-split-row { cursor: row-resize; }
+.ws-split::after { content: ""; position: absolute; background: transparent; transition: background-color .15s; }
+.ws-split-col::after { inset: 0 3px; }
+.ws-split-row::after { inset: 3px 0; }
+.ws-split:hover::after, .ws-split.active::after, .ws-split:focus-visible::after { background: var(--race-red); }
+.ws-split:focus-visible { outline: none; }
+
+/* Layout mode. */
+.ws-bar { padding: 10px 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 20px; background: rgba(225,6,0,.06); border: 1px solid rgba(225,6,0,.35); }
+.ws-bar[hidden] { display: none; }
+.ws-hint { flex: 1 1 100%; margin: 0; color: var(--race-text-2); font: 400 13px/1.4 var(--font-body); }
+.ws-group { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.ws-group > span { margin-right: 4px; color: var(--race-muted); font: 400 12px/1 var(--font-code); letter-spacing: .14em; text-transform: uppercase; }
+.ws-end { margin-left: auto; }
+.ws-chip, .ws-preset, .ws-reset { height: 32px; padding: 0 12px; color: var(--race-text-2); background: transparent; border: 1px solid var(--race-line-2); font: 600 12px/1 var(--font-body); cursor: pointer; transition: color .15s, border-color .15s; }
+.ws-chip:hover:not(:disabled), .ws-preset:hover, .ws-reset:hover { color: var(--race-text); border-color: var(--race-text-2); }
+.ws-chip[aria-pressed="true"] { color: var(--race-text); background: rgba(255,255,255,.04); border-color: var(--race-text-2); }
+.ws-chip[aria-pressed="true"]::before { content: "✓ "; color: var(--race-lime); }
+.ws-chip:disabled { opacity: .5; cursor: default; }
+html .ws-bar .ws-done { min-height: 32px; height: 32px; padding: 0 16px; font: 700 12px/1 var(--font-code); letter-spacing: .12em; text-transform: uppercase; }
+body.ws-editing .ws-area .panel { outline: 1px dashed rgba(225,6,0,.5); outline-offset: -1px; }
+body.ws-editing .ws-area .panel-head { cursor: grab; background: rgba(225,6,0,.05); }
+body.ws-editing .ws-area .panel { position: relative; }
+html.app-mode body.ws-editing .ws-area .panel-head { padding-right: 48px; }
+body.ws-editing .ws-area .panel-head .ws-hide { position: absolute; top: 6px; right: 8px; z-index: 2; width: 28px; height: 28px; margin: 0; padding: 0; display: grid; place-items: center; color: var(--race-text-2); background: var(--race-bg); border: 1px solid var(--race-line-2); font: 400 18px/1 var(--font-code); cursor: pointer; }
+body.ws-editing .ws-area .panel-head .ws-hide:hover:not(:disabled) { color: var(--race-text); border-color: var(--race-red); }
+body.ws-editing .ws-area .panel-head .ws-hide:disabled { opacity: .35; cursor: default; }
+.ws-dragging { opacity: .35; }
+.ws-drop { position: absolute; z-index: 5; background: var(--race-red); box-shadow: 0 0 18px rgba(225,6,0,.6); pointer-events: none; }
+.ws-drop[hidden] { display: none; }
+.ws-ghost { position: fixed; left: 0; top: 0; z-index: 100; padding: 8px 12px; color: var(--race-text); background: var(--race-surface); border: 1px solid var(--race-red); box-shadow: 0 10px 30px rgba(0,0,0,.5); font: 700 12px/1 var(--font-code); letter-spacing: .12em; text-transform: uppercase; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .ws-split::after, .ws-toggle { transition: none; } }
+
+/* ---------- Track map colouring (src/analysis-panels.js) ---------- */
+.map-mode { margin-left: auto; display: inline-flex; border: 1px solid var(--race-line-2); }
+.map-mode button { min-height: 30px; padding: 0 10px; color: var(--race-muted); background: transparent; border: 0; font: 700 12px/1 var(--font-code); letter-spacing: .08em; text-transform: uppercase; cursor: pointer; transition: color .15s, background-color .15s; }
+.map-mode button + button { border-left: 1px solid var(--race-line-2); }
+.map-mode button:hover { color: var(--race-text); }
+.map-mode button[aria-checked="true"] { color: var(--race-text); background: rgba(225,6,0,.16); }
+.map-mode button:focus-visible { outline: 1px solid var(--race-red); outline-offset: -2px; }
+.track-panel .panel-head { gap: 8px; }
+.map-legend { padding: 0 16px 12px; display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 10px 16px; color: var(--race-text-2); font: 400 12px/1.3 var(--font-code); text-transform: none; }
+.map-legend[hidden] { display: none; }
+.map-ramp { width: 140px; height: 6px; background: linear-gradient(90deg, rgb(43,108,255), rgb(0,229,255), rgb(199,255,61), rgb(255,176,0), rgb(225,6,0)); }
+.map-key::before { content: ""; display: inline-block; width: 22px; height: 4px; margin-right: 8px; vertical-align: middle; }
+.map-key.gain::before { background: rgb(43,217,107); }
+.map-key.loss::before { background: rgb(255,59,48); }
+@media (max-width: 700px) {
+  html body .dashboard .track-panel .panel-head { flex-wrap: wrap; }
+  html body .dashboard .track-panel .panel-head > div:first-child { flex: 1 1 0; }
+  html body .dashboard .track-panel .map-mode { order: 3; flex: 1 1 100%; margin-left: 0; }
+  .map-mode button { flex: 1 1 0; min-height: 36px; padding: 0 6px; }
+}
+
+/* ---------- Workspace-only panels: channels and G-G ---------- */
+.dashboard > .ws-only { display: none; }
+.stack-channels { min-width: 0; display: flex; flex-wrap: wrap; gap: 4px; }
+.stack-chip { height: 26px; padding: 0 8px; color: var(--race-muted); background: transparent; border: 1px solid var(--race-line-2); font: 600 12px/1 var(--font-body); cursor: pointer; transition: color .15s, border-color .15s; }
+.stack-chip:hover { color: var(--race-text); }
+.stack-chip[aria-pressed="true"] { color: var(--race-text); border-color: var(--race-text-2); background: rgba(255,255,255,.04); }
+.stack-panel .panel-head { flex-wrap: wrap; justify-content: flex-start; }
+.stack-panel .panel-head > div:first-child { margin-right: 6px; }
+.stack-panel .chart-zoom-reset { margin-left: auto; }
+.stack-readout { min-height: 34px; margin: 0; padding: 8px 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; border-bottom: 1px solid var(--race-line); color: var(--race-text-2); font: 400 12px/1.4 var(--font-code); font-variant-numeric: tabular-nums; }
+.stack-readout .stack-hint { color: var(--race-muted); font-family: var(--font-body); }
+.stack-readout .stack-a { color: var(--race-lime); font-weight: 700; }
+.stack-readout .val-primary { color: var(--race-text); }
+.stack-readout .val-compare { color: #ff5a52; }
+.stack-readout .gain { color: rgb(43,217,107); }
+.stack-readout .loss { color: rgb(255,59,48); }
+.stack-clear { margin-left: auto; height: 26px; padding: 0 10px; color: var(--race-text-2); background: transparent; border: 1px solid var(--race-line-2); font: 600 12px/1 var(--font-body); cursor: pointer; }
+.stack-clear:hover { color: var(--race-text); border-color: var(--race-text-2); }
+.stack-panel canvas { display: block; width: 100%; cursor: crosshair; touch-action: none; }
+.gg-panel canvas { display: block; width: 100%; }
+.gg-stats { color: var(--race-text-2); font: 400 12px/1.3 var(--font-code); }
+.gg-stats .val-primary { color: var(--race-text); font-weight: 700; }
+.gg-stats .val-compare { color: #ff5a52; font-weight: 700; }
+.trajectory-legend[hidden] { display: none; }
+.track-panel .panel-head > div:first-child { min-width: 0; }
+.track-panel .panel-head h2 { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }

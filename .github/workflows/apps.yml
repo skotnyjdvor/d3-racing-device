@@ -1,0 +1,161 @@
+name: Apps
+
+# Builds the native apps from the same web code as d3cf.com:
+#   - Android APK (Capacitor) — debug build always, signed release APK + AAB when the keystore secrets exist
+#   - iOS (Capacitor) — compile check for the simulator; App Store builds need Apple signing (docs/apps.md)
+#   - Desktop installers (Electron) for Windows, macOS and Linux
+# Run it by hand from the Actions tab, or push a tag like app-v0.2.0 to publish a GitHub Release.
+on:
+  workflow_dispatch:
+  push:
+    tags: ["app-v*"]
+
+concurrency:
+  group: apps-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  APP_VERSION: ${{ startsWith(github.ref, 'refs/tags/app-v') && github.ref_name || '0.1.0' }}
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - id: version
+        run: |
+          VERSION="${APP_VERSION#app-v}"
+          # Only plain semantic versions: the value ends up in file names and package metadata.
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "Tag must look like app-v1.2.3 (got $APP_VERSION)"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+  android:
+    needs: version
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      APP_VERSION: ${{ needs.version.outputs.version }}
+      ANDROID_VERSION_CODE: ${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+      - run: npm ci --include=dev
+      - name: Build web app and copy it into the Android project
+        run: npm run android:sync
+
+      - name: Debug APK
+        working-directory: android
+        run: bash ./gradlew --no-daemon assembleDebug
+
+      - name: Release APK and AAB (only when signing secrets are set)
+        working-directory: android
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then echo "No signing secrets, skipping release build."; exit 0; fi
+          export ANDROID_KEYSTORE_FILE="$RUNNER_TEMP/upload.jks"
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$ANDROID_KEYSTORE_FILE"
+          bash ./gradlew --no-daemon assembleRelease bundleRelease
+          rm -f "$ANDROID_KEYSTORE_FILE"
+
+      - name: Collect files
+        run: |
+          mkdir -p out
+          cp android/app/build/outputs/apk/debug/app-debug.apk "out/D3CF-${APP_VERSION}-android-debug.apk"
+          if [ -f android/app/build/outputs/apk/release/app-release.apk ]; then cp android/app/build/outputs/apk/release/app-release.apk "out/D3CF-${APP_VERSION}-android.apk"; fi
+          if [ -f android/app/build/outputs/bundle/release/app-release.aab ]; then cp android/app/build/outputs/bundle/release/app-release.aab "out/D3CF-${APP_VERSION}-android.aab"; fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: out/*
+          if-no-files-found: error
+
+  ios:
+    needs: version
+    runs-on: macos-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --include=dev
+      - name: Build web app and copy it into the iOS project
+        run: npm run ios:sync
+      - name: Compile for the iOS simulator (no signing)
+        run: |
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO build
+
+  desktop:
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    env:
+      # Installers are unsigned until code-signing certificates are added (docs/apps.md).
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --include=dev
+      - name: Set the app version
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: npm --prefix desktop/app pkg set "version=$VERSION"
+      - name: Build installer
+        run: npm run desktop:build -- --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.os }}
+          path: |
+            release/*.exe
+            release/*.dmg
+            release/*.AppImage
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/app-v')
+    needs: [version, android, ios, desktop]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: files
+          merge-multiple: true
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" files/* --repo "$GITHUB_REPOSITORY" \
+            --title "D3CF $VERSION" \
+            --notes "Android (APK), Windows, macOS and Linux builds of D3CF $VERSION. iOS is distributed through TestFlight / the App Store."

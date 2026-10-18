@@ -3,4 +3,6 @@ node_modules/
 tmp/
 dist/
 output/
-ios/
+release/
+desktop/app/web/
+desktop/app/icon.png
