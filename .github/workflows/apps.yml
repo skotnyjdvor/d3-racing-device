@@ -126,6 +126,7 @@ jobs:
           cache: npm
       - run: npm ci --include=dev
       - name: Set the app version
+        shell: bash
         env:
           VERSION: ${{ needs.version.outputs.version }}
         run: npm --prefix desktop/app pkg set "version=$VERSION"
