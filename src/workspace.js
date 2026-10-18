@@ -166,18 +166,19 @@ export function initWorkspace({ dashboard, actions, enabled, redraw, t, onLangua
     if (index !== undefined) element.dataset.index = index;
     return element;
   }
-  const resizeBy = (element, delta, startLayout) => {
+  // `min` is the smallest share a column/panel may get; computed from the current sizes when not given.
+  const resizeBy = (element, delta, startLayout, min) => {
     const column = Number(element.dataset.column);
     if (element.classList.contains("ws-split-col")) {
-      return resizeColumns(startLayout, column, delta, Math.min(.45, MIN_COLUMN_PX / mounted.area.clientWidth));
+      return resizeColumns(startLayout, column, delta, min ?? Math.min(.45, MIN_COLUMN_PX / mounted.area.clientWidth));
     }
     const height = mounted.area.querySelector(`.ws-column[data-column="${column}"]`)?.clientHeight || 1;
-    return resizePanels(startLayout, column, Number(element.dataset.index), delta, Math.min(.45, MIN_PANEL_PX / height));
+    return resizePanels(startLayout, column, Number(element.dataset.index), delta, min ?? Math.min(.45, MIN_PANEL_PX / height));
   };
-  const applySizes = () => {
+  const applySizes = (redrawNow = true) => {
     mounted.area.querySelectorAll(".ws-column").forEach((element) => { element.style.flex = `${layout.columns[element.dataset.column].width} 1 0px`; });
     layout.columns.forEach((column) => column.panels.forEach((panel) => { panels[panel.id].style.flex = `${panel.size} 1 0px`; }));
-    scheduleRedraw();
+    if (redrawNow) scheduleRedraw();
   };
   dashboard.addEventListener("pointerdown", (event) => {
     const element = event.target.closest?.(".ws-split");
@@ -187,13 +188,26 @@ export function initWorkspace({ dashboard, actions, enabled, redraw, t, onLangua
     const span = vertical ? mounted.area.clientWidth : (element.parentElement?.clientHeight || 1);
     const start = vertical ? event.clientX : event.clientY;
     const startLayout = layout;
+    // Read sizes once: reading layout on every move right after writing flex values forces a reflow each time.
+    const min = Math.min(.45, (vertical ? MIN_COLUMN_PX : MIN_PANEL_PX) / Math.max(span, 1));
     element.setPointerCapture(event.pointerId);
     element.classList.add("active");
+    // While dragging, canvases just stretch with their panels; they repaint at most every 150 ms and at the end.
+    let frame = 0; let pending = null; let lastPaint = 0;
     const move = (moveEvent) => {
-      layout = resizeBy(element, ((vertical ? moveEvent.clientX : moveEvent.clientY) - start) / span, startLayout);
-      applySizes();
+      pending = ((vertical ? moveEvent.clientX : moveEvent.clientY) - start) / span;
+      if (frame) return;
+      frame = requestAnimationFrame((now) => {
+        frame = 0;
+        layout = resizeBy(element, pending, startLayout, min);
+        const repaint = now - lastPaint > 150;
+        if (repaint) lastPaint = now;
+        applySizes(repaint);
+      });
     };
     const end = () => {
+      cancelAnimationFrame(frame); frame = 0;
+      if (pending !== null) { layout = resizeBy(element, pending, startLayout, min); applySizes(); }
       element.classList.remove("active");
       element.removeEventListener("pointermove", move);
       saveLayout(layout);
@@ -264,7 +278,12 @@ export function initWorkspace({ dashboard, actions, enabled, redraw, t, onLangua
       const found = dropTarget(moveEvent.clientX, moveEvent.clientY);
       target = found?.target ?? null;
       mounted.drop.hidden = !found;
-      if (found) Object.assign(mounted.drop.style, Object.fromEntries(Object.entries(found.box).map(([key, value]) => [key, `${value}px`])));
+      if (found) {
+        const { left, top, width, height } = found.box;
+        const size = `${width}x${height}`;
+        if (mounted.drop.dataset.size !== size) { mounted.drop.dataset.size = size; mounted.drop.style.width = `${width}px`; mounted.drop.style.height = `${height}px`; }
+        mounted.drop.style.transform = `translate(${left}px, ${top}px)`;
+      }
     };
     const finish = (apply) => {
       if (finished) return;

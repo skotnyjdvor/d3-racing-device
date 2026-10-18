@@ -930,7 +930,7 @@ tr.best td:nth-child(2) { color: var(--acid); font-weight: 800; }
 .delta-panel canvas { height: 150px; }
 .lap-controls-panel { grid-area: laps; }
 .lap-controls-panel .panel-head { align-items: flex-end; }
-.ai-report-jump { min-height: 42px; margin-left: auto; padding: 0 18px; display: inline-flex; align-items: center; gap: 9px; color: var(--acid); background: rgba(201,208,215,.06); border: 1px solid rgba(201,208,215,.55); box-shadow: 0 0 18px rgba(201,208,215,.08), inset 0 0 16px rgba(201,208,215,.04); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; transition: 160ms ease; }
+.ai-report-jump { min-height: 42px; margin-left: auto; padding: 0 18px; display: inline-flex; align-items: center; gap: 9px; color: var(--acid); background: rgba(201,208,215,.06); border: 1px solid rgba(201,208,215,.55); box-shadow: 0 0 18px rgba(201,208,215,.08), inset 0 0 16px rgba(201,208,215,.04); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; transition: color 160ms ease, background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease; }
 .ai-report-jump span { font-size: 17px; filter: drop-shadow(0 0 5px var(--acid)); }
 .ai-report-jump:hover, .ai-report-jump.ready { color: #080b10; background: var(--accent-fill); border-color: var(--acid); box-shadow: 0 0 24px rgba(201,208,215,.34); }
 .ai-report-jump.ready { animation: aiReportGlow 1.2s var(--ease-out) 2; }
@@ -2008,7 +2008,7 @@ body.ws-editing .ws-area .panel-head .ws-hide { position: absolute; top: 6px; ri
 body.ws-editing .ws-area .panel-head .ws-hide:hover:not(:disabled) { color: var(--race-text); border-color: var(--race-red); }
 body.ws-editing .ws-area .panel-head .ws-hide:disabled { opacity: .35; cursor: default; }
 .ws-dragging { opacity: .35; }
-.ws-drop { position: absolute; z-index: 5; background: var(--race-red); box-shadow: 0 0 18px rgba(225,6,0,.6); pointer-events: none; }
+.ws-drop { position: absolute; left: 0; top: 0; z-index: 5; background: var(--race-red); box-shadow: 0 0 18px rgba(225,6,0,.6); pointer-events: none; }
 .ws-drop[hidden] { display: none; }
 .ws-ghost { position: fixed; left: 0; top: 0; z-index: 100; padding: 8px 12px; color: var(--race-text); background: var(--race-surface); border: 1px solid var(--race-red); box-shadow: 0 10px 30px rgba(0,0,0,.5); font: 700 12px/1 var(--font-code); letter-spacing: .12em; text-transform: uppercase; pointer-events: none; }
 @media (prefers-reduced-motion: reduce) { .ws-split::after, .ws-toggle { transition: none; } }
@@ -2063,3 +2063,14 @@ body.ws-editing .ws-area .panel-head .ws-hide:disabled { opacity: .35; cursor: d
 
 /* The apps require an account: no guest CSV trial on their sign-in screen. */
 html.app-mode #appTrialButton, html.app-mode #appTrialStatus { display: none; }
+
+/* Pulses run on transform/opacity of a pseudo-element: an animated box-shadow repaints every frame. */
+.record-button span { position: relative; }
+.record-button.recording span { animation: none; }
+.record-button.recording span::after { content: ""; position: absolute; inset: -7px; border-radius: 50%; background: rgba(255,95,53,.18); transform: scale(.4); opacity: 0; pointer-events: none; animation: recordRing 1.2s ease-out infinite; }
+@keyframes recordRing { 50% { transform: scale(1); opacity: 1; } }
+@media (min-width: 701px) { .ai-report-jump { position: relative; } }
+.ai-report-jump.ready { animation: none; }
+.ai-report-jump.ready::after { content: ""; position: absolute; inset: 0; box-shadow: 0 0 34px rgba(225,6,0,.5); opacity: 0; pointer-events: none; animation: aiGlowFade 1.2s var(--ease-out) 2; }
+@keyframes aiGlowFade { 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .record-button.recording span::after, .ai-report-jump.ready::after { animation: none; } }

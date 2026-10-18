@@ -23,6 +23,7 @@ import "@fontsource/jetbrains-mono/700.css";
 import { initWorkspace } from "./workspace.js";
 import { createAnalysisPanels } from "./analysis-panels.js";
 import { deltaSeries } from "./domain/delta.js";
+import { isOverlayFrame, overlayFrame, paintLayers } from "./canvas-layers.js";
 import { makeLocalSession, mergeSessions } from "./domain/local-sessions.js";
 import { deleteLocalSession, listLocalSessions, loadLocalPoints, saveLocalSession, updateLocalSession } from "./local-store.js";
 import "./demo.js";
@@ -409,7 +410,7 @@ function downsample(points, max = 1800) {
 
 // ---- Pilot comparison: laps of someone else's shared session can stand in for the comparison lap ----
 function rivalLapPoints(number) {
-  return state.rival ? state.rival.points.filter((point) => point.lap === number) : [];
+  return state.rival ? lapsOf(state.rival.points).get(number) ?? [] : [];
 }
 // Laps of two sessions only line up when they were driven on the same, recognised track.
 function rivalComparable() {
@@ -450,14 +451,36 @@ function showNotice(message, error = false) {
   noticeTimer = setTimeout(() => { elements.appNotice.hidden = true; }, error ? 8000 : 6000);
 }
 
+// Points grouped by lap, built once per points array: charts ask for laps on every cursor frame.
+const lapIndex = new WeakMap();
+function lapsOf(points) {
+  let laps = lapIndex.get(points);
+  if (!laps) {
+    laps = new Map();
+    for (const point of points) {
+      const lap = laps.get(point.lap);
+      if (lap) lap.push(point); else laps.set(point.lap, [point]);
+    }
+    lapIndex.set(points, laps);
+  }
+  return laps;
+}
 function lapPoints(number) {
   // Cloud sessions have no points until loadLog finishes; charts may redraw meanwhile (resize, view switch).
   const points = state.selectedSession?.points;
   if (!points) return [];
-  return number ? points.filter((point) => point.lap === number) : points;
+  return number ? lapsOf(points).get(number) ?? [] : points;
 }
 
+// Distance resampling is cached per points array and sample count (laps come from lapsOf, so they are stable).
+const distanceCache = new WeakMap();
 function distancePoints(points, max = 2400) {
+  let bySize = distanceCache.get(points);
+  if (!bySize) { bySize = new Map(); distanceCache.set(points, bySize); }
+  if (!bySize.has(max)) bySize.set(max, computeDistancePoints(points, max));
+  return bySize.get(max);
+}
+function computeDistancePoints(points, max) {
   const sampled = downsample(points, max);
   if (sampled.length < 2) return [];
   let distance = 0;
@@ -607,10 +630,13 @@ function resetTrackZoom() {
 }
 
 function drawTrackCanvas(canvas) {
-  const rect = canvas.getBoundingClientRect();
-  if (rect.width < 2 || rect.height < 2) return;
+  if (!isOverlayFrame()) {
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width < 2 || rect.height < 2) return;
+  }
+  // Static layer: grid, trajectories, sectors and AI markers. Cursor frames only redraw the cursor dots.
+  const { context, geometry } = paintLayers(canvas, canvasContext, (context, width, height) => {
   trackAiMarkerAreas.set(canvas, []);
-  const { context, width, height } = canvasContext(canvas);
   context.fillStyle = "#08080c";
   context.fillRect(0, 0, width, height);
   context.strokeStyle = "rgba(255,255,255,.035)"; context.lineWidth = 1;
@@ -633,7 +659,7 @@ function drawTrackCanvas(canvas) {
     context.fillStyle = "#8c8d93";
     context.font = "13px system-ui";
     context.fillText(t("track.canvasEmpty"), 24, 38);
-    return;
+    return null;
   }
   const lats = boundsPoints.map((point) => point.latitude);
   const lons = boundsPoints.map((point) => point.longitude);
@@ -720,18 +746,6 @@ function drawTrackCanvas(canvas) {
     context.restore();
   }
 
-  const drawCursorPoint = (series, color, shadow) => {
-    const cursorPoint = pointAtProgress(series, state.cursorProgress)?.point;
-    if (!cursorPoint) return;
-    const [x, y] = project(cursorPoint);
-    context.shadowColor = shadow; context.shadowBlur = 14;
-    context.fillStyle = color; context.beginPath(); context.arc(x, y, 5.5, 0, Math.PI * 2); context.fill();
-    context.shadowBlur = 0; context.strokeStyle = "#ffffff"; context.lineWidth = 1.5;
-    context.beginPath(); context.arc(x, y, 8, 0, Math.PI * 2); context.stroke();
-  };
-  drawCursorPoint(comparisonSeries, "#e10600", "rgba(225,6,0,.8)");
-  drawCursorPoint(primarySeries, "#f4f4ee", "rgba(244,244,238,.8)");
-
   const markerAreas = (state.aiReport?.timeLosses || []).map((item, index) => {
     const progress = Math.max(0, Math.min(1, Number(item.distancePercent) / 100));
     const markerPoint = pointAtProgress(primarySeries, progress)?.point;
@@ -750,6 +764,22 @@ function drawTrackCanvas(canvas) {
     return { x, y, radius: radius + 8, index, progress };
   }).filter(Boolean);
   trackAiMarkerAreas.set(canvas, markerAreas);
+  return { project, primarySeries, comparisonSeries };
+  });
+  if (!geometry) return;
+  const { project, primarySeries, comparisonSeries } = geometry;
+
+  const drawCursorPoint = (series, color, shadow) => {
+    const cursorPoint = pointAtProgress(series, state.cursorProgress)?.point;
+    if (!cursorPoint) return;
+    const [x, y] = project(cursorPoint);
+    context.shadowColor = shadow; context.shadowBlur = 14;
+    context.fillStyle = color; context.beginPath(); context.arc(x, y, 5.5, 0, Math.PI * 2); context.fill();
+    context.shadowBlur = 0; context.strokeStyle = "#ffffff"; context.lineWidth = 1.5;
+    context.beginPath(); context.arc(x, y, 8, 0, Math.PI * 2); context.stroke();
+  };
+  drawCursorPoint(comparisonSeries, "#e10600", "rgba(225,6,0,.8)");
+  drawCursorPoint(primarySeries, "#f4f4ee", "rgba(244,244,238,.8)");
 
 }
 
@@ -955,16 +985,21 @@ function openAiRecommendation(index, progress, { scrollTo = "map" } = {}) {
   target?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "center" });
 }
 
+const seriesCache = new WeakMap();
 function distanceSeries(points, key) {
-  return distancePoints(points).map((item) => ({ progress: item.progress, value: item.point[key] }));
+  let byKey = seriesCache.get(points);
+  if (!byKey) { byKey = new Map(); seriesCache.set(points, byKey); }
+  if (!byKey.has(key)) byKey.set(key, distancePoints(points).map((item) => ({ progress: item.progress, value: item.point[key] })));
+  return byKey.get(key);
 }
 
 function drawComparisonChart(canvas, key, { speed = false } = {}) {
-  const { context, width, height } = canvasContext(canvas);
+  // Static layer: grid, sectors and both traces. Cursor frames only redraw the cursor line and values.
+  const { context, width, height, geometry } = paintLayers(canvas, canvasContext, (context, width, height) => {
   context.fillStyle = "#08080c"; context.fillRect(0, 0, width, height);
   const primary = distanceSeries(lapPoints(state.selectedLapNumber), key);
   const comparison = state.comparisonLapNumber ? distanceSeries(comparisonLapPoints(), key) : [];
-  if (primary.length < 2) return;
+  if (primary.length < 2) return null;
 
   const padding = { left: 48, right: 18, top: 18, bottom: 30 };
   const values = [...primary, ...comparison].map((point) => point.value).filter(Number.isFinite);
@@ -1009,6 +1044,10 @@ function drawComparisonChart(canvas, key, { speed = false } = {}) {
   drawSectorMarkers(context, padding, plotWidth, height);
   draw(comparison, "#e10600", 1.9);
   draw(primary, "#f4f4ee", 2.2);
+  return { primary, comparison, padding, plotWidth, y };
+  });
+  if (!geometry) return;
+  const { primary, comparison, padding, plotWidth, y } = geometry;
 
   if (state.cursorProgress !== null && state.cursorProgress >= state.chartView.start && state.cursorProgress <= state.chartView.end) {
     const xPosition = chartX(state.cursorProgress, padding, plotWidth);
@@ -1032,20 +1071,30 @@ function drawComparisonChart(canvas, key, { speed = false } = {}) {
   }
 }
 
+// The delta curve for a pair of laps, cached by their (stable) distance series.
+const deltaCache = new WeakMap();
+function cachedDelta(primary, comparison) {
+  let byComparison = deltaCache.get(primary);
+  if (!byComparison) { byComparison = new WeakMap(); deltaCache.set(primary, byComparison); }
+  if (!byComparison.has(comparison)) byComparison.set(comparison, deltaSeries(primary, comparison, 800));
+  return byComparison.get(comparison);
+}
+
 function drawDeltaChart() {
-  const { context, width, height } = canvasContext(elements.deltaCanvas);
+  // Static layer: grid, sectors, the delta curve and its legend. Cursor frames only redraw the cursor.
+  const { context, width, height, geometry } = paintLayers(elements.deltaCanvas, canvasContext, (context, width, height) => {
   context.fillStyle = "#08080c"; context.fillRect(0, 0, width, height);
   if (!state.selectedLapNumber || !state.comparisonLapNumber) {
     context.fillStyle = "#8c8d93";
     context.font = "13px system-ui";
     context.fillText(t("telemetry.deltaEmpty"), 24, 38);
-    return;
+    return null;
   }
   const primary = distancePoints(lapPoints(state.selectedLapNumber));
   const comparison = distancePoints(comparisonLapPoints());
-  if (primary.length < 2 || comparison.length < 2) return;
-  const delta = deltaSeries(primary, comparison, 800);
-  if (delta.length < 2) return;
+  if (primary.length < 2 || comparison.length < 2) return null;
+  const delta = cachedDelta(primary, comparison);
+  if (delta.length < 2) return null;
 
   const padding = { left: 52, right: 18, top: 18, bottom: 30 };
   const plotWidth = width - padding.left - padding.right;
@@ -1093,6 +1142,10 @@ function drawDeltaChart() {
   context.restore();
   signLabel(t("delta.behind", { lap: state.selectedLapNumber }), padding.top + 14);
   signLabel(t("delta.ahead", { lap: state.selectedLapNumber }), height - padding.bottom - 6);
+  return { delta, padding, plotWidth, y };
+  });
+  if (!geometry) return;
+  const { delta, padding, plotWidth, y } = geometry;
 
   if (state.cursorProgress !== null && state.cursorProgress >= state.chartView.start && state.cursorProgress <= state.chartView.end) {
     const item = pointAtProgress(delta, state.cursorProgress);
@@ -1121,7 +1174,7 @@ function setCursorProgress(progress) {
   if (cursorFrame) return;
   cursorFrame = requestAnimationFrame(() => {
     cursorFrame = 0;
-    drawTrack(); drawCharts();
+    overlayFrame(() => { drawTrack(); drawCharts(); });
   });
 }
 
@@ -1175,7 +1228,7 @@ elements.chartZoomReset.addEventListener("click", resetChartZoom);
 
 analysisPanels = createAnalysisPanels({
   state, elements, t, onLanguageChange,
-  lapPoints, comparisonLapPoints, distancePoints, canvasContext, sectorFractions,
+  lapPoints, comparisonLapPoints, distancePoints, canvasContext, sectorFractions, paintLayers, isOverlayFrame,
   setCursorProgress, setChartZoom, resetChartZoom,
 });
 renderMapMode();

@@ -182,119 +182,112 @@ export function createAnalysisPanels(ctx) {
     return [-range, range];
   }
 
+  let zoomLabel = "";
   function drawStack() {
     const canvas = elements.stackCanvas;
-    const rect = canvas.getBoundingClientRect();
-    if (rect.width < 2 || rect.height < 2) return;
-    const { context, width, height } = ctx.canvasContext(canvas);
-    context.fillStyle = "#08080c"; context.fillRect(0, 0, width, height);
+    if (!ctx.isOverlayFrame()) {
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width < 2 || rect.height < 2) return;
+    }
     const primary = primaryData();
     const comparison = comparisonData();
-    elements.stackZoomReset.textContent = `⤢ ${Math.round(100 / Math.max(state.chartView.end - state.chartView.start, .01))}%`;
-    if (!primary) { renderReadout(null, null); return; }
+    const zoom = `⤢ ${Math.round(100 / Math.max(state.chartView.end - state.chartView.start, .01))}%`;
+    if (zoom !== zoomLabel) { zoomLabel = zoom; elements.stackZoomReset.textContent = zoom; }
 
-    const plotWidth = width - STACK_PADDING.left - STACK_PADDING.right;
-    const bands = selected.filter((id) => STACK_CHANNELS[id].band);
-    const traces = selected.filter((id) => !STACK_CHANNELS[id].band);
-    const bandHeight = 14;
-    const traceArea = height - STACK_PADDING.top - STACK_PADDING.bottom - bands.length * (bandHeight + 4);
-    const stripHeight = traceArea / Math.max(traces.length, 1);
-    const clipPlot = (top, stripH) => { context.beginPath(); context.rect(STACK_PADDING.left, top, plotWidth, stripH); context.clip(); };
-    context.font = FONT;
+    // Static layer: phase band, strips with scales, traces and channel names. Rebuilt only when the laps,
+    // channels, zoom or size change; cursor frames reuse it.
+    const { context, width, height, geometry } = ctx.paintLayers(canvas, ctx.canvasContext, (context, width, height) => {
+      context.fillStyle = "#08080c"; context.fillRect(0, 0, width, height);
+      if (!primary) return null;
+      const plotWidth = width - STACK_PADDING.left - STACK_PADDING.right;
+      const bands = selected.filter((id) => STACK_CHANNELS[id].band);
+      const traces = selected.filter((id) => !STACK_CHANNELS[id].band);
+      const bandHeight = 14;
+      const traceArea = height - STACK_PADDING.top - STACK_PADDING.bottom - bands.length * (bandHeight + 4);
+      const stripHeight = traceArea / Math.max(traces.length, 1);
+      const clipPlot = (top, stripH) => { context.beginPath(); context.rect(STACK_PADDING.left, top, plotWidth, stripH); context.clip(); };
+      context.font = FONT;
 
-    // Sector boundaries across the whole stack.
-    context.save();
-    context.strokeStyle = "rgba(179,107,255,.4)"; context.setLineDash([4, 4]); context.lineWidth = 1;
-    ctx.sectorFractions().forEach((fraction) => {
-      if (!inView(fraction)) return;
-      const x = stackX(fraction, plotWidth);
-      context.beginPath(); context.moveTo(x, STACK_PADDING.top); context.lineTo(x, height - STACK_PADDING.bottom); context.stroke();
-    });
-    context.restore();
-
-    let top = STACK_PADDING.top;
-    // Phase band: braking / corner / acceleration / coasting of the primary lap.
-    bands.forEach(() => {
-      context.save(); clipPlot(top, bandHeight);
-      primary.series.forEach((item, index) => {
-        const next = primary.series[index + 1];
-        if (!next) return;
-        context.fillStyle = PHASE_COLORS[item.d.phase];
-        const x = stackX(item.progress, plotWidth);
-        context.fillRect(x, top, Math.max(1, stackX(next.progress, plotWidth) - x + .5), bandHeight);
+      // Sector boundaries across the whole stack.
+      context.save();
+      context.strokeStyle = "rgba(179,107,255,.4)"; context.setLineDash([4, 4]); context.lineWidth = 1;
+      ctx.sectorFractions().forEach((fraction) => {
+        if (!inView(fraction)) return;
+        const x = stackX(fraction, plotWidth);
+        context.beginPath(); context.moveTo(x, STACK_PADDING.top); context.lineTo(x, height - STACK_PADDING.bottom); context.stroke();
       });
       context.restore();
-      context.fillStyle = MUTED; context.textBaseline = "middle"; context.textAlign = "right";
-      context.fillText(t("chan.phase"), STACK_PADDING.left - 8, top + bandHeight / 2);
-      top += bandHeight + 4;
-    });
 
-    const deltaValues = traces.includes("delta") ? delta() : [];
-    const cursor = state.cursorProgress;
-    traces.forEach((id, index) => {
-      const channel = STACK_CHANNELS[id];
-      const primarySeries = channel.delta ? deltaValues : seriesFor(id, primary);
-      const comparisonSeries = channel.delta ? [] : seriesFor(id, comparison);
-      const visible = [...primarySeries, ...comparisonSeries].filter((item) => inView(item.progress)).map((item) => item.value);
-      const [min, max] = scaleFor(channel, visible);
-      const stripTop = top + index * stripHeight;
-      const stripBottom = stripTop + stripHeight;
-      const y = (value) => stripTop + 18 + (max - Math.max(min, Math.min(max, value))) / Math.max(max - min, 1e-6) * (stripHeight - 24);
-      context.strokeStyle = GRID; context.lineWidth = 1;
-      context.beginPath(); context.moveTo(STACK_PADDING.left, stripBottom); context.lineTo(width - STACK_PADDING.right, stripBottom); context.stroke();
-      if (min < 0) { context.strokeStyle = "rgba(255,255,255,.18)"; context.beginPath(); context.moveTo(STACK_PADDING.left, y(0)); context.lineTo(width - STACK_PADDING.right, y(0)); context.stroke(); }
-      context.fillStyle = MUTED; context.textAlign = "right"; context.textBaseline = "middle";
-      const digits = channel.scale === "speed" || channel.scale === "radius" || channel.unit === "°" ? 0 : 1;
-      context.fillText(max.toFixed(digits), STACK_PADDING.left - 8, y(max));
-      context.fillText(min.toFixed(digits), STACK_PADDING.left - 8, y(min));
-
-      const line = (series, color, lineWidth) => {
-        if (series.length < 2) return;
-        context.save(); clipPlot(stripTop, stripHeight);
-        context.strokeStyle = color; context.lineWidth = lineWidth; context.beginPath();
-        let drawing = false;
-        series.forEach((item) => {
-          if (!Number.isFinite(item.value)) { drawing = false; return; }
+      let top = STACK_PADDING.top;
+      // Phase band: braking / corner / acceleration / coasting of the primary lap.
+      bands.forEach(() => {
+        context.save(); clipPlot(top, bandHeight);
+        primary.series.forEach((item, index) => {
+          const next = primary.series[index + 1];
+          if (!next) return;
+          context.fillStyle = PHASE_COLORS[item.d.phase];
           const x = stackX(item.progress, plotWidth);
-          if (drawing) context.lineTo(x, y(item.value)); else { context.moveTo(x, y(item.value)); drawing = true; }
+          context.fillRect(x, top, Math.max(1, stackX(next.progress, plotWidth) - x + .5), bandHeight);
         });
-        context.stroke(); context.restore();
-      };
-      line(comparisonSeries, RED, 1.5);
-      line(primarySeries, WHITE, 1.8);
+        context.restore();
+        context.fillStyle = MUTED; context.textBaseline = "middle"; context.textAlign = "right";
+        context.fillText(t("chan.phase"), STACK_PADDING.left - 8, top + bandHeight / 2);
+        top += bandHeight + 4;
+      });
 
-      // Name, unit and the values under the cursor.
-      const unit = channel.unit.startsWith("unit.") ? t(channel.unit) : channel.unit;
-      let label = `${t(`chan.${id}`)}, ${unit}`;
-      context.textAlign = "left"; context.textBaseline = "alphabetic"; context.font = FONT;
-      context.fillStyle = "rgba(8,8,12,.85)";
-      const parts = [{ text: label, color: MUTED }];
-      if (cursor !== null) {
-        const at = (series) => {
-          if (!series.length) return null;
-          const item = series[Math.max(0, Math.min(series.length - 1, indexAt(series, cursor)))];
-          return Number.isFinite(item?.value) ? item.value.toFixed(channel.digits) : "—";
+      const deltaValues = traces.includes("delta") ? delta() : [];
+      const strips = traces.map((id, index) => {
+        const channel = STACK_CHANNELS[id];
+        const primarySeries = channel.delta ? deltaValues : seriesFor(id, primary);
+        const comparisonSeries = channel.delta ? [] : seriesFor(id, comparison);
+        const visible = [...primarySeries, ...comparisonSeries].filter((item) => inView(item.progress)).map((item) => item.value);
+        const [min, max] = scaleFor(channel, visible);
+        const stripTop = top + index * stripHeight;
+        const stripBottom = stripTop + stripHeight;
+        const y = (value) => stripTop + 18 + (max - Math.max(min, Math.min(max, value))) / Math.max(max - min, 1e-6) * (stripHeight - 24);
+        context.strokeStyle = GRID; context.lineWidth = 1;
+        context.beginPath(); context.moveTo(STACK_PADDING.left, stripBottom); context.lineTo(width - STACK_PADDING.right, stripBottom); context.stroke();
+        if (min < 0) { context.strokeStyle = "rgba(255,255,255,.18)"; context.beginPath(); context.moveTo(STACK_PADDING.left, y(0)); context.lineTo(width - STACK_PADDING.right, y(0)); context.stroke(); }
+        context.fillStyle = MUTED; context.textAlign = "right"; context.textBaseline = "middle";
+        const digits = channel.scale === "speed" || channel.scale === "radius" || channel.unit === "°" ? 0 : 1;
+        context.fillText(max.toFixed(digits), STACK_PADDING.left - 8, y(max));
+        context.fillText(min.toFixed(digits), STACK_PADDING.left - 8, y(min));
+
+        const line = (series, color, lineWidth) => {
+          if (series.length < 2) return;
+          context.save(); clipPlot(stripTop, stripHeight);
+          context.strokeStyle = color; context.lineWidth = lineWidth; context.beginPath();
+          let drawing = false;
+          series.forEach((item) => {
+            if (!Number.isFinite(item.value)) { drawing = false; return; }
+            const x = stackX(item.progress, plotWidth);
+            if (drawing) context.lineTo(x, y(item.value)); else { context.moveTo(x, y(item.value)); drawing = true; }
+          });
+          context.stroke(); context.restore();
         };
-        const primaryValue = at(primarySeries);
-        const comparisonValue = at(comparisonSeries);
-        if (primaryValue !== null) parts.push({ text: `  ${primaryValue}`, color: WHITE });
-        if (comparisonValue !== null) parts.push({ text: `  ${comparisonValue}`, color: RED });
+        line(comparisonSeries, RED, 1.5);
+        line(primarySeries, WHITE, 1.8);
+        const unit = channel.unit.startsWith("unit.") ? t(channel.unit) : channel.unit;
+        const strip = { id, channel, primarySeries, comparisonSeries, stripTop, y, name: `${t(`chan.${id}`)}, ${unit}` };
+        drawStripLabel(context, strip, null);
+        return strip;
+      });
+
+      // Distance axis.
+      context.fillStyle = MUTED; context.textBaseline = "alphabetic";
+      for (let tick = 0; tick <= 4; tick++) {
+        const progress = state.chartView.start + (state.chartView.end - state.chartView.start) * tick / 4;
+        context.textAlign = tick === 0 ? "left" : tick === 4 ? "right" : "center";
+        context.fillText(`${Math.round(progress * 100)}%`, STACK_PADDING.left + tick / 4 * plotWidth, height - 7);
       }
-      label = parts.map((part) => part.text).join("");
-      context.fillRect(STACK_PADDING.left + 4, stripTop + 2, context.measureText(label).width + 8, 16);
-      let x = STACK_PADDING.left + 8;
-      parts.forEach((part) => { context.fillStyle = part.color; context.fillText(part.text, x, stripTop + 14); x += context.measureText(part.text).width; });
+      return { plotWidth, strips };
     });
+    if (!geometry) { renderReadout(null, null); return; }
 
-    // Distance axis.
-    context.fillStyle = MUTED; context.textBaseline = "alphabetic";
-    for (let tick = 0; tick <= 4; tick++) {
-      const progress = state.chartView.start + (state.chartView.end - state.chartView.start) * tick / 4;
-      context.textAlign = tick === 0 ? "left" : tick === 4 ? "right" : "center";
-      context.fillText(`${Math.round(progress * 100)}%`, STACK_PADDING.left + tick / 4 * plotWidth, height - 7);
-    }
-
-    // A-marker, measured stretch and cursor.
+    // Overlay: values under the cursor, the measured stretch, marker A and the cursor line.
+    const { plotWidth, strips } = geometry;
+    const cursor = state.cursorProgress;
+    if (cursor !== null) strips.forEach((strip) => drawStripLabel(context, strip, cursor));
     const plotBottom = height - STACK_PADDING.bottom;
     if (markerProgress !== null && cursor !== null) {
       const from = stackX(Math.min(markerProgress, cursor), plotWidth);
@@ -317,6 +310,28 @@ export function createAnalysisPanels(ctx) {
       context.beginPath(); context.moveTo(x, STACK_PADDING.top); context.lineTo(x, plotBottom); context.stroke();
     }
     renderReadout(primary, comparison);
+  }
+
+  // Channel name, and with a cursor the values of both laps, on a dark plate at the top of the strip.
+  function drawStripLabel(context, strip, cursor) {
+    const parts = [{ text: strip.name, color: MUTED }];
+    if (cursor !== null) {
+      const at = (series) => {
+        if (!series.length) return null;
+        const item = series[Math.max(0, Math.min(series.length - 1, indexAt(series, cursor)))];
+        return Number.isFinite(item?.value) ? item.value.toFixed(strip.channel.digits) : "—";
+      };
+      const primaryValue = at(strip.primarySeries);
+      const comparisonValue = at(strip.comparisonSeries);
+      if (primaryValue !== null) parts.push({ text: `  ${primaryValue}`, color: WHITE });
+      if (comparisonValue !== null) parts.push({ text: `  ${comparisonValue}`, color: RED });
+    }
+    context.font = FONT; context.textAlign = "left"; context.textBaseline = "alphabetic";
+    const label = parts.map((part) => part.text).join("");
+    context.fillStyle = "rgba(8,8,12,.92)";
+    context.fillRect(STACK_PADDING.left + 4, strip.stripTop + 2, context.measureText(label).width + 8, 16);
+    let x = STACK_PADDING.left + 8;
+    parts.forEach((part) => { context.fillStyle = part.color; context.fillText(part.text, x, strip.stripTop + 14); x += context.measureText(part.text).width; });
   }
 
   let readoutHtml = "";
@@ -392,15 +407,24 @@ export function createAnalysisPanels(ctx) {
   }
 
   // ---- G-G diagram ----
+  let ggStatsHtml = null;
+  function setGgStats(html) {
+    if (html === ggStatsHtml) return;
+    ggStatsHtml = html;
+    elements.ggStats.innerHTML = html;
+  }
   function drawGG() {
     const canvas = elements.ggCanvas;
-    const rect = canvas.getBoundingClientRect();
-    if (rect.width < 2 || rect.height < 2) return;
-    const { context, width, height } = ctx.canvasContext(canvas);
-    context.fillStyle = "#08080c"; context.fillRect(0, 0, width, height);
+    if (!ctx.isOverlayFrame()) {
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width < 2 || rect.height < 2) return;
+    }
     const primary = primaryData();
     const comparison = comparisonData();
-    if (!primary) { elements.ggStats.textContent = ""; return; }
+    // Static layer: rings, axes and every sample of both laps; cursor frames only add the two cursor dots.
+    const { context, geometry } = ctx.paintLayers(canvas, ctx.canvasContext, (context, width, height) => {
+    context.fillStyle = "#08080c"; context.fillRect(0, 0, width, height);
+    if (!primary) { setGgStats(""); return null; }
     const visible = (data) => (data ? data.series.filter((item) => inView(item.progress)) : []);
     const primaryPoints = visible(primary);
     const comparisonPoints = visible(comparison);
@@ -435,6 +459,13 @@ export function createAnalysisPanels(ctx) {
     };
     dots(comparisonPoints, "rgba(225,6,0,.45)");
     dots(primaryPoints, "rgba(244,244,238,.55)");
+    const zoomed = state.chartView.end - state.chartView.start < .999;
+    const primaryPeak = peak(primaryPoints); const comparisonPeak = peak(comparisonPoints);
+    setGgStats(`${t("gg.peak")}${zoomed ? ` (${t("gg.visible")})` : ""}: <b class="val-primary">${primaryPeak?.toFixed(2) ?? "—"} g</b>${comparisonPeak !== null ? ` · <b class="val-compare">${comparisonPeak.toFixed(2)} g</b>` : ""}`);
+    return { toXY };
+    });
+    if (!geometry) return;
+    const { toXY } = geometry;
     const cursorDot = (data, color) => {
       if (!data || state.cursorProgress === null) return;
       const item = data.series[indexAt(data.series, state.cursorProgress)];
@@ -445,10 +476,6 @@ export function createAnalysisPanels(ctx) {
     };
     cursorDot(comparison, RED);
     cursorDot(primary, WHITE);
-
-    const zoomed = state.chartView.end - state.chartView.start < .999;
-    const primaryPeak = peak(primaryPoints); const comparisonPeak = peak(comparisonPoints);
-    elements.ggStats.innerHTML = `${t("gg.peak")}${zoomed ? ` (${t("gg.visible")})` : ""}: <b class="val-primary">${primaryPeak?.toFixed(2) ?? "—"} g</b>${comparisonPeak !== null ? ` · <b class="val-compare">${comparisonPeak.toFixed(2)} g</b>` : ""}`;
   }
 
   function translate() { renderChips(); }
