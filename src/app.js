@@ -11,9 +11,20 @@ import { initProfile, onProfileShown, setProfileUser } from "./profile.js";
 import { acceptInviteFlow, initStats, onStatsShown, setStatsUser } from "./stats.js";
 import { initShare, openShareDialog } from "./share.js";
 import { PAGE_PATHS, currentPage, interceptLinks, navigate, upgradeLegacyHash } from "./router.js";
+import "@fontsource/oswald/500.css";
+import "@fontsource/oswald/700.css";
+import "@fontsource/manrope/400.css";
+import "@fontsource/manrope/500.css";
+import "@fontsource/manrope/600.css";
+import "@fontsource/manrope/700.css";
+import "@fontsource/jetbrains-mono/400.css";
+import "@fontsource/jetbrains-mono/500.css";
+import "@fontsource/jetbrains-mono/700.css";
 import { initWorkspace } from "./workspace.js";
 import { createAnalysisPanels } from "./analysis-panels.js";
 import { deltaSeries } from "./domain/delta.js";
+import { makeLocalSession, mergeSessions } from "./domain/local-sessions.js";
+import { deleteLocalSession, listLocalSessions, loadLocalPoints, saveLocalSession, updateLocalSession } from "./local-store.js";
 import "./demo.js";
 import "./ai-sample.js";
 
@@ -23,6 +34,8 @@ const trackAiMarkerAreas = new WeakMap();
 const testMode = new URLSearchParams(location.search).has("mock");
 // Native apps (and ?app=1) use the telemetry-app layout; public/app-boot.js sets the class before paint.
 const appMode = document.documentElement.classList.contains("app-mode");
+// Without an account only the website gates features; the apps keep everything on the device.
+const accountRequired = () => !state.user && !testMode && !appMode;
 let accountMode = "signin";
 // AI report mode: "single" analyses one lap on its own, "compare" explains the difference between two laps.
 let aiModePreference = "single";
@@ -1333,6 +1346,7 @@ function renderSessions() {
       <button class="session-open" data-session="${escapeHtml(session.id)}">
         <strong>${escapeHtml(session.title || t("sessions.item", { id: session.displayId ?? session.id }))}${session.source === "cloud" ? " ☁" : ""}</strong><span>${formatDate(session.startedAt)}</span><small>${formatDuration(new Date(session.endedAt) - new Date(session.startedAt))} · ${t("sessions.points", { count: (session.points?.length ?? session.pointCount ?? 0).toLocaleString(getLanguage()) })}</small>
       </button>
+      ${session.source === "local" ? `<div class="session-actions"><button data-local-rename="${escapeHtml(session.id)}" title="${escapeHtml(t("sessions.rename"))}">✎</button><button data-local-delete="${escapeHtml(session.id)}" title="${escapeHtml(t("sessions.delete"))}">×</button></div>` : ""}
       ${session.source === "cloud" ? `<div class="session-actions"><button data-share="${escapeHtml(session.cloudId)}" title="${escapeHtml(t("share.button"))}">⇪</button><button data-rename="${escapeHtml(session.cloudId)}" title="${escapeHtml(t("sessions.rename"))}">✎</button><button data-delete="${escapeHtml(session.cloudId)}" title="${escapeHtml(t("sessions.delete"))}">×</button></div>` : ""}
     </div>`).join("");
   elements.sessionList.querySelectorAll("[data-session]").forEach((button) => button.addEventListener("click", async () => {
@@ -1344,6 +1358,8 @@ function renderSessions() {
   }));
   elements.sessionList.querySelectorAll("[data-rename]").forEach((button) => button.addEventListener("click", () => renameCloudSession(button.dataset.rename)));
   elements.sessionList.querySelectorAll("[data-delete]").forEach((button) => button.addEventListener("click", () => deleteCloudSession(button.dataset.delete)));
+  elements.sessionList.querySelectorAll("[data-local-rename]").forEach((button) => button.addEventListener("click", () => renameLocalSession(button.dataset.localRename)));
+  elements.sessionList.querySelectorAll("[data-local-delete]").forEach((button) => button.addEventListener("click", () => deleteLocalSessionById(button.dataset.localDelete)));
 }
 
 async function renameCloudSession(cloudId) {
@@ -1538,6 +1554,16 @@ function renderAiReport(report, analysisId, reportLanguage = getLanguage()) {
 }
 
 async function runAiAnalysis() {
+  const local = state.selectedSession?.source === "local" ? state.selectedSession : null;
+  if (local && !local.cloudId) {
+    if (!state.user) { openAccountDialog("signin"); return; }
+    try {
+      elements.copyStatus.textContent = t("app.aiUploading");
+      local.cloudId = await saveLog(local, local.deviceName);
+      if (local.title) await renameLog(local.cloudId, local.title).catch(() => {});
+      await updateLocalSession(local.id, { cloudId: local.cloudId });
+    } catch (error) { elements.copyStatus.textContent = error.message; return; }
+  }
   const cloudId = state.selectedSession?.cloudId;
   if (!cloudId) { elements.copyStatus.textContent = t("ai.cloudRequired"); return; }
   const requestLanguage = getLanguage();
@@ -1615,6 +1641,10 @@ async function selectSession(id) {
   }
   const session = state.sessions.find((item) => String(item.id) === String(id));
   state.selectedSession = session;
+  if (session?.source === "local" && !session.points) {
+    session.points = await loadLocalPoints(session.id).catch(() => []);
+    if (state.selectedSession !== session) return false;
+  }
   if (session?.source === "cloud" && !session.points) {
     try {
       const record = await loadLog(session.cloudId);
@@ -1643,8 +1673,10 @@ async function selectSession(id) {
     if (rivalComparable()) { state.comparisonLapNumber = rivalFastestLap(); state.comparisonRival = true; }
   }
   elements.sourceLabel.textContent = t("footer.deviceMemory", { name: state.deviceName });
-  elements.analyzeAiButton.disabled = !state.selectedSession.cloudId || !state.analysis.laps.length;
-  elements.copyStatus.textContent = state.selectedSession.cloudId ? t("ai.ready") : t(state.selectedSession.source === "demo" ? "onboard.demoAi" : state.selectedSession.source === "trial" ? "trial.aiLocked" : state.selectedSession.source === "shared" ? "share.aiLocked" : "ai.cloudRequired");
+  const localSession = state.selectedSession.source === "local";
+  elements.analyzeAiButton.disabled = !(state.selectedSession.cloudId || localSession) || !state.analysis.laps.length;
+  elements.copyStatus.textContent = localSession && !state.selectedSession.cloudId ? t(state.user ? "app.aiUpload" : "app.aiSignIn")
+    : state.selectedSession.cloudId ? t("ai.ready") : t(state.selectedSession.source === "demo" ? "onboard.demoAi" : state.selectedSession.source === "trial" ? "trial.aiLocked" : state.selectedSession.source === "shared" ? "share.aiLocked" : "ai.cloudRequired");
   elements.insightsList.innerHTML = generateLocalInsights(state.analysis, t).map((insight) => `<li>${insight}</li>`).join("");
   renderSessions(); updateLapView(); renderTrialBanner();
   void refreshAiHistory();
@@ -1659,7 +1691,7 @@ function setAccountMessage(message = "", error = false) {
 // A guest who opened a shared link sees the app (read-only) without an account, like in the CSV trial.
 function viewingShared() { return state.sessions.some((session) => session.source === "shared"); }
 function updateAccess() {
-  const unlocked = Boolean(state.user) || testMode || state.trial || viewingShared();
+  const unlocked = Boolean(state.user) || testMode || appMode || state.trial || viewingShared();
   document.body.classList.toggle("auth-locked", !unlocked);
   elements.authGate.hidden = unlocked;
   renderTrialBanner();
@@ -1956,6 +1988,54 @@ async function handleAuthLink() {
   }
 }
 
+// Apps: every downloaded or imported session is kept on the device (IndexedDB).
+async function storeLocally(points, options) {
+  const meta = makeLocalSession(points, options);
+  const existing = state.sessions.find((item) => item.id === meta.id);
+  const session = { ...meta, title: existing?.title || meta.title, cloudId: existing?.cloudId, points };
+  await saveLocalSession(session, points);
+  state.sessions = mergeSessions(state.sessions.filter((item) => item.id !== session.id), [session]);
+  return state.sessions.find((item) => item.id === session.id);
+}
+
+async function loadLocalSessions() {
+  try {
+    const stored = await listLocalSessions();
+    if (!stored.length) return;
+    const known = new Set(state.sessions.map((item) => item.id));
+    state.sessions = mergeSessions(state.sessions, stored.filter((item) => !known.has(item.id)));
+    renderSessions();
+    if (!state.selectedSession && state.sessions.length) await selectSession(state.sessions[0].id);
+  } catch (error) { showNotice(error.message, true); }
+}
+
+async function renameLocalSession(id) {
+  const session = state.sessions.find((item) => item.id === id);
+  if (!session) return;
+  const title = await askDialog({ title: t("sessions.renameTitle"), confirmLabel: t("dialog.save"), input: { label: t("sessions.renamePrompt"), value: session.title || "" } });
+  if (!title?.trim()) return;
+  session.title = title.trim().slice(0, 100);
+  await updateLocalSession(id, { title: session.title });
+  if (session.cloudId && state.user) await renameLog(session.cloudId, session.title).catch(() => {});
+  renderSessions();
+}
+
+async function deleteLocalSessionById(id) {
+  const session = state.sessions.find((item) => item.id === id);
+  if (!session) return;
+  const confirmed = await askDialog({ title: t("sessions.deleteTitle"), message: t("sessions.deleteLocalConfirm", { title: session.title || formatDate(session.startedAt) }), confirmLabel: t("dialog.delete"), danger: true });
+  if (!confirmed) return;
+  await deleteLocalSession(id);
+  const wasSelected = session === state.selectedSession;
+  state.sessions = state.sessions.filter((item) => item !== session);
+  if (wasSelected) {
+    state.selectedSession = null; state.analysis = null; state.sectors = null;
+    if (state.sessions[0]) await selectSession(state.sessions[0].id);
+    else { drawTrack(); drawCharts(); }
+  }
+  renderSessions();
+}
+
 async function saveDownloadedLogs(sessions) {
   if (!state.user) return;
   try {
@@ -1971,6 +2051,16 @@ async function saveDownloadedLogs(sessions) {
 }
 
 async function importLogFile(file) {
+  if (file && appMode) {
+    try {
+      const points = parseRaceBoxCsv(await file.text());
+      const session = await storeLocally(points, { title: file.name.replace(/\.csv$/i, "") });
+      renderSessions(); await selectSession(session.id);
+      showNotice(t("logsPage.importedLocal"));
+    } catch (error) { showNotice(error.message, true); }
+    finally { elements.importLogInput.value = ""; }
+    return;
+  }
   if (!file || !state.user) return;
   elements.importLogButton.disabled = true;
   try {
@@ -2012,7 +2102,7 @@ async function createClient() {
 }
 
 async function connect() {
-  if (!state.user && !testMode) { openAccountDialog(); return; }
+  if (accountRequired()) { openAccountDialog(); return; }
   if (state.client) { state.client.disconnect(); return; }
   try {
     setStatus(t("status.searching")); setHint(t("error.notSelected"));
@@ -2027,7 +2117,7 @@ async function connect() {
 }
 
 async function toggleRecording() {
-  if (!state.user && !testMode) { openAccountDialog(); return; }
+  if (accountRequired()) { openAccountDialog(); return; }
   if (!state.client || !state.storage) return;
   const wasRecording = state.storage.recording;
   elements.recordButton.disabled = true;
@@ -2046,7 +2136,7 @@ async function toggleRecording() {
 }
 
 async function downloadHistory() {
-  if (!state.user && !testMode) { openAccountDialog(); return; }
+  if (accountRequired()) { openAccountDialog(); return; }
   try {
     elements.downloadButton.disabled = true; elements.downloadProgress.hidden = false; elements.cancelButton.hidden = false;
     setStatus(t("state.downloading", { name: state.deviceName }), true);
@@ -2055,9 +2145,17 @@ async function downloadHistory() {
       elements.progressLabel.textContent = expected ? t("progress.records", { received: received.toLocaleString(getLanguage()), expected: expected.toLocaleString(getLanguage()) }) : t("progress.preparing");
     });
     if (!sessions.length) throw new Error(t("error.noRecords"));
-    state.sessions = sessions; state.selectedSession = sessions.at(-1);
-    renderSessions(); selectSession(state.selectedSession.id);
-    await saveDownloadedLogs(sessions);
+    if (appMode) {
+      // Keep everything already on the device; the newest downloaded session opens.
+      const stored = [];
+      for (const session of sessions) stored.push(await storeLocally(session.points, { deviceName: state.deviceName }));
+      renderSessions(); await selectSession(stored.at(-1).id);
+      if (state.user) await saveDownloadedLogs(stored.filter((session) => !session.cloudId));
+    } else {
+      state.sessions = sessions; state.selectedSession = sessions.at(-1);
+      renderSessions(); selectSession(state.selectedSession.id);
+      await saveDownloadedLogs(sessions);
+    }
     elements.progressBar.value = 100; elements.progressLabel.textContent = t("progress.done", { count: sessions.length });
     elements.cancelButton.hidden = true;
     setStatus(t("state.loaded", { name: state.deviceName }), true); setHint(t("state.loaded", { name: state.deviceName }));
@@ -2068,7 +2166,7 @@ async function downloadHistory() {
 }
 
 async function eraseDeviceMemory() {
-  if (!state.user && !testMode) { openAccountDialog(); return; }
+  if (accountRequired()) { openAccountDialog(); return; }
   if (!state.client || !state.storage || state.storage.recording || state.storage.storedMessages === 0) return;
   if (!await askDialog({ title: t("erase.title"), message: t("erase.confirm"), confirmLabel: t("action.erase"), danger: true })) return;
   elements.eraseButton.disabled = true;
@@ -2103,7 +2201,7 @@ elements.onboardConnectButton.addEventListener("click", () => {
   void connect();
 });
 elements.onboardImportButton.addEventListener("click", () => {
-  if (!state.user && !testMode) { openAccountDialog("signin"); return; }
+  if (accountRequired()) { openAccountDialog("signin"); return; }
   elements.importLogInput.click();
 });
 elements.onboardDemoButton.addEventListener("click", openDemoSession);
@@ -2140,8 +2238,8 @@ elements.downloadButton.addEventListener("click", downloadHistory);
 elements.eraseButton.addEventListener("click", eraseDeviceMemory);
 elements.cancelButton.addEventListener("click", () => state.client?.cancelDownload());
 elements.analysisNavButton.addEventListener("click", () => showView("analysis"));
-elements.logsNavButton.addEventListener("click", () => state.user || testMode ? showView("logs") : openAccountDialog("signin"));
-elements.aiNavButton.addEventListener("click", () => state.user || testMode ? showView("ai") : openAccountDialog("signin"));
+elements.logsNavButton.addEventListener("click", () => accountRequired() ? openAccountDialog("signin") : showView("logs"));
+elements.aiNavButton.addEventListener("click", () => accountRequired() ? openAccountDialog("signin") : showView("ai"));
 elements.logsBackButton.addEventListener("click", () => showView("analysis"));
 elements.aiBackButton.addEventListener("click", () => showView("analysis"));
 elements.importLogButton.addEventListener("click", () => elements.importLogInput.click());
@@ -2313,7 +2411,7 @@ function applyRoute() {
   if (upgradeLegacyHash() || location.href !== routedUrl) {
     routedUrl = location.href;
     const view = viewFromHash();
-    const needsLogin = view === "logs" || view === "ai" ? !(state.user || testMode) : view === "profile" && !state.user;
+    const needsLogin = view === "logs" || view === "ai" ? accountRequired() : view === "profile" && !state.user;
     showView(needsLogin ? "analysis" : view, false);
     syncGuestPage();
   }
@@ -2561,6 +2659,7 @@ initProfile({
 });
 initStats({ askDialog, showNotice, onUserUpdated(user) { state.user = { ...state.user, ...user }; } });
 if (viewFromHash() === "shop") showView("shop", false);
+if (appMode) void loadLocalSessions();
 if (cloudConfigured) {
   currentUser().then(applyUser).then(handleAuthLink).then(handleSharedLink).then(handleFriendLink);
 } else {

@@ -2,6 +2,11 @@
 export default {
   ru: {
     // Native app shell (html.app-mode)
+    "sessions.deleteLocalConfirm": "Сессия «{title}» будет удалена с этого устройства. Копия в облаке, если она есть, останется.",
+    "logsPage.importedLocal": "Лог сохранён на устройстве.",
+    "app.aiSignIn": "AI-разбор работает онлайн: войдите в аккаунт в разделе «Профиль».",
+    "app.aiUpload": "Для AI-разбора сессия будет загружена в ваш аккаунт.",
+    "app.aiUploading": "Загружаем сессию в аккаунт…",
     "map.laps": "Круги",
     "map.delta": "Дельта",
     "map.speed": "Скорость",
@@ -206,6 +211,11 @@ export default {
   },
   en: {
     // Native app shell (html.app-mode)
+    "sessions.deleteLocalConfirm": "“{title}” will be deleted from this device. A cloud copy, if there is one, stays.",
+    "logsPage.importedLocal": "Log saved on this device.",
+    "app.aiSignIn": "The AI debrief works online: sign in under Profile.",
+    "app.aiUpload": "For the AI debrief the session will be uploaded to your account.",
+    "app.aiUploading": "Uploading the session to your account…",
     "map.laps": "Laps",
     "map.delta": "Delta",
     "map.speed": "Speed",
@@ -410,6 +420,11 @@ export default {
   },
   pl: {
     // Native app shell (html.app-mode)
+    "sessions.deleteLocalConfirm": "Sesja „{title}” zostanie usunięta z tego urządzenia. Kopia w chmurze, jeśli istnieje, zostanie.",
+    "logsPage.importedLocal": "Log zapisany na urządzeniu.",
+    "app.aiSignIn": "Analiza AI działa online: zaloguj się w zakładce Profil.",
+    "app.aiUpload": "Do analizy AI sesja zostanie przesłana na Twoje konto.",
+    "app.aiUploading": "Przesyłanie sesji na konto…",
     "map.laps": "Okrążenia",
     "map.delta": "Delta",
     "map.speed": "Prędkość",

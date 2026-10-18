@@ -1,5 +1,10 @@
 // Italian translation table (app, landing, features, contact). Keys mirror the ru/en/pl tables.
 export default {
+  "sessions.deleteLocalConfirm": "«{title}» sarà eliminata da questo dispositivo. L'eventuale copia nel cloud resta.",
+  "logsPage.importedLocal": "Log salvato sul dispositivo.",
+  "app.aiSignIn": "Il debriefing AI funziona online: accedi da Profilo.",
+  "app.aiUpload": "Per il debriefing AI la sessione verrà caricata sul tuo account.",
+  "app.aiUploading": "Caricamento della sessione sull'account…",
   "map.laps": "Giri",
   "map.delta": "Delta",
   "map.speed": "Velocità",
