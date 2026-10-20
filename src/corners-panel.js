@@ -36,7 +36,7 @@ export function createCornersPanel(ctx) {
   // The comparison lap may be a friend's lap, which is not in the report: measure it on the same sections.
   function comparisonStats() {
     if (!report || !state.comparisonLapNumber) return null;
-    const key = `${reportKey}|${state.comparisonRival ? "r" : "o"}${state.comparisonLapNumber}`;
+    const key = `${reportKey}|${state.comparisonRival ? state.comparisonSource?.key : "o"}${state.comparisonLapNumber}`;
     if (key !== comparisonKey) {
       comparisonKey = key;
       const own = !state.comparisonRival && report.laps.find((row) => row.number === state.comparisonLapNumber);

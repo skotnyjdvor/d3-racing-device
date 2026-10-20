@@ -28,7 +28,6 @@ export const STACK_CHANNELS = {
   latG: { unit: "g", digits: 2, scale: "symmetric", value: (d) => d.latG },
   combinedG: { unit: "g", digits: 2, scale: "positive", value: (d) => d.combinedG },
   lean: { unit: "°", digits: 0, scale: "symmetric", value: (d) => d.lean },
-  radius: { unit: "m", digits: 0, scale: "radius", value: (d) => d.radius },
 };
 const DEFAULT_CHANNELS = ["phase", "speed", "delta", "longG", "latG"];
 
@@ -89,7 +88,7 @@ export function createAnalysisPanels(ctx) {
 
   // ---- Per-lap data: GPS channels on the same distance samples the other charts use ----
   function lapData(points, key) {
-    const source = `${state.selectedSession?.id ?? ""}|${state.rival?.token ?? state.rival?.name ?? ""}`;
+    const source = `${state.selectedSession?.id ?? ""}|${state.comparisonSource?.key ?? ""}`;
     if (source !== cacheSource) { cache.clear(); cacheSource = source; }
     if (points.length < 3) return null;
     const cacheKey = `${key}:${points.length}:${points[0].timeMs}`;
@@ -109,7 +108,7 @@ export function createAnalysisPanels(ctx) {
   // The user's own laps share one cache entry whether they are shown as primary or comparison.
   const primaryData = () => lapData(ctx.lapPoints(state.selectedLapNumber), `o${state.selectedLapNumber}`);
   const comparisonData = () => (state.comparisonLapNumber
-    ? lapData(ctx.comparisonLapPoints(), `${state.comparisonRival ? "r" : "o"}${state.comparisonLapNumber}`)
+    ? lapData(ctx.comparisonLapPoints(), `${state.comparisonRival ? state.comparisonSource?.key : "o"}${state.comparisonLapNumber}`)
     : null);
   // Extra overlay laps (extra-laps.js), each with its colour.
   const extraData = () => (state.extraLaps ?? [])
@@ -207,7 +206,6 @@ export function createAnalysisPanels(ctx) {
     const finite = values.filter(Number.isFinite);
     const peak = finite.length ? Math.max(...finite.map(Math.abs)) : 1;
     if (channel.scale === "speed") return [0, niceCeil(Math.max(...finite, 20), 20)];
-    if (channel.scale === "radius") return [0, niceCeil(Math.min(300, Math.max(...finite, 20)), 50)];
     if (channel.scale === "positive") return [0, niceCeil(peak, .5)];
     const step = channel.unit === "°" ? 15 : channel.delta ? .1 : .5;
     const range = niceCeil(peak, step);
@@ -286,7 +284,7 @@ export function createAnalysisPanels(ctx) {
         context.beginPath(); context.moveTo(STACK_PADDING.left, stripBottom); context.lineTo(width - STACK_PADDING.right, stripBottom); context.stroke();
         if (min < 0) { context.strokeStyle = "rgba(255,255,255,.18)"; context.beginPath(); context.moveTo(STACK_PADDING.left, y(0)); context.lineTo(width - STACK_PADDING.right, y(0)); context.stroke(); }
         context.fillStyle = MUTED; context.textAlign = "right"; context.textBaseline = "middle";
-        const digits = (channel.scale === "speed" || channel.scale === "radius" || channel.unit === "°" ? 0 : 1) + (factor >= 3 ? 1 : 0);
+        const digits = (channel.scale === "speed" || channel.unit === "°" ? 0 : 1) + (factor >= 3 ? 1 : 0);
         context.fillText(max.toFixed(digits), STACK_PADDING.left - 8, y(max));
         context.fillText(min.toFixed(digits), STACK_PADDING.left - 8, y(min));
 
@@ -562,7 +560,7 @@ export function createAnalysisPanels(ctx) {
   }
 
   // ---- Values at the cursor ----
-  const VALUE_CHANNELS = ["speed", "delta", "longG", "latG", "combinedG", "lean", "radius"];
+  const VALUE_CHANNELS = ["speed", "delta", "longG", "latG", "combinedG", "lean"];
   const valueCells = new Map(); // element -> last text
   const setText = (element, text) => { if (valueCells.get(element) !== text) { valueCells.set(element, text); element.textContent = text; } };
   function renderValueTiles() {

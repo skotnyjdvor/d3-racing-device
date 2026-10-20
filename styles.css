@@ -2108,7 +2108,11 @@ body.ws-editing .ws-area { background-image: linear-gradient(90deg, rgba(255,255
 .visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 
 /* Extra overlay laps next to the lap selectors. */
-.extra-laps { position: relative; display: inline-flex; align-items: center; gap: 6px; margin-left: 12px; }
+.lap-selectors .lap-tools { grid-column: 1 / -1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
+html .lap-selectors .comparison-source-control { display: inline-flex; align-items: center; gap: 8px; min-width: 0; font-size: 11px; }
+html .lap-selectors .comparison-source-control > span { position: static; width: auto; height: auto; overflow: visible; clip-path: none; white-space: nowrap; }
+html .lap-selectors .comparison-source-control select { width: auto; max-width: 260px; height: 30px; padding: 0 28px 0 10px; color: var(--race-text); font-size: 12px; box-shadow: none; }
+.extra-laps { position: relative; display: inline-flex; align-items: center; gap: 6px; }
 .extra-laps[hidden] { display: none; }
 .extra-chips { display: inline-flex; gap: 6px; }
 .extra-chip, .extra-add { flex: none; white-space: nowrap; }

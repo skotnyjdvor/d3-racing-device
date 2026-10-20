@@ -2,6 +2,11 @@
 export default {
   ru: {
     // Native app shell (html.app-mode)
+    "compare.source": "Сравнить из",
+    "compare.thisSession": "Эта сессия",
+    "compare.mySessions": "Мои сессии",
+    "compare.otherTrack": "Эта сессия записана на другой трассе — её круги нельзя сравнить.",
+    "compare.loadFailed": "Не удалось загрузить сессию для сравнения.",
     "extra.add": "круги",
     "extra.hint": "Ещё до {count} кругов на графиках и карте",
     "extra.remove": "Убрать круг {lap} с графиков",
@@ -256,6 +261,11 @@ export default {
   },
   en: {
     // Native app shell (html.app-mode)
+    "compare.source": "Compare from",
+    "compare.thisSession": "This session",
+    "compare.mySessions": "My sessions",
+    "compare.otherTrack": "That session was recorded on another track, so its laps cannot be compared.",
+    "compare.loadFailed": "Could not load the session to compare with.",
     "extra.add": "laps",
     "extra.hint": "Up to {count} more laps on the charts and map",
     "extra.remove": "Remove lap {lap} from the charts",
@@ -510,6 +520,11 @@ export default {
   },
   pl: {
     // Native app shell (html.app-mode)
+    "compare.source": "Porównaj z",
+    "compare.thisSession": "Ta sesja",
+    "compare.mySessions": "Moje sesje",
+    "compare.otherTrack": "Ta sesja została nagrana na innym torze — jej okrążeń nie można porównać.",
+    "compare.loadFailed": "Nie udało się wczytać sesji do porównania.",
     "extra.add": "okrążenia",
     "extra.hint": "Do {count} dodatkowych okrążeń na wykresach i mapie",
     "extra.remove": "Usuń okrążenie {lap} z wykresów",

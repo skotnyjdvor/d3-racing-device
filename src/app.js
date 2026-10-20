@@ -33,7 +33,7 @@ import "./demo.js";
 import "./ai-sample.js";
 
 const elements = Object.fromEntries([...document.querySelectorAll("[id]")].map((element) => [element.id, element]));
-const state = { client: null, connected: false, deviceName: "", deviceModel: "", latestTelemetry: null, storage: null, sessions: [], selectedSession: null, analysis: null, sectors: null, trial: false, rival: null, comparisonRival: false, selectedLapNumber: null, comparisonLapNumber: null, cursorProgress: null, chartView: { start: 0, end: 1 }, trackView: { scale: 1, offsetX: 0, offsetY: 0 }, telemetryMetric: "speed", track: null, user: null, cloudLogs: [], pollTimer: null, memoryBusy: false, aiReport: null, aiReportLanguage: null, aiAnalysisId: null, aiPending: false, aiHistory: [], aiHistoryLoading: false, aiHistoryError: "", aiHoverIndex: null, aiSelectedIndex: null };
+const state = { client: null, connected: false, deviceName: "", deviceModel: "", latestTelemetry: null, storage: null, sessions: [], selectedSession: null, analysis: null, sectors: null, trial: false, rival: null, comparisonSource: null, comparisonRival: false, selectedLapNumber: null, comparisonLapNumber: null, cursorProgress: null, chartView: { start: 0, end: 1 }, trackView: { scale: 1, offsetX: 0, offsetY: 0 }, telemetryMetric: "speed", track: null, user: null, cloudLogs: [], pollTimer: null, memoryBusy: false, aiReport: null, aiReportLanguage: null, aiAnalysisId: null, aiPending: false, aiHistory: [], aiHistoryLoading: false, aiHistoryError: "", aiHoverIndex: null, aiSelectedIndex: null };
 const trackAiMarkerAreas = new WeakMap();
 const testMode = new URLSearchParams(location.search).has("mock");
 // Native apps (and ?app=1) use the telemetry-app layout; public/app-boot.js sets the class before paint.
@@ -97,8 +97,10 @@ function viewFromHash() {
 }
 
 // What will actually be analysed: comparison needs a second lap to be selected.
+// The AI compares with own laps of the same session or with a pilot's shared lap, not with older sessions.
 function effectiveAiMode() {
-  return aiModePreference === "compare" && state.comparisonLapNumber && comparisonAvailable() ? "compare" : "single";
+  const olderSession = state.comparisonRival && state.comparisonSource?.kind === "session";
+  return aiModePreference === "compare" && state.comparisonLapNumber && comparisonAvailable() && !olderSession ? "compare" : "single";
 }
 
 function renderAiMode() {
@@ -120,7 +122,7 @@ function setAiMode(mode) {
     // Switching to comparison picks the fastest other lap, the same default as when a session opens.
     const other = [...state.analysis.laps].sort((a, b) => a.durationMs - b.durationMs).find((lap) => lap.number !== state.selectedLapNumber);
     if (other) { state.comparisonLapNumber = other.number; state.comparisonRival = false; }
-    else if (rivalComparable()) { state.comparisonLapNumber = rivalFastestLap(); state.comparisonRival = true; }
+    else if (rivalComparable()) useRivalComparison();
   }
   clearAiReport();
   updateLapView();
@@ -137,11 +139,11 @@ function renderAiPageContext() {
   const laps = state.analysis?.laps ?? [];
   const options = laps.map((lap) => `<option value="${lap.number}">${escapeHtml(t("laps.option", { lap: lap.number, time: formatLapTime(lap.durationMs) }))}</option>`).join("");
   elements.aiPrimaryLapSelect.innerHTML = options || `<option value="">—</option>`;
-  elements.aiComparisonLapSelect.innerHTML = comparisonOptionsHtml("laps.option", options);
+  elements.aiComparisonLapSelect.innerHTML = comparisonOptionsHtml("laps.option", options, { ai: true });
   elements.aiPrimaryLapSelect.disabled = !laps.length;
   elements.aiComparisonLapSelect.disabled = !comparisonAvailable();
   elements.aiPrimaryLapSelect.value = state.selectedLapNumber ? String(state.selectedLapNumber) : "";
-  elements.aiComparisonLapSelect.value = comparisonSelectValue();
+  elements.aiComparisonLapSelect.value = comparisonSelectValue({ ai: true });
   renderAiMode();
 }
 
@@ -224,10 +226,10 @@ function openAiHistoryReport(id) {
   if (availableLaps.has(primary)) state.selectedLapNumber = primary;
   if (comparison > 0 && saved.other_pilot) {
     aiModePreference = "compare";
-    if (rivalComparable() && state.rival.analysis.laps.some((lap) => lap.number === comparison)) { state.comparisonLapNumber = comparison; state.comparisonRival = true; }
+    if (rivalComparable() && state.rival.analysis.laps.some((lap) => lap.number === comparison)) { useRivalComparison(); state.comparisonLapNumber = comparison; }
   } else if (comparison > 0) {
     aiModePreference = "compare";
-    state.comparisonRival = false;
+    state.comparisonRival = false; state.comparisonSource = null;
     state.comparisonLapNumber = availableLaps.has(comparison) && comparison !== state.selectedLapNumber ? comparison : null;
   } else {
     aiModePreference = "single";
@@ -389,7 +391,9 @@ function connectionErrorMessage(error) {
 
 function canvasContext(canvas) {
   const ratio = window.devicePixelRatio || 1;
-  const rect = canvas.getBoundingClientRect();
+  // Layout size, not getBoundingClientRect: panels animate their moves with transforms (workspace FLIP),
+  // and a canvas sized mid-animation would stay stretched.
+  const rect = { width: canvas.clientWidth, height: canvas.clientHeight };
   const width = Math.max(1, Math.round(rect.width * ratio));
   const height = Math.max(1, Math.round(rect.height * ratio));
   // Resizing reallocates the backing store; charts redraw on every cursor move, so only do it when needed.
@@ -411,10 +415,41 @@ function downsample(points, max = 1800) {
   return Array.from({ length: max }, (_, index) => points[Math.floor(index * step)]);
 }
 
-// ---- Pilot comparison: laps of someone else's shared session can stand in for the comparison lap ----
-function rivalLapPoints(number) {
-  return state.rival ? lapsOf(state.rival.points).get(number) ?? [] : [];
+// ---- Comparison source: the comparison lap can come from this session, from a pilot's shared session
+// (state.rival) or from another of the pilot's own sessions on the same track. state.comparisonRival is
+// true when it comes from state.comparisonSource: { key, kind: "pilot" | "session", name, track, points, analysis }.
+function pilotSource() {
+  const rival = state.rival;
+  return rival ? { key: `r:${rival.token}`, kind: "pilot", name: rival.name, track: rival.track, points: rival.points, analysis: rival.analysis, token: rival.token } : null;
 }
+function useRivalComparison() {
+  state.comparisonSource = pilotSource();
+  state.comparisonLapNumber = rivalFastestLap();
+  state.comparisonRival = Boolean(state.comparisonSource && state.comparisonLapNumber);
+}
+function sourceLapPoints(number) {
+  return state.comparisonSource ? lapsOf(state.comparisonSource.points).get(number) ?? [] : [];
+}
+// Another own session, loaded without opening it; cached per session object.
+const comparisonSessions = new WeakMap();
+async function loadComparisonSession(session) {
+  if (comparisonSessions.has(session)) return comparisonSessions.get(session);
+  let points = session.points;
+  if (!points?.length && session.source === "local") points = await loadLocalPoints(session.id).catch(() => []);
+  if (!points?.length && session.source === "cloud") points = (await loadLog(session.cloudId).catch(() => null))?.points ?? [];
+  if (!points?.length) return null;
+  if (!session.points) { session.points = points; session.pointCount = points.length; }
+  const catalog = await loadTrackCatalog().catch(() => undefined);
+  const track = identifyTrack(points, catalog);
+  const lapped = splitSessionIntoLaps(points, track);
+  let analysis = null;
+  try { analysis = analyzeSession(lapped); } catch { return null; }
+  if (!analysis.laps.length) return null;
+  const source = { key: `s:${session.id}`, kind: "session", sessionId: String(session.id), name: session.title || formatDate(session.startedAt), track, points: lapped, analysis };
+  comparisonSessions.set(session, source);
+  return source;
+}
+const comparisonCandidates = () => state.sessions.filter((session) => session !== state.selectedSession && session.source !== "shared");
 // Laps of two sessions only line up when they were driven on the same, recognised track.
 function rivalComparable() {
   const rival = state.rival;
@@ -423,26 +458,74 @@ function rivalComparable() {
 }
 function rivalFastestLap() { return state.rival?.analysis.fastestLap?.number ?? state.rival?.analysis.laps[0]?.number ?? null; }
 function comparisonLapPoints() {
-  return state.comparisonRival && state.rival ? rivalLapPoints(state.comparisonLapNumber) : lapPoints(state.comparisonLapNumber);
+  return state.comparisonRival && state.comparisonSource ? sourceLapPoints(state.comparisonLapNumber) : lapPoints(state.comparisonLapNumber);
 }
 function shortName(name, length = 14) { return name.length > length ? `${name.slice(0, length - 1)}…` : name; }
 function comparisonLabel(short = false) {
   if (!state.comparisonLapNumber) return t("laps.none");
   const lap = t("laps.legend", { lap: state.comparisonLapNumber });
-  return state.comparisonRival && state.rival ? `${short ? shortName(state.rival.name) : state.rival.name} · ${lap}` : lap;
+  const source = state.comparisonRival ? state.comparisonSource : null;
+  return source ? `${short ? shortName(source.name) : source.name} · ${lap}` : lap;
 }
-function comparisonSelectValue() { return state.comparisonLapNumber ? (state.comparisonRival ? `r:${state.comparisonLapNumber}` : String(state.comparisonLapNumber)) : ""; }
+// Main selector: own laps, or laps of the chosen source as "x:N". AI page: own laps and a pilot's laps as "r:N".
+function comparisonSelectValue({ ai = false } = {}) {
+  if (!state.comparisonLapNumber) return "";
+  if (!state.comparisonRival) return String(state.comparisonLapNumber);
+  if (!ai) return `x:${state.comparisonLapNumber}`;
+  return state.comparisonSource?.kind === "pilot" ? `r:${state.comparisonLapNumber}` : "";
+}
 // A closed <select> shows only the chosen option, so the pilot's name goes into the text itself.
 function rivalOptionText(optionKey, lap) {
   return compactLayout.matches ? `${shortName(state.rival.name, 8)} · ${t("laps.legend", { lap: lap.number })}` : `${state.rival.name} · ${t(optionKey, { lap: lap.number, time: formatLapTime(lap.durationMs) })}`;
 }
-function comparisonOptionsHtml(optionKey, own) {
+function comparisonOptionsHtml(optionKey, own, { ai = false } = {}) {
+  const source = state.comparisonRival ? state.comparisonSource : null;
+  if (!ai && source) {
+    const laps = source.analysis.laps.map((lap) => `<option value="x:${lap.number}">${escapeHtml(t(optionKey, { lap: lap.number, time: formatLapTime(lap.durationMs) }))}</option>`).join("");
+    return `<option value="">${escapeHtml(t("laps.none"))}</option>${laps}`;
+  }
   const rival = rivalComparable()
     ? `<optgroup label="${escapeHtml(state.rival.name)}">${state.rival.analysis.laps.map((lap) => `<option value="r:${lap.number}">${escapeHtml(rivalOptionText(optionKey, lap))}</option>`).join("")}</optgroup>`
     : "";
   return `<option value="">${escapeHtml(t("laps.none"))}</option>${own}${rival}`;
 }
-function comparisonAvailable() { return (state.analysis?.laps.length ?? 0) > 1 || rivalComparable(); }
+function comparisonAvailable() { return (state.analysis?.laps.length ?? 0) > 1 || rivalComparable() || Boolean(state.comparisonRival && state.comparisonSource); }
+
+function renderComparisonSource() {
+  const select = elements.comparisonSourceSelect;
+  const others = comparisonCandidates();
+  const pilot = rivalComparable() ? `<option value="pilot">${escapeHtml(state.rival.name)}</option>` : "";
+  const sessions = others.length ? `<optgroup label="${escapeHtml(t("compare.mySessions"))}">${others.map((session) => `<option value="s:${escapeHtml(session.id)}">${escapeHtml(session.title || formatDate(session.startedAt))}${session.title ? ` · ${escapeHtml(formatDate(session.startedAt))}` : ""}</option>`).join("")}</optgroup>` : "";
+  select.innerHTML = `<option value="">${escapeHtml(t("compare.thisSession"))}</option>${pilot}${sessions}`;
+  const source = state.comparisonRival ? state.comparisonSource : null;
+  select.value = !source ? "" : source.kind === "pilot" ? "pilot" : `s:${source.sessionId}`;
+  select.disabled = !state.analysis || (!pilot && !sessions);
+}
+
+async function changeComparisonSource(value) {
+  const select = elements.comparisonSourceSelect;
+  if (!value) {
+    state.comparisonSource = null; state.comparisonRival = false;
+    const other = [...(state.analysis?.laps ?? [])].sort((a, b) => a.durationMs - b.durationMs).find((lap) => lap.number !== state.selectedLapNumber);
+    state.comparisonLapNumber = other?.number ?? null;
+  } else if (value === "pilot") {
+    useRivalComparison();
+  } else {
+    const session = state.sessions.find((item) => `s:${item.id}` === value);
+    const selectedBefore = state.selectedSession;
+    select.disabled = true;
+    const source = session ? await loadComparisonSession(session) : null;
+    select.disabled = false;
+    if (state.selectedSession !== selectedBefore) return;
+    if (!source) { showNotice(t("compare.loadFailed"), true); renderComparisonSource(); return; }
+    if (!source.track || !state.track || source.track.id !== state.track.id) { showNotice(t("compare.otherTrack"), true); renderComparisonSource(); return; }
+    state.comparisonSource = source;
+    state.comparisonLapNumber = source.analysis.fastestLap?.number ?? source.analysis.laps[0].number;
+    state.comparisonRival = true;
+  }
+  clearAiReport();
+  updateLapView();
+}
 
 // A short message that fades on its own; works for guests who see no account dialog.
 let noticeTimer = 0;
@@ -1521,6 +1604,7 @@ function renderLapControls() {
   elements.comparisonLapSelect.value = comparisonSelectValue();
   elements.primaryLapLegend.textContent = state.selectedLapNumber ? t("laps.legend", { lap: state.selectedLapNumber }) : "—";
   elements.comparisonLapLegend.textContent = comparisonLabel();
+  renderComparisonSource();
   extraLaps?.render();
 }
 
@@ -1531,7 +1615,7 @@ function updateLapView() {
   elements.durationMeta.textContent = lap ? t("laps.legend", { lap: lap.number }) : formatDate(state.selectedSession.startedAt);
   elements.maxSpeedValue.textContent = (lap?.maxSpeed ?? state.analysis.session.maxSpeed).toFixed(1);
   elements.sampleRateValue.textContent = state.analysis.sampleRateHz.toFixed(0);
-  const comparisonLap = (state.comparisonRival ? state.rival?.analysis.laps : state.analysis.laps)?.find((item) => item.number === state.comparisonLapNumber);
+  const comparisonLap = (state.comparisonRival ? state.comparisonSource?.analysis.laps : state.analysis.laps)?.find((item) => item.number === state.comparisonLapNumber);
   const gapMs = lap && comparisonLap ? lap.durationMs - comparisonLap.durationMs : null;
   elements.trackStatTime.textContent = lap ? formatLapTime(lap.durationMs) : "—";
   elements.trackStatGap.textContent = gapMs === null ? "Δ —" : `Δ ${formatGap(gapMs)} ${t("unit.seconds")}`;
@@ -1683,7 +1767,7 @@ async function runAiAnalysis() {
   const requestPrimaryLap = state.selectedLapNumber;
   const requestMode = effectiveAiMode();
   const requestComparisonLap = requestMode === "compare" ? state.comparisonLapNumber : null;
-  const requestRivalToken = requestMode === "compare" && state.comparisonRival ? state.rival?.token : undefined;
+  const requestRivalToken = requestMode === "compare" && state.comparisonRival ? state.comparisonSource?.token : undefined;
   const requestToken = ++aiRequestToken;
   state.aiPending = true;
   elements.analyzeAiButton.disabled = true;
@@ -1713,7 +1797,7 @@ async function runAiAnalysis() {
       const sameComparison = state.selectedSession?.cloudId === cloudId
         && state.selectedLapNumber === requestPrimaryLap
         && effectiveAiMode() === requestMode
-        && (requestMode === "single" || (state.comparisonLapNumber === requestComparisonLap && state.rival?.token === requestRivalToken && state.comparisonRival === Boolean(requestRivalToken)));
+        && (requestMode === "single" || (state.comparisonLapNumber === requestComparisonLap && state.comparisonSource?.token === requestRivalToken && state.comparisonRival === Boolean(requestRivalToken)));
       if (sameComparison && requestLanguage !== getLanguage()) void runAiAnalysis();
     }
   }
@@ -1785,10 +1869,10 @@ async function selectSession(id) {
     const ordered = [...state.analysis.laps].sort((a, b) => a.durationMs - b.durationMs);
     state.selectedLapNumber = ordered[0]?.number ?? null;
     state.comparisonLapNumber = ordered[1]?.number ?? null;
-    state.comparisonRival = false;
+    state.comparisonRival = false; state.comparisonSource = null;
     extraLaps?.reset();
     // A pilot who shared a session on the same track is the natural thing to compare with.
-    if (rivalComparable()) { state.comparisonLapNumber = rivalFastestLap(); state.comparisonRival = true; }
+    if (rivalComparable()) useRivalComparison();
   }
   elements.sourceLabel.textContent = t("footer.deviceMemory", { name: state.deviceName });
   const localSession = state.selectedSession.source === "local";
@@ -1865,7 +1949,7 @@ async function startTrial(file) {
 function endTrial() {
   state.trial = false;
   state.sessions = state.sessions.filter((session) => session.source !== "trial" && session.source !== "shared");
-  state.rival = null; state.comparisonRival = false;
+  state.rival = null; state.comparisonRival = false; state.comparisonSource = null;
   if (state.selectedSession?.source === "trial" || state.selectedSession?.source === "shared") { state.selectedSession = null; state.analysis = null; state.sectors = null; }
   updateAccess();
   renderSessions();
@@ -2056,7 +2140,7 @@ async function handleSharedLink() {
     renderSessions();
     const own = state.selectedSession && state.selectedSession.source !== "shared" ? state.selectedSession : null;
     if (own && rivalComparable()) {
-      state.comparisonLapNumber = rivalFastestLap(); state.comparisonRival = true;
+      useRivalComparison();
       clearAiReport(); updateLapView();
       showNotice(t("share.added", { name }));
     } else {
@@ -2535,9 +2619,12 @@ function changePrimaryLap(value) {
   updateLapView();
 }
 function changeComparisonLap(value) {
-  const rival = String(value).startsWith("r:");
-  state.comparisonLapNumber = Number(rival ? String(value).slice(2) : value) || null;
-  state.comparisonRival = rival && Boolean(state.comparisonLapNumber);
+  const text = String(value);
+  if (text.startsWith("r:")) state.comparisonSource = pilotSource();
+  else if (!text.startsWith("x:")) state.comparisonSource = null;
+  state.comparisonLapNumber = Number(text.replace(/^[rx]:/, "")) || null;
+  state.comparisonRival = Boolean(state.comparisonSource && state.comparisonLapNumber && /^[rx]:/.test(text));
+  if (!state.comparisonRival) state.comparisonSource = null;
   if (!state.comparisonRival && state.comparisonLapNumber === state.selectedLapNumber) state.comparisonLapNumber = null;
   clearAiReport();
   updateLapView();
@@ -2555,6 +2642,7 @@ elements.sectorTable.addEventListener("keydown", (event) => {
   elements.sectorTable.querySelector(`[data-sector-lap="${row.dataset.sectorLap}"]`)?.focus();
 });
 elements.comparisonLapSelect.addEventListener("change", () => changeComparisonLap(elements.comparisonLapSelect.value));
+elements.comparisonSourceSelect.addEventListener("change", () => changeComparisonSource(elements.comparisonSourceSelect.value));
 elements.aiPrimaryLapSelect.addEventListener("change", () => changePrimaryLap(elements.aiPrimaryLapSelect.value));
 elements.aiComparisonLapSelect.addEventListener("change", () => changeComparisonLap(elements.aiComparisonLapSelect.value));
 elements.telemetryMetricSelect.addEventListener("change", () => selectTelemetryMetric(elements.telemetryMetricSelect.value));

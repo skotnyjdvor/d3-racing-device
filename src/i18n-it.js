@@ -1,5 +1,10 @@
 // Italian translation table (app, landing, features, contact). Keys mirror the ru/en/pl tables.
 export default {
+  "compare.source": "Confronta da",
+  "compare.thisSession": "Questa sessione",
+  "compare.mySessions": "Le mie sessioni",
+  "compare.otherTrack": "Quella sessione è stata registrata su un'altra pista: i suoi giri non si possono confrontare.",
+  "compare.loadFailed": "Impossibile caricare la sessione da confrontare.",
   "extra.add": "giri",
   "extra.hint": "Fino a {count} giri in più su grafici e mappa",
   "extra.remove": "Togli il giro {lap} dai grafici",

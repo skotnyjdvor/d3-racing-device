@@ -29,7 +29,7 @@ export function createLapReportPanel(ctx) {
   }
 
   function render() {
-    const key = `${statsKey}|${state.selectedSession?.id ?? ""}|${state.analysis?.laps.length ?? 0}|${exclusionVersion()}|${state.selectedLapNumber}|${state.comparisonRival ? "r" : ""}${state.comparisonLapNumber}|${t("lapReport.title")}`;
+    const key = `${statsKey}|${state.selectedSession?.id ?? ""}|${state.analysis?.laps.length ?? 0}|${exclusionVersion()}|${state.selectedLapNumber}|${state.comparisonRival ? state.comparisonSource?.key : ""}${state.comparisonLapNumber}|${t("lapReport.title")}`;
     if (key === tableKey) return;
     tableKey = key;
     const data = report();
