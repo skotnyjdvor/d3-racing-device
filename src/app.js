@@ -22,6 +22,7 @@ import "@fontsource/jetbrains-mono/500.css";
 import "@fontsource/jetbrains-mono/700.css";
 import { initWorkspace } from "./workspace.js";
 import { createAnalysisPanels } from "./analysis-panels.js";
+import { createCornersPanel } from "./corners-panel.js";
 import { deltaSeries } from "./domain/delta.js";
 import { isOverlayFrame, overlayFrame, paintLayers } from "./canvas-layers.js";
 import { makeLocalSession, mergeSessions } from "./domain/local-sessions.js";
@@ -507,6 +508,7 @@ function pointAtProgress(series, progress) {
 // Track map colouring: plain laps, gain/loss against the comparison lap, or speed.
 const MAP_MODES = ["laps", "delta", "speed"];
 let analysisPanels = null;
+let cornersPanel = null;
 try { state.mapMode = MAP_MODES.includes(localStorage.getItem("d3-map-mode")) ? localStorage.getItem("d3-map-mode") : "laps"; } catch { state.mapMode = "laps"; }
 function renderMapMode() {
   elements.mapMode.querySelectorAll("[data-map-mode]").forEach((button) => button.setAttribute("aria-checked", String(button.dataset.mapMode === state.mapMode)));
@@ -751,6 +753,26 @@ function drawTrackCanvas(canvas) {
       context.fillStyle = "rgba(8,8,12,.92)"; context.strokeStyle = SECTOR_COLOR; context.lineWidth = 1.5;
       context.beginPath(); context.roundRect(x - 15, y - 10, 30, 20, 4); context.fill(); context.stroke();
       context.fillStyle = SECTOR_COLOR; context.fillText(`S${index + 1}`, x, y + .5);
+    });
+    context.restore();
+  }
+
+  if (canvas === elements.trackCanvas && cornersPanel) {
+    // Corner names at the apexes, on the other side of the line from the sector numbers.
+    context.save();
+    context.font = "600 11px 'JetBrains Mono', ui-monospace, monospace";
+    context.textAlign = "center"; context.textBaseline = "middle";
+    cornersPanel.mapLabels().forEach(({ label, progress }) => {
+      const here = pointAtProgress(primarySeries, progress)?.point;
+      const ahead = pointAtProgress(primarySeries, Math.min(1, progress + .01))?.point;
+      if (!here || !ahead) return;
+      const [hx, hy] = project(here); const [nx, ny] = project(ahead);
+      const length = Math.hypot(nx - hx, ny - hy) || 1;
+      const x = hx + (ny - hy) / length * 20; const y = hy - (nx - hx) / length * 20;
+      const textWidth = context.measureText(label).width;
+      context.fillStyle = "rgba(8,8,12,.85)";
+      context.beginPath(); context.roundRect(x - textWidth / 2 - 4, y - 8, textWidth + 8, 16, 3); context.fill();
+      context.fillStyle = "#c9cad0"; context.fillText(label, x, y + .5);
     });
     context.restore();
   }
@@ -1175,6 +1197,7 @@ function drawCharts() {
   drawComparisonChart(elements.telemetryCanvas, state.telemetryMetric, { speed: state.telemetryMetric === "speed" });
   drawDeltaChart();
   analysisPanels?.draw();
+  cornersPanel?.draw();
 }
 
 let cursorFrame = 0;
@@ -1239,6 +1262,10 @@ analysisPanels = createAnalysisPanels({
   state, elements, t, onLanguageChange,
   lapPoints, comparisonLapPoints, distancePoints, canvasContext, sectorFractions, paintLayers, isOverlayFrame,
   setCursorProgress, setChartZoom, setChartRange, resetChartZoom,
+});
+cornersPanel = createCornersPanel({
+  state, elements, t, onLanguageChange, lapPoints, comparisonLapPoints, isOverlayFrame, formatLapTime,
+  setCursorProgress, setChartRange,
 });
 renderMapMode();
 elements.mapMode.addEventListener("click", (event) => {

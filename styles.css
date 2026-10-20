@@ -1969,7 +1969,7 @@ html.app-mode body.ws-on #appMain > .dashboard { flex: 1 1 auto; min-height: 0; 
 html.app-mode body.ws-on .dashboard > .ws-bar { grid-area: bar; }
 html.app-mode body.ws-on .dashboard > .ws-area { grid-area: ws; position: relative; min-height: 0; display: grid; grid-template-columns: repeat(var(--ws-cols, 24), minmax(0, 1fr)); grid-template-rows: repeat(var(--ws-rows, 12), minmax(0, 1fr)); gap: 8px; }
 html.app-mode body.ws-on .ws-area > .panel { min-width: 0; min-height: 0; margin: 0; display: flex; flex-direction: column; overflow: hidden; }
-html.app-mode body.ws-on .ws-area > .panel > :not(canvas, .sector-table-wrap, .insights) { flex: none; }
+html.app-mode body.ws-on .ws-area > .panel > :not(canvas, .sector-table-wrap, .corners-wrap, .insights) { flex: none; }
 html.app-mode body.ws-on .ws-area > .panel > canvas { flex: 1 1 0; height: auto; min-height: 0; }
 html.app-mode body.ws-on .ws-area .sector-table-wrap { flex: 1 1 auto; min-height: 0; max-height: none; overflow: auto; }
 html.app-mode body.ws-on .ws-area .insights { flex: 1 1 auto; min-height: 0; overflow: auto; columns: auto; }
@@ -2079,6 +2079,31 @@ body.ws-editing .ws-area { background-image: linear-gradient(90deg, rgba(255,255
 .stack-clear:hover { color: var(--race-text); border-color: var(--race-text-2); }
 .stack-panel canvas { display: block; width: 100%; cursor: crosshair; touch-action: none; }
 .stack-panel { position: relative; }
+
+/* Corner-by-corner report. */
+.corners-panel .panel-head { flex-wrap: wrap; gap: 4px 12px; }
+.corners-summary { margin: 0; color: var(--race-text-2); font: 400 12px/1.4 var(--font-body); }
+.corners-summary b { color: var(--race-sector-text); font-family: var(--font-code); font-weight: 600; }
+.corners-summary b.gain { color: rgb(43,217,107); }
+.corners-wrap { flex: 1 1 auto; min-height: 0; overflow: auto; }
+.corners-table { width: 100%; border-collapse: collapse; font: 400 13px/1.2 var(--font-code); font-variant-numeric: tabular-nums; }
+.corners-table th, .corners-table td { padding: 6px 10px; border-bottom: 1px solid var(--race-line); text-align: right; white-space: nowrap; }
+.corners-table thead th { position: sticky; top: 0; z-index: 1; background: var(--race-surface); color: var(--race-muted); font-size: 11px; font-weight: 400; letter-spacing: .12em; text-transform: uppercase; }
+.corners-table thead th:first-child, .corners-table tbody th { text-align: left; }
+.corners-table tbody th { color: var(--race-text); font-weight: 600; }
+.corners-table tbody tr { cursor: pointer; transition: background-color .12s; }
+.corners-table tbody tr:hover { background: rgba(255,255,255,.04); }
+.corners-table tbody tr:focus-visible { outline: 2px solid var(--race-sector); outline-offset: -2px; }
+.corners-table tbody tr.current { background: rgba(244,244,238,.07); box-shadow: inset 3px 0 0 var(--race-curb); }
+.corners-table tr.straight th, .corners-table tr.straight td { color: var(--race-muted); font-weight: 400; }
+.corners-table tr.straight td b { font-weight: 400; color: var(--race-text-2); }
+.corners-table td b { font-weight: 500; color: var(--race-text); }
+.corners-table td small { display: block; margin-top: 2px; font-size: 11px; color: var(--race-muted); }
+.corners-table td small.val-compare { color: #ff5a52; }
+.corners-table td.gain { color: rgb(43,217,107); }
+.corners-table td.loss { color: rgb(255,90,82); }
+.corners-table td.best { color: var(--race-sector-text); }
+.corners-panel.is-empty .corners-wrap { display: none; }
 /* Vertical scale sliders in the left gutter of each strip (positioned by analysis-panels.js). */
 .stack-scales { position: absolute; left: 0; top: 0; width: 0; height: 0; }
 .stack-scale { position: absolute; left: 6px; width: 16px; margin: 0; padding: 0; writing-mode: vertical-lr; direction: rtl; appearance: none; -webkit-appearance: none; background: transparent; cursor: ns-resize; }

@@ -10,7 +10,7 @@ import {
 
 const STORAGE_KEY = "d3-workspace";
 const GAP = 8; // px between grid cells, same as the CSS gap
-const PANEL_SELECTORS = { sectors: "#sectorsPanel", track: ".track-panel", stack: "#stackPanel", gg: "#ggPanel", telemetry: ".telemetry-panel", delta: ".delta-panel", insights: ".insight-panel" };
+const PANEL_SELECTORS = { sectors: "#sectorsPanel", track: ".track-panel", stack: "#stackPanel", gg: "#ggPanel", corners: "#cornersPanel", telemetry: ".telemetry-panel", delta: ".delta-panel", insights: ".insight-panel" };
 const HANDLES = ["n", "s", "e", "w", "ne", "nw", "se", "sw"];
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
