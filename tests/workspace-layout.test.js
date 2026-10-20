@@ -50,7 +50,7 @@ test("old column layouts are converted to the grid", () => {
       { width: .5, panels: [{ id: "track", size: 1 }] },
       { width: .5, panels: [{ id: "stack", size: .6 }, { id: "gg", size: .4 }] },
     ],
-    hidden: ["sectors", "corners", "telemetry", "delta", "insights"],
+    hidden: ["sectors", "corners", "laps", "values", "telemetry", "delta", "insights"],
   });
   assertValid(converted);
   assert.deepEqual(item(converted, "track"), { id: "track", x: 0, y: 0, w: 12, h: 12 });

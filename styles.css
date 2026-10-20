@@ -1965,11 +1965,11 @@ html.app-mode body.ws-on.has-session:not(.auth-locked, .view-device, .view-logs,
 /* The analysis screen fills the window; panels share the space instead of scrolling the page. */
 html.app-mode body.ws-on.has-session:not(.auth-locked, .view-device, .view-logs, .view-ai, .view-profile, .view-shop) #appMain { height: calc(100vh - var(--topbar-h)); padding-bottom: 12px; display: flex; flex-direction: column; overflow: hidden; }
 html.app-mode body.ws-on #appMain > :is(.summary-grid, .trial-banner) { flex: none; }
-html.app-mode body.ws-on #appMain > .dashboard { flex: 1 1 auto; min-height: 0; margin-top: 8px; grid-template-columns: minmax(340px, 420px) minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr); grid-template-areas: "session laps" "bar bar" "ws ws"; }
+html.app-mode body.ws-on #appMain > .dashboard { flex: 1 1 auto; min-height: 0; margin-top: 8px; grid-template-columns: minmax(340px, 420px) minmax(0, 1fr); grid-template-rows: auto auto auto minmax(0, 1fr); grid-template-areas: "session laps" "tabs tabs" "bar bar" "ws ws"; }
 html.app-mode body.ws-on .dashboard > .ws-bar { grid-area: bar; }
 html.app-mode body.ws-on .dashboard > .ws-area { grid-area: ws; position: relative; min-height: 0; display: grid; grid-template-columns: repeat(var(--ws-cols, 24), minmax(0, 1fr)); grid-template-rows: repeat(var(--ws-rows, 12), minmax(0, 1fr)); gap: 8px; }
 html.app-mode body.ws-on .ws-area > .panel { min-width: 0; min-height: 0; margin: 0; display: flex; flex-direction: column; overflow: hidden; }
-html.app-mode body.ws-on .ws-area > .panel > :not(canvas, .sector-table-wrap, .corners-wrap, .insights) { flex: none; }
+html.app-mode body.ws-on .ws-area > .panel > :not(canvas, .sector-table-wrap, .corners-wrap, .lap-report-wrap, .values-grid, .insights) { flex: none; }
 html.app-mode body.ws-on .ws-area > .panel > canvas { flex: 1 1 0; height: auto; min-height: 0; }
 html.app-mode body.ws-on .ws-area .sector-table-wrap { flex: 1 1 auto; min-height: 0; max-height: none; overflow: auto; }
 html.app-mode body.ws-on .ws-area .insights { flex: 1 1 auto; min-height: 0; overflow: auto; columns: auto; }
@@ -2104,6 +2104,75 @@ body.ws-editing .ws-area { background-image: linear-gradient(90deg, rgba(255,255
 .corners-table td.loss { color: rgb(255,90,82); }
 .corners-table td.best { color: var(--race-sector-text); }
 .corners-panel.is-empty .corners-wrap { display: none; }
+
+.visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+
+/* Extra overlay laps next to the lap selectors. */
+.extra-laps { position: relative; display: inline-flex; align-items: center; gap: 6px; margin-left: 12px; }
+.extra-laps[hidden] { display: none; }
+.extra-chips { display: inline-flex; gap: 6px; }
+.extra-chip, .extra-add { flex: none; white-space: nowrap; }
+.corners-table tbody th, .lap-report-table tbody th { background: transparent; }
+.extra-chip, .extra-add { height: 30px; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; color: var(--race-text-2); background: transparent; border: 1px solid var(--race-line-2); font: 600 12px/1 var(--font-body); cursor: pointer; transition: color .15s, border-color .15s; }
+.extra-chip { border-color: var(--lap-color); color: var(--race-text); }
+.extra-chip::before { content: ""; width: 14px; height: 3px; background: var(--lap-color); }
+.extra-chip span { color: var(--race-muted); }
+.extra-chip:hover span, .extra-add:hover { color: var(--race-text); }
+.extra-add:hover { border-color: var(--race-text-2); }
+.extra-menu { position: absolute; top: calc(100% + 6px); right: 0; z-index: 30; min-width: 240px; padding: 8px; display: grid; gap: 2px; background: var(--race-surface); border: 1px solid var(--race-line-2); box-shadow: 0 12px 32px rgba(0,0,0,.45); }
+.extra-menu[hidden] { display: none; }
+.extra-menu p { margin: 0 0 6px; color: var(--race-muted); font: 400 12px/1.4 var(--font-body); }
+.extra-option { min-height: 30px; padding: 0 6px; display: flex; align-items: center; gap: 8px; color: var(--race-text); font: 400 13px/1.2 var(--font-body); cursor: pointer; }
+.extra-option:hover { background: rgba(255,255,255,.05); }
+.extra-option i { width: 14px; height: 3px; background: var(--lap-color); }
+.extra-option input:disabled + i, .extra-option:has(input:disabled) { color: var(--race-muted); cursor: default; }
+
+/* Values at the cursor. */
+.values-panel .panel-head { flex-wrap: wrap; gap: 4px 12px; }
+.values-where { margin: 0; color: var(--race-muted); font: 400 12px/1.4 var(--font-code); font-variant-numeric: tabular-nums; }
+.values-grid { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 8px; display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); align-content: start; gap: 8px; }
+.value-tile { min-width: 0; padding: 8px 10px; display: grid; grid-template-columns: 1fr auto; grid-template-areas: "label label" "main main" "compare diff"; gap: 2px 8px; border: 1px solid var(--race-line); background: rgba(255,255,255,.02); font-variant-numeric: tabular-nums; }
+.value-label { grid-area: label; overflow: hidden; color: var(--race-muted); font: 400 11px/1.3 var(--font-body); white-space: nowrap; text-overflow: ellipsis; }
+.value-primary { grid-area: main; color: var(--race-text); font: 600 24px/1.1 var(--font-code); }
+.value-compare { grid-area: compare; color: #ff5a52; font: 400 12px/1.3 var(--font-code); }
+.value-diff { grid-area: diff; color: var(--race-text-2); font: 400 12px/1.3 var(--font-code); }
+.value-tile[data-trend="gain"] .value-primary { color: rgb(43,217,107); }
+.value-tile[data-trend="loss"] .value-primary { color: rgb(255,90,82); }
+
+/* Lap report. */
+.lap-report-panel .panel-head { flex-wrap: wrap; gap: 4px 12px; }
+.lap-report-summary { margin: 0; color: var(--race-text-2); font: 400 12px/1.4 var(--font-body); }
+.lap-report-summary b { color: var(--race-text); font-family: var(--font-code); font-weight: 600; }
+.lap-report-wrap { flex: 1 1 auto; min-height: 0; overflow: auto; }
+.lap-report-table { width: 100%; border-collapse: collapse; font: 400 13px/1.2 var(--font-code); font-variant-numeric: tabular-nums; }
+.lap-report-table th, .lap-report-table td { padding: 6px 10px; border-bottom: 1px solid var(--race-line); text-align: right; white-space: nowrap; }
+.lap-report-table thead th { position: sticky; top: 0; z-index: 1; background: var(--race-surface); color: var(--race-muted); font-size: 11px; font-weight: 400; letter-spacing: .1em; text-transform: uppercase; }
+.lap-report-table tbody th { text-align: left; color: var(--race-text); font-weight: 600; }
+.lap-report-table td.include { width: 1%; padding-right: 0; text-align: center; }
+.lap-report-table td.include input { width: 16px; height: 16px; margin: 0; accent-color: var(--race-sector); cursor: pointer; }
+.lap-report-table td b { font-weight: 500; color: var(--race-text); }
+.lap-report-table td.best, .lap-report-table td.best b { color: var(--race-sector-text); }
+.lap-report-table tbody tr { cursor: pointer; transition: background-color .12s; }
+.lap-report-table tbody tr:hover { background: rgba(255,255,255,.04); }
+.lap-report-table tbody tr:focus-visible { outline: 2px solid var(--race-sector); outline-offset: -2px; }
+.lap-report-table tbody tr.is-primary { background: rgba(244,244,238,.05); }
+.lap-report-table tbody tr.is-primary th { box-shadow: inset 3px 0 0 var(--race-curb); }
+.lap-report-table tbody tr.is-compare th { box-shadow: inset 3px 0 0 var(--race-red); color: var(--race-red-text); }
+.lap-report-table tbody tr.excluded th, .lap-report-table tbody tr.excluded td:not(.include), .lap-report-table tbody tr.excluded td b { color: var(--race-muted); }
+.lap-report-panel.is-empty .lap-report-wrap { display: none; }
+
+/* Sheet tabs above the workspace. */
+html.app-mode body.ws-on .dashboard > .ws-tabs { grid-area: tabs; min-width: 0; display: flex; align-items: flex-end; gap: 2px; overflow-x: auto; border-bottom: 1px solid var(--race-line-2); }
+.ws-tab { flex: none; display: inline-flex; align-items: center; border: 1px solid transparent; border-bottom: 0; margin-bottom: -1px; }
+.ws-tab.active { background: var(--race-surface); border-color: var(--race-line-2); box-shadow: inset 0 2px 0 var(--race-red); }
+.ws-tab-name { height: 30px; padding: 0 14px; color: var(--race-muted); background: transparent; border: 0; font: 700 12px/1 var(--font-code); letter-spacing: .1em; text-transform: uppercase; cursor: pointer; transition: color .15s; }
+.ws-tab-name:hover, .ws-tab.active .ws-tab-name { color: var(--race-text); }
+.ws-tab-name:focus-visible, .ws-tab-close:focus-visible, .ws-tab-add:focus-visible { outline: 2px solid var(--race-lime); outline-offset: -2px; }
+.ws-tab-close { width: 24px; height: 24px; margin-right: 4px; color: var(--race-muted); background: transparent; border: 0; font-size: 16px; line-height: 1; cursor: pointer; }
+.ws-tab-close:hover { color: var(--race-red-text); }
+.ws-tab-input { width: 160px; height: 26px; margin: 2px 6px; padding: 0 6px; color: var(--race-text); background: #08080c; border: 1px solid var(--race-lime); font: 600 12px/1 var(--font-code); }
+.ws-tab-add { flex: none; width: 30px; height: 30px; color: var(--race-muted); background: transparent; border: 0; font-size: 18px; line-height: 1; cursor: pointer; transition: color .15s; }
+.ws-tab-add:hover { color: var(--race-text); }
 /* Vertical scale sliders in the left gutter of each strip (positioned by analysis-panels.js). */
 .stack-scales { position: absolute; left: 0; top: 0; width: 0; height: 0; }
 .stack-scale { position: absolute; left: 6px; width: 16px; margin: 0; padding: 0; writing-mode: vertical-lr; direction: rtl; appearance: none; -webkit-appearance: none; background: transparent; cursor: ns-resize; }

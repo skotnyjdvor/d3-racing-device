@@ -123,15 +123,17 @@ export const statsFor = (points, sections) => {
 };
 
 // laps: [{ number, points }]. Sections come from the reference lap (usually the fastest one); the best
-// time of every section is taken only from laps of about the same length, so a partial lap never wins.
-export function cornerReport(laps, referenceNumber) {
+// time of every section is taken only from laps of about the same length, so a partial lap never wins,
+// and never from laps the pilot left out (`exclude`: lap numbers).
+export function cornerReport(laps, referenceNumber, { exclude = [] } = {}) {
+  const left = new Set(exclude);
   const reference = laps.find((lap) => lap.number === referenceNumber) ?? laps[0];
   const referenceProfile = lapProfile(reference?.points);
   if (!referenceProfile) return null;
   const sections = trackSections(reference.points);
   const rows = laps.map((lap) => {
     const profile = lapProfile(lap.points);
-    const comparable = Boolean(profile) && Math.abs(profile.length / referenceProfile.length - 1) <= LENGTH_TOLERANCE;
+    const comparable = Boolean(profile) && !left.has(lap.number) && Math.abs(profile.length / referenceProfile.length - 1) <= LENGTH_TOLERANCE;
     return { number: lap.number, comparable, stats: sections.map((section) => sectionStats(profile, section)) };
   });
   const best = sections.map((_section, index) => rows

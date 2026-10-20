@@ -2,11 +2,13 @@
 //   - "Channels": several traces stacked on one distance axis, shared cursor and zoom, a phase band and an
 //     A-marker to measure a stretch of track (distance, time of both laps, min/max speed);
 //   - "G-G diagram": lateral vs longitudinal G of both laps (friction circle);
+//   - "Values": the channels of both laps at the cursor as digital readouts;
 //   - colours for the track map (by speed or by where the lap gains / loses time).
 // Channels are derived from GPS (domain/channels.js) so they work however the logger is mounted.
 import { deriveChannels } from "./domain/channels.js";
 import { deltaRate, deltaSeries, timeAtProgress } from "./domain/delta.js";
 import { distanceMeters } from "./domain/tracks.js";
+import { extraLapColor } from "./extra-laps.js";
 
 const WHITE = "#f4f4ee";
 const RED = "#e10600";
@@ -109,6 +111,10 @@ export function createAnalysisPanels(ctx) {
   const comparisonData = () => (state.comparisonLapNumber
     ? lapData(ctx.comparisonLapPoints(), `${state.comparisonRival ? "r" : "o"}${state.comparisonLapNumber}`)
     : null);
+  // Extra overlay laps (extra-laps.js), each with its colour.
+  const extraData = () => (state.extraLaps ?? [])
+    .map((number) => ({ number, data: lapData(ctx.lapPoints(number), `o${number}`), color: extraLapColor(state, number) }))
+    .filter((extra) => extra.data);
   const memo = (key, build) => {
     if (!cache.has(key)) cache.set(key, build());
     return cache.get(key);
@@ -217,6 +223,7 @@ export function createAnalysisPanels(ctx) {
     }
     const primary = primaryData();
     const comparison = comparisonData();
+    const extras = extraData();
     const zoom = `⤢ ${Math.round(100 / Math.max(state.chartView.end - state.chartView.start, .01))}%`;
     if (zoom !== zoomLabel) { zoomLabel = zoom; elements.stackZoomReset.textContent = zoom; }
 
@@ -266,7 +273,8 @@ export function createAnalysisPanels(ctx) {
         const channel = STACK_CHANNELS[id];
         const primarySeries = channel.delta ? deltaValues : seriesFor(id, primary);
         const comparisonSeries = channel.delta ? [] : seriesFor(id, comparison);
-        const visible = [...primarySeries, ...comparisonSeries].filter((item) => inView(item.progress)).map((item) => item.value);
+        const extraSeries = channel.delta ? [] : extras.map((extra) => ({ series: seriesFor(id, extra.data), color: extra.color }));
+        const visible = [...primarySeries, ...comparisonSeries, ...extraSeries.flatMap((extra) => extra.series)].filter((item) => inView(item.progress)).map((item) => item.value);
         const factor = yZoom[id] ?? 1;
         const [min, max] = scaleFor(channel, visible, factor);
         const stripTop = top + index * stripHeight;
@@ -294,10 +302,11 @@ export function createAnalysisPanels(ctx) {
           });
           context.stroke(); context.restore();
         };
+        extraSeries.forEach((extra) => line(extra.series, extra.color, 1.2));
         line(comparisonSeries, RED, 1.5);
         line(primarySeries, WHITE, 1.8);
         const unit = channel.unit.startsWith("unit.") ? t(channel.unit) : channel.unit;
-        const strip = { id, channel, primarySeries, comparisonSeries, stripTop, stripHeight, y, name: `${t(`chan.${id}`)}, ${unit}` };
+        const strip = { id, channel, primarySeries, comparisonSeries, extraSeries, stripTop, stripHeight, y, name: `${t(`chan.${id}`)}, ${unit}` };
         drawStripLabel(context, strip, null);
         return strip;
       });
@@ -349,6 +358,10 @@ export function createAnalysisPanels(ctx) {
       const comparisonValue = at(strip.comparisonSeries);
       if (primaryValue !== null) parts.push({ text: `  ${primaryValue}`, color: WHITE });
       if (comparisonValue !== null) parts.push({ text: `  ${comparisonValue}`, color: RED });
+      (strip.extraSeries ?? []).forEach((extra) => {
+        const value = at(extra.series);
+        if (value !== null) parts.push({ text: `  ${value}`, color: extra.color });
+      });
     }
     context.font = FONT; context.textAlign = "left"; context.textBaseline = "alphabetic";
     const label = parts.map((part) => part.text).join("");
@@ -548,10 +561,58 @@ export function createAnalysisPanels(ctx) {
     cursorDot(primary, WHITE);
   }
 
-  function translate() { renderChips(); }
+  // ---- Values at the cursor ----
+  const VALUE_CHANNELS = ["speed", "delta", "longG", "latG", "combinedG", "lean", "radius"];
+  const valueCells = new Map(); // element -> last text
+  const setText = (element, text) => { if (valueCells.get(element) !== text) { valueCells.set(element, text); element.textContent = text; } };
+  function renderValueTiles() {
+    valueCells.clear();
+    elements.valuesGrid.innerHTML = VALUE_CHANNELS.map((id) => {
+      const channel = STACK_CHANNELS[id];
+      const unit = channel.unit.startsWith("unit.") ? t(channel.unit) : channel.unit;
+      return `<div class="value-tile" data-value="${id}"><span class="value-label">${t(`chan.${id}`)}, ${unit}</span><b class="value-primary">—</b><span class="value-compare"></span><span class="value-diff"></span></div>`;
+    }).join("");
+  }
+  function drawValues() {
+    if (!elements.valuesGrid.childElementCount) renderValueTiles();
+    const primary = primaryData();
+    const comparison = comparisonData();
+    const cursor = state.cursorProgress;
+    const sample = (data) => (data && cursor !== null ? data.series[indexAt(data.series, cursor)]?.d ?? null : null);
+    const here = sample(primary); const there = sample(comparison);
+    if (!primary || cursor === null) setText(elements.valuesWhere, t("values.hint"));
+    else {
+      const start = timeAtProgress(primary.series, 0);
+      const time = (timeAtProgress(primary.series, cursor) - start) / 1000;
+      setText(elements.valuesWhere, t("values.where", { meters: Math.round(cursor * primary.length), percent: Math.round(cursor * 100), time: time.toFixed(2) }));
+    }
+    const deltaSamples = cursor !== null ? delta() : [];
+    for (const tile of elements.valuesGrid.children) {
+      const id = tile.dataset.value;
+      const channel = STACK_CHANNELS[id];
+      const [main, other, diff] = [tile.querySelector(".value-primary"), tile.querySelector(".value-compare"), tile.querySelector(".value-diff")];
+      if (channel.delta) {
+        const value = deltaSamples.length ? deltaSamples[indexAt(deltaSamples, cursor)]?.value : null;
+        setText(main, Number.isFinite(value) ? `${value > 0 ? "+" : value < 0 ? "−" : ""}${Math.abs(value).toFixed(3)}` : "—");
+        tile.dataset.trend = Number.isFinite(value) && value !== 0 ? (value > 0 ? "loss" : "gain") : "";
+        setText(other, ""); setText(diff, "");
+        continue;
+      }
+      const a = here ? channel.value(here) : null;
+      const b = there ? channel.value(there) : null;
+      const format = (value) => (Number.isFinite(value) ? value.toFixed(channel.digits) : "—");
+      setText(main, format(a));
+      setText(other, comparison ? format(b) : "");
+      // Rounded first, so a difference too small to show reads ±0 rather than −0.00.
+      const gap = Number.isFinite(a) && Number.isFinite(b) ? Number((a - b).toFixed(channel.digits)) : null;
+      setText(diff, gap === null ? "" : `Δ ${gap > 0 ? "+" : gap < 0 ? "−" : "±"}${Math.abs(gap).toFixed(channel.digits)}`);
+    }
+  }
+
+  function translate() { renderChips(); if (elements.valuesGrid) renderValueTiles(); }
   ctx.onLanguageChange(() => { translate(); draw(); });
   translate();
 
-  function draw() { drawStack(); drawGG(); }
+  function draw() { drawStack(); drawGG(); drawValues(); }
   return { draw, mapColors };
 }

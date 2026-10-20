@@ -4,6 +4,7 @@
 // and the row under the chart cursor is highlighted.
 
 import { cornerReport, statsFor } from "./domain/corner-report.js";
+import { exclusionVersion, getExcludedLaps } from "./lap-exclusion.js";
 
 const seconds = (milliseconds) => (milliseconds / 1000).toFixed(3);
 const gap = (milliseconds) => `${milliseconds > 0 ? "+" : milliseconds < 0 ? "−" : "±"}${(Math.abs(milliseconds) / 1000).toFixed(3)}`;
@@ -23,10 +24,10 @@ export function createCornersPanel(ctx) {
   function currentReport() {
     const laps = state.analysis?.laps ?? [];
     const reference = state.analysis?.fastestLap?.number ?? null;
-    const key = `${state.selectedSession?.id ?? ""}|${laps.length}|${reference}|${Boolean(state.selectedSession?.points)}`;
+    const key = `${state.selectedSession?.id ?? ""}|${laps.length}|${reference}|${Boolean(state.selectedSession?.points)}|${exclusionVersion()}`;
     if (key !== reportKey) {
       reportKey = key;
-      report = laps.length && reference ? cornerReport(laps.map((lap) => ({ number: lap.number, points: ctx.lapPoints(lap.number) })), reference) : null;
+      report = laps.length && reference ? cornerReport(laps.map((lap) => ({ number: lap.number, points: ctx.lapPoints(lap.number) })), reference, { exclude: [...getExcludedLaps(state)] }) : null;
       comparisonKey = "";
     }
     return report;

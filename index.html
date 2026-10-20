@@ -896,6 +896,11 @@
                 ><span data-i18n="laps.compare"></span
                 ><select id="comparisonLapSelect" disabled></select
               ></label>
+              <div class="extra-laps" id="extraLaps" hidden>
+                <span class="extra-chips" id="extraLapsChips"></span>
+                <button type="button" class="extra-add" id="extraLapsButton" aria-haspopup="true" aria-expanded="false" aria-controls="extraLapsMenu"></button>
+                <div class="extra-menu" id="extraLapsMenu" hidden></div>
+              </div>
             </div>
           </div>
           <div class="comparison-legend">
@@ -1007,6 +1012,20 @@
             <p class="corners-summary" id="cornersSummary"></p>
           </div>
           <div class="corners-wrap"><table class="corners-table" id="cornersTable"></table></div>
+        </article>
+        <article class="panel values-panel ws-only" id="valuesPanel">
+          <div class="panel-head">
+            <div><h2 data-i18n="values.title"></h2></div>
+            <p class="values-where" id="valuesWhere"></p>
+          </div>
+          <div class="values-grid" id="valuesGrid"></div>
+        </article>
+        <article class="panel lap-report-panel ws-only" id="lapReportPanel">
+          <div class="panel-head">
+            <div><h2 data-i18n="lapReport.title"></h2></div>
+            <p class="lap-report-summary" id="lapReportSummary"></p>
+          </div>
+          <div class="lap-report-wrap"><table class="lap-report-table" id="lapReportTable"></table></div>
         </article>
         <article class="panel gg-panel ws-only" id="ggPanel">
           <div class="panel-head">

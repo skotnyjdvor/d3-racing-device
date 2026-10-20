@@ -23,6 +23,8 @@ import "@fontsource/jetbrains-mono/700.css";
 import { initWorkspace } from "./workspace.js";
 import { createAnalysisPanels } from "./analysis-panels.js";
 import { createCornersPanel } from "./corners-panel.js";
+import { createLapReportPanel } from "./lap-report-panel.js";
+import { createExtraLaps, extraLapColor } from "./extra-laps.js";
 import { deltaSeries } from "./domain/delta.js";
 import { isOverlayFrame, overlayFrame, paintLayers } from "./canvas-layers.js";
 import { makeLocalSession, mergeSessions } from "./domain/local-sessions.js";
@@ -509,6 +511,8 @@ function pointAtProgress(series, progress) {
 const MAP_MODES = ["laps", "delta", "speed"];
 let analysisPanels = null;
 let cornersPanel = null;
+let lapReportPanel = null;
+let extraLaps = null;
 try { state.mapMode = MAP_MODES.includes(localStorage.getItem("d3-map-mode")) ? localStorage.getItem("d3-map-mode") : "laps"; } catch { state.mapMode = "laps"; }
 function renderMapMode() {
   elements.mapMode.querySelectorAll("[data-map-mode]").forEach((button) => button.setAttribute("aria-checked", String(button.dataset.mapMode === state.mapMode)));
@@ -662,6 +666,7 @@ function drawTrackCanvas(canvas) {
   // The AI map of a single-lap report shows only that lap.
   const hideComparison = canvas === elements.aiTrackCanvas && state.aiReport?.analysisMode === "single-lap";
   const comparisonSeries = state.comparisonLapNumber && !hideComparison ? distancePoints(comparisonLapPoints(), 1800) : [];
+  const extraSeries = canvas === elements.trackCanvas ? (state.extraLaps ?? []).map((number) => ({ series: distancePoints(lapPoints(number), 1800), color: extraLapColor(state, number) })) : [];
   const primaryPoints = primarySeries.map((item) => item.point);
   const comparisonPoints = comparisonSeries.map((item) => item.point);
   const boundsPoints = [...primaryPoints, ...comparisonPoints];
@@ -692,6 +697,12 @@ function drawTrackCanvas(canvas) {
     ];
   };
   context.lineCap = "round"; context.lineJoin = "round";
+  extraSeries.forEach(({ series, color }) => {
+    if (series.length < 2) return;
+    context.strokeStyle = color; context.lineWidth = 1.6; context.globalAlpha = .85; context.beginPath();
+    series.forEach((item, index) => { const [x, y] = project(item.point); index ? context.lineTo(x, y) : context.moveTo(x, y); });
+    context.stroke(); context.globalAlpha = 1;
+  });
   const drawTrajectory = (points, color, lineWidth) => {
     if (points.length < 2) return;
     context.strokeStyle = "rgba(255,255,255,.08)"; context.lineWidth = lineWidth + 6; context.beginPath();
@@ -795,10 +806,16 @@ function drawTrackCanvas(canvas) {
     return { x, y, radius: radius + 8, index, progress };
   }).filter(Boolean);
   trackAiMarkerAreas.set(canvas, markerAreas);
-  return { project, primarySeries, comparisonSeries };
+  return { project, primarySeries, comparisonSeries, extraSeries };
   });
   if (!geometry) return;
-  const { project, primarySeries, comparisonSeries } = geometry;
+  const { project, primarySeries, comparisonSeries, extraSeries } = geometry;
+  extraSeries.forEach(({ series, color }) => {
+    const point = pointAtProgress(series, state.cursorProgress)?.point;
+    if (!point) return;
+    const [x, y] = project(point);
+    context.fillStyle = color; context.beginPath(); context.arc(x, y, 4, 0, Math.PI * 2); context.fill();
+  });
 
   const drawCursorPoint = (series, color, shadow) => {
     const cursorPoint = pointAtProgress(series, state.cursorProgress)?.point;
@@ -1198,6 +1215,7 @@ function drawCharts() {
   drawDeltaChart();
   analysisPanels?.draw();
   cornersPanel?.draw();
+  lapReportPanel?.draw();
 }
 
 let cursorFrame = 0;
@@ -1267,6 +1285,12 @@ cornersPanel = createCornersPanel({
   state, elements, t, onLanguageChange, lapPoints, comparisonLapPoints, isOverlayFrame, formatLapTime,
   setCursorProgress, setChartRange,
 });
+lapReportPanel = createLapReportPanel({
+  state, elements, t, onLanguageChange, lapPoints, isOverlayFrame, formatLapTime,
+  selectLap: (number) => changePrimaryLap(number),
+  onExclusionChange: () => drawCharts(),
+});
+extraLaps = createExtraLaps({ state, elements, t, formatLapTime, onLanguageChange, onChange: () => { drawTrack(); drawCharts(); } });
 renderMapMode();
 elements.mapMode.addEventListener("click", (event) => {
   const button = event.target.closest("[data-map-mode]");
@@ -1497,6 +1521,7 @@ function renderLapControls() {
   elements.comparisonLapSelect.value = comparisonSelectValue();
   elements.primaryLapLegend.textContent = state.selectedLapNumber ? t("laps.legend", { lap: state.selectedLapNumber }) : "—";
   elements.comparisonLapLegend.textContent = comparisonLabel();
+  extraLaps?.render();
 }
 
 function updateLapView() {
@@ -1761,6 +1786,7 @@ async function selectSession(id) {
     state.selectedLapNumber = ordered[0]?.number ?? null;
     state.comparisonLapNumber = ordered[1]?.number ?? null;
     state.comparisonRival = false;
+    extraLaps?.reset();
     // A pilot who shared a session on the same track is the natural thing to compare with.
     if (rivalComparable()) { state.comparisonLapNumber = rivalFastestLap(); state.comparisonRival = true; }
   }

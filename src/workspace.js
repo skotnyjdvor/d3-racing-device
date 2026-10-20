@@ -3,31 +3,40 @@
 // arranging only: contents are covered and inactive, a click selects a panel, its eight handles resize
 // it on both axes, and dragging moves it. Panels in the way move aside (shrinking if needed) live, with
 // an animation, so the result is visible before the mouse is released. Esc during a drag undoes it.
+// Named sheets (tabs above the panels) each keep their own layout (domain/workspace-sheets.js).
+import {
+  MAX_SHEETS, activeLayout, addSheet, normalizeSheets, removeSheet, renameSheet, setActive, sheetLabel, updateActiveLayout,
+} from "./domain/workspace-sheets.js";
 import {
   COLS, DEFAULT_LAYOUT, PANELS, PRESETS, ROWS,
   hidePanel, moveItem, normalizeLayout, resizeItem, showPanel, visiblePanels,
 } from "./domain/workspace-layout.js";
 
-const STORAGE_KEY = "d3-workspace";
+const LEGACY_KEY = "d3-workspace";
+const STORAGE_KEY = "d3-workspace-sheets";
 const GAP = 8; // px between grid cells, same as the CSS gap
-const PANEL_SELECTORS = { sectors: "#sectorsPanel", track: ".track-panel", stack: "#stackPanel", gg: "#ggPanel", corners: "#cornersPanel", telemetry: ".telemetry-panel", delta: ".delta-panel", insights: ".insight-panel" };
+const PANEL_SELECTORS = { sectors: "#sectorsPanel", track: ".track-panel", stack: "#stackPanel", gg: "#ggPanel", corners: "#cornersPanel", laps: "#lapReportPanel", values: "#valuesPanel", telemetry: ".telemetry-panel", delta: ".delta-panel", insights: ".insight-panel" };
 const HANDLES = ["n", "s", "e", "w", "ne", "nw", "se", "sw"];
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
-function loadLayout() {
-  try { return normalizeLayout(JSON.parse(localStorage.getItem(STORAGE_KEY))); }
-  catch { return normalizeLayout(null); }
+function loadSheets() {
+  const read = (key) => { try { return JSON.parse(localStorage.getItem(key)); } catch { return null; } };
+  return normalizeSheets(read(STORAGE_KEY), read(LEGACY_KEY));
 }
-function saveLayout(layout) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(layout)); } catch {}
+function storeSheets(sheets) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(sheets)); } catch {}
 }
+const escapeHtml = (text) => String(text).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
+const escapeAttribute = escapeHtml;
 const layoutKey = (layout) => `${layout.items.map((item) => `${item.id}:${item.x},${item.y},${item.w},${item.h}`).join("|")}/${layout.hidden.join()}`;
 
 export function initWorkspace({ dashboard, actions, enabled, redraw, t, onLanguageChange }) {
   const panels = Object.fromEntries(PANELS.map((id) => [id, dashboard.querySelector(PANEL_SELECTORS[id])]));
   if (Object.values(panels).some((panel) => !panel)) return;
   const wide = window.matchMedia("(min-width: 1100px)");
-  let layout = loadLayout();
+  let sheets = loadSheets();
+  let layout = activeLayout(sheets);
+  const saveLayout = (next) => { sheets = updateActiveLayout(sheets, next); storeSheets(sheets); };
   let mounted = null; // DOM built while the workspace is active
   let editing = false;
   let selected = null; // id of the selected panel in Layout mode
@@ -57,7 +66,7 @@ export function initWorkspace({ dashboard, actions, enabled, redraw, t, onLangua
     editing = Boolean(next) && Boolean(mounted);
     document.body.classList.toggle("ws-editing", editing);
     toggle.setAttribute("aria-pressed", String(editing));
-    if (mounted) mounted.bar.hidden = !editing;
+    if (mounted) { mounted.bar.hidden = !editing; renderTabs(); }
     select(editing ? selected : null);
     scheduleRedraw();
   }
@@ -74,13 +83,16 @@ export function initWorkspace({ dashboard, actions, enabled, redraw, t, onLangua
     const bar = document.createElement("div");
     bar.className = "ws-bar";
     bar.hidden = true;
+    const tabs = document.createElement("div");
+    tabs.className = "ws-tabs";
+    tabs.setAttribute("role", "tablist");
     const area = document.createElement("div");
     area.className = "ws-area";
     area.style.setProperty("--ws-cols", COLS);
     area.style.setProperty("--ws-rows", ROWS);
     const parking = document.createElement("div");
     parking.hidden = true;
-    dashboard.append(bar, area, parking);
+    dashboard.append(tabs, bar, area, parking);
     // A cover over each panel for Layout mode: name, size, hide button and resize handles.
     const shields = Object.fromEntries(PANELS.map((id) => {
       const shield = document.createElement("div");
@@ -94,7 +106,7 @@ export function initWorkspace({ dashboard, actions, enabled, redraw, t, onLangua
     }));
     const observer = new ResizeObserver(scheduleRedraw);
     observer.observe(area);
-    mounted = { original, bar, area, parking, shields, observer };
+    mounted = { original, tabs, bar, area, parking, shields, observer };
     document.body.classList.add("ws-on");
     render();
   }
@@ -109,7 +121,7 @@ export function initWorkspace({ dashboard, actions, enabled, redraw, t, onLangua
       element.classList.remove("ws-selected", "ws-placeholder");
       dashboard.append(element);
     }
-    mounted.bar.remove(); mounted.area.remove(); mounted.parking.remove();
+    mounted.tabs.remove(); mounted.bar.remove(); mounted.area.remove(); mounted.parking.remove();
     mounted = null;
     document.body.classList.remove("ws-on");
     scheduleRedraw();
@@ -128,8 +140,82 @@ export function initWorkspace({ dashboard, actions, enabled, redraw, t, onLangua
     if (selected && layout.hidden.includes(selected)) selected = null;
     renderSelection();
     renderBar();
+    renderTabs();
     scheduleRedraw();
   }
+
+  // ---- Sheet tabs: click switches, double click (or F2) renames, × (Layout mode) removes, + adds ----
+  let tabsKey = "";
+  let renaming = null; // index of the tab being renamed
+  function renderTabs(force = false) {
+    if (!mounted) return;
+    const key = JSON.stringify([sheets.active, sheets.sheets.map((sheet, index) => sheetLabel(sheet, index, t)), editing, renaming, t("ws.addSheet")]);
+    if (key === tabsKey && !force) return;
+    tabsKey = key;
+    const many = sheets.sheets.length > 1;
+    mounted.tabs.innerHTML = sheets.sheets.map((sheet, index) => {
+      const label = sheetLabel(sheet, index, t);
+      const active = index === sheets.active;
+      if (index === renaming) return `<span class="ws-tab active editing"><input class="ws-tab-input" data-ws-rename="${index}" maxlength="24" value="${escapeAttribute(label)}" aria-label="${escapeAttribute(t("ws.renameSheet"))}" /></span>`;
+      const close = editing && many ? `<button type="button" class="ws-tab-close" data-ws-remove="${index}" title="${escapeAttribute(t("ws.removeSheet"))}" aria-label="${escapeAttribute(t("ws.removeSheet"))}: ${escapeAttribute(label)}">×</button>` : "";
+      return `<span class="ws-tab${active ? " active" : ""}"><button type="button" role="tab" class="ws-tab-name" data-ws-sheet="${index}" aria-selected="${active}" tabindex="${active ? 0 : -1}" title="${escapeAttribute(t("ws.sheetHint"))}">${escapeHtml(label)}</button>${close}</span>`;
+    }).join("") + (sheets.sheets.length < MAX_SHEETS ? `<button type="button" class="ws-tab-add" title="${escapeAttribute(t("ws.addSheet"))}" aria-label="${escapeAttribute(t("ws.addSheet"))}">+</button>` : "");
+    const input = mounted.tabs.querySelector(".ws-tab-input");
+    if (input) { input.focus(); input.select(); }
+  }
+  function changeSheets(next, { animate = true } = {}) {
+    if (next === sheets) return;
+    sheets = next;
+    storeSheets(sheets);
+    select(null);
+    const target = activeLayout(sheets);
+    if (layoutKey(target) === layoutKey(layout)) renderTabs();
+    else apply(target, { animate, save: false });
+  }
+  function finishRename(commit) {
+    if (renaming === null) return;
+    const input = mounted?.tabs.querySelector(".ws-tab-input");
+    const index = renaming;
+    renaming = null;
+    if (commit && input) { sheets = renameSheet(sheets, index, input.value); storeSheets(sheets); }
+    renderTabs(true);
+    mounted?.tabs.querySelector(`[data-ws-sheet="${index}"]`)?.focus();
+  }
+  dashboard.addEventListener("click", (event) => {
+    if (!mounted || !mounted.tabs.contains(event.target)) return;
+    const remove = event.target.closest("[data-ws-remove]");
+    if (remove) { changeSheets(removeSheet(sheets, Number(remove.dataset.wsRemove))); return; }
+    if (event.target.closest(".ws-tab-add")) { changeSheets(addSheet(sheets), { animate: false }); return; }
+    const tab = event.target.closest("[data-ws-sheet]");
+    if (tab) changeSheets(setActive(sheets, Number(tab.dataset.wsSheet)));
+  });
+  dashboard.addEventListener("dblclick", (event) => {
+    const tab = event.target.closest?.("[data-ws-sheet]");
+    if (!tab || !mounted?.tabs.contains(tab)) return;
+    renaming = Number(tab.dataset.wsSheet);
+    renderTabs();
+  });
+  dashboard.addEventListener("keydown", (event) => {
+    if (!mounted || !mounted.tabs.contains(event.target)) return;
+    if (event.target.classList.contains("ws-tab-input")) {
+      if (event.key === "Enter") { event.preventDefault(); finishRename(true); }
+      if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); finishRename(false); }
+      return;
+    }
+    const tab = event.target.closest("[data-ws-sheet]");
+    if (!tab) return;
+    const index = Number(tab.dataset.wsSheet);
+    if (event.key === "F2") { event.preventDefault(); renaming = index; renderTabs(); return; }
+    const step = { ArrowLeft: -1, ArrowRight: 1 }[event.key];
+    if (!step) return;
+    event.preventDefault();
+    const next = (index + step + sheets.sheets.length) % sheets.sheets.length;
+    changeSheets(setActive(sheets, next));
+    mounted.tabs.querySelector(`[data-ws-sheet="${next}"]`)?.focus();
+  });
+  dashboard.addEventListener("focusout", (event) => {
+    if (event.target.classList?.contains("ws-tab-input")) finishRename(true);
+  });
 
   function renderSelection() {
     const onlyOne = layout.items.length <= 1;
@@ -348,6 +434,7 @@ export function initWorkspace({ dashboard, actions, enabled, redraw, t, onLangua
       hide.title = t("ws.hide"); hide.setAttribute("aria-label", t("ws.hide"));
     }
     renderBar();
+    renderTabs();
   }
   const sync = () => {
     if (enabled() && wide.matches) mount(); else unmount();

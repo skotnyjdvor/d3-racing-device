@@ -74,3 +74,11 @@ test("no usable lap gives no report; a lap without corners is one straight", () 
   const straight = Array.from({ length: 50 }, (_item, index) => ({ timeMs: index * 40, latitude: 42 + index * 1e-5, longitude: 12, speed: 100, gForceY: 0 }));
   assert.deepEqual(trackSections(straight).map((section) => [section.id, section.from, section.to]), [["SF-SF", 0, 1]]);
 });
+
+test("laps the pilot left out never provide a best section", () => {
+  const winner = report.best[0].lap;
+  const without = cornerReport(laps, analysis.fastestLap.number, { exclude: [winner] });
+  assert.equal(without.laps.find((row) => row.number === winner).comparable, false);
+  assert.ok(without.best.every((best) => best.lap !== winner));
+  assert.ok(without.idealMs >= report.idealMs);
+});
