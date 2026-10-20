@@ -5,10 +5,11 @@
 
 import { cornerReport, statsFor } from "./domain/corner-report.js";
 import { exclusionVersion, getExcludedLaps } from "./lap-exclusion.js";
+import { toSpeed } from "./units.js";
 
 const seconds = (milliseconds) => (milliseconds / 1000).toFixed(3);
 const gap = (milliseconds) => `${milliseconds > 0 ? "+" : milliseconds < 0 ? "−" : "±"}${(Math.abs(milliseconds) / 1000).toFixed(3)}`;
-const speed = (value) => (Number.isFinite(value) ? String(Math.round(value)) : "—");
+const speed = (value) => (Number.isFinite(value) ? String(Math.round(toSpeed(value))) : "—");
 
 export function createCornersPanel(ctx) {
   const { state, elements, t } = ctx;

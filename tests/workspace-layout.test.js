@@ -37,11 +37,12 @@ test("normalizeLayout repairs stored layouts instead of trusting them", () => {
     { id: "track", x: -3, y: 0, w: 99, h: 1.4 },     // clamped into the grid, min size
     { id: "track", x: 0, y: 0, w: 6, h: 4 },         // duplicate
     { id: "evil", x: 0, y: 0, w: 6, h: 4 },          // unknown
-    { id: "delta", x: 0, y: 0, w: 6, h: 4 },         // overlaps track: moved to a free spot
+    { id: "values", x: 0, y: 0, w: 6, h: 4 },        // overlaps track: moved to a free spot
   ], hidden: ["nope"] });
   assertValid(repaired);
   assert.deepEqual(item(repaired, "track"), { id: "track", x: 0, y: 0, w: COLS, h: MIN_H });
-  assert.ok(item(repaired, "delta"));
+  assert.ok(item(repaired, "values"));
+  assert.ok(!item(normalizeLayout({ items: [{ id: "telemetry", x: 0, y: 0, w: 6, h: 4 }] }), "telemetry"), "panels no longer in the workspace are dropped");
 });
 
 test("old column layouts are converted to the grid", () => {
@@ -50,7 +51,7 @@ test("old column layouts are converted to the grid", () => {
       { width: .5, panels: [{ id: "track", size: 1 }] },
       { width: .5, panels: [{ id: "stack", size: .6 }, { id: "gg", size: .4 }] },
     ],
-    hidden: ["sectors", "corners", "laps", "values", "telemetry", "delta", "insights"],
+    hidden: ["sectors", "corners", "laps", "values", "insights"],
   });
   assertValid(converted);
   assert.deepEqual(item(converted, "track"), { id: "track", x: 0, y: 0, w: 12, h: 12 });
@@ -59,7 +60,7 @@ test("old column layouts are converted to the grid", () => {
 });
 
 test("a panel can be resized on both axes; the space it frees stays free", () => {
-  const start = grid([{ id: "track", x: 0, y: 0, w: 12, h: 12 }, { id: "stack", x: 12, y: 0, w: 12, h: 12 }], ["sectors", "gg", "telemetry", "delta", "insights"]);
+  const start = grid([{ id: "track", x: 0, y: 0, w: 12, h: 12 }, { id: "stack", x: 12, y: 0, w: 12, h: 12 }], ["sectors", "gg", "insights"]);
   const smaller = resizeItem(start, "track", { x: 0, y: 0, w: 8, h: 6 });
   assertValid(smaller);
   assert.deepEqual(item(smaller, "track"), { id: "track", x: 0, y: 0, w: 8, h: 6 });
@@ -71,7 +72,7 @@ test("growing or moving into a neighbour pushes it to the nearest free spot", ()
   const start = grid([
     { id: "track", x: 0, y: 0, w: 8, h: 6 },
     { id: "gg", x: 8, y: 0, w: 6, h: 6 },
-  ], ["sectors", "stack", "telemetry", "delta", "insights"]);
+  ], ["sectors", "stack", "insights"]);
   const wider = resizeItem(start, "track", { x: 0, y: 0, w: 12, h: 6 });
   assertValid(wider);
   assert.equal(item(wider, "track").w, 12);

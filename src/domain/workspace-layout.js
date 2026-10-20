@@ -4,7 +4,8 @@
 // if there is none, the change is refused. Free cells are allowed.
 // Every function returns a new layout object and never mutates its input.
 
-export const PANELS = ["sectors", "track", "stack", "gg", "corners", "laps", "values", "telemetry", "delta", "insights"];
+// The older Telemetry and Delta charts are covered by Channels and stay in the phone/web layout only.
+export const PANELS = ["sectors", "track", "stack", "gg", "corners", "laps", "values", "insights"];
 export const COLS = 24;
 export const ROWS = 12;
 export const MIN_W = 4;
@@ -13,15 +14,15 @@ export const MIN_H = 2;
 const box = (id, x, y, w, h) => ({ id, x, y, w, h });
 export const PRESETS = {
   // Timing screen: lap table and G-G on the left, map in the middle, stacked channels on the right.
-  timing: { items: [box("sectors", 0, 0, 7, 7), box("gg", 0, 7, 7, 5), box("track", 7, 0, 9, 12), box("stack", 16, 0, 8, 12)], hidden: ["corners", "laps", "values", "telemetry", "delta", "insights"] },
+  timing: { items: [box("sectors", 0, 0, 7, 7), box("gg", 0, 7, 7, 5), box("track", 7, 0, 9, 12), box("stack", 16, 0, 8, 12)], hidden: ["corners", "laps", "values", "insights"] },
   // Big map with the channels and the lap table next to it.
-  map: { items: [box("track", 0, 0, 14, 12), box("stack", 14, 0, 10, 7), box("sectors", 14, 7, 10, 5)], hidden: ["gg", "corners", "laps", "values", "telemetry", "delta", "insights"] },
+  map: { items: [box("track", 0, 0, 14, 12), box("stack", 14, 0, 10, 7), box("sectors", 14, 7, 10, 5)], hidden: ["gg", "corners", "laps", "values", "insights"] },
   // Channels first, map and G-G on the side.
-  charts: { items: [box("stack", 0, 0, 15, 8), box("values", 0, 8, 15, 4), box("track", 15, 0, 9, 7), box("gg", 15, 7, 9, 5)], hidden: ["sectors", "corners", "laps", "telemetry", "delta", "insights"] },
+  charts: { items: [box("stack", 0, 0, 15, 8), box("values", 0, 8, 15, 4), box("track", 15, 0, 9, 7), box("gg", 15, 7, 9, 5)], hidden: ["sectors", "corners", "laps", "insights"] },
   // Corner-by-corner: the corner table next to the map, channels below.
-  corners: { items: [box("corners", 0, 0, 11, 12), box("track", 11, 0, 13, 6), box("stack", 11, 6, 13, 6)], hidden: ["sectors", "gg", "laps", "values", "telemetry", "delta", "insights"] },
+  corners: { items: [box("corners", 0, 0, 11, 12), box("track", 11, 0, 13, 6), box("stack", 11, 6, 13, 6)], hidden: ["sectors", "gg", "laps", "values", "insights"] },
   // Lap report: every lap's figures, the map and the values at the cursor.
-  report: { items: [box("laps", 0, 0, 13, 12), box("track", 13, 0, 11, 7), box("values", 13, 7, 11, 5)], hidden: ["sectors", "stack", "gg", "corners", "telemetry", "delta", "insights"] },
+  report: { items: [box("laps", 0, 0, 13, 12), box("track", 13, 0, 11, 7), box("values", 13, 7, 11, 5)], hidden: ["sectors", "stack", "gg", "corners", "insights"] },
 };
 export const DEFAULT_LAYOUT = PRESETS.timing;
 

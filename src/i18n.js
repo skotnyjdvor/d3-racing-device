@@ -115,9 +115,13 @@ try {
 } catch {}
 
 const listeners = new Set();
+// A key can be redirected to another one at run time (units.js: "unit.speed" -> "unit.mph").
+const redirects = new Map();
+export function redirectTranslation(key, resolve) { redirects.set(key, resolve); }
 export const getLanguage = () => language;
 export function t(key, values = {}) {
-  const template = translations[language]?.[key] ?? translations.ru[key] ?? key;
+  const target = redirects.get(key)?.() ?? key;
+  const template = translations[language]?.[target] ?? translations.ru[target] ?? target;
   return template.replace(/\{(\w+)\}/g, (_, name) => values[name] ?? `{${name}}`);
 }
 export function applyTranslations(root = typeof document !== "undefined" ? document : null) {
@@ -132,5 +136,10 @@ export function setLanguage(next) {
   try { localStorage.setItem("d3-language", next); } catch {}
   applyTranslations();
   listeners.forEach((listener) => listener(next));
+}
+// Re-apply texts and notify listeners without changing the language (a unit changed).
+export function refreshTranslations() {
+  applyTranslations();
+  listeners.forEach((listener) => listener(language));
 }
 export function onLanguageChange(listener) { listeners.add(listener); return () => listeners.delete(listener); }

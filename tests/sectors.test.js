@@ -6,7 +6,7 @@ import { splitSessionIntoLaps } from "../src/domain/laps.js";
 import { analyzeSession } from "../src/domain/analysis.js";
 import { identifyTrack } from "../src/domain/tracks.js";
 import { TRACKS } from "../src/domain/track-catalog.js";
-import { computeSectors } from "../src/domain/sectors.js";
+import { computeSectors, sectorsWithout } from "../src/domain/sectors.js";
 
 function viterboSession() {
   const raw = parseRaceBoxCsv(fs.readFileSync(new URL("../src/fixtures/viterbo-session-2026-07-10.csv", import.meta.url), "utf8"));
@@ -60,4 +60,23 @@ test("a lap that misses a sector gate gets no sectors and is excluded from the i
 
 test("returns null without a fastest lap", () => {
   assert.equal(computeSectors([], { laps: [], fastestLap: null }), null);
+});
+
+test("left-out laps give no best sector, and the ideal lap and potential follow", () => {
+  const { points, analysis } = viterboSession();
+  const all = computeSectors(points, analysis);
+  assert.equal(sectorsWithout(all, new Set()), all, "nothing excluded: unchanged");
+  const winner = all.best[0].lap;
+  const without = sectorsWithout(all, new Set([winner]));
+  assert.ok(without.best.every((best) => best.lap !== winner));
+  assert.ok(without.idealMs >= all.idealMs);
+  assert.equal(without.laps.length, all.laps.length, "laps stay in the table");
+  const fastest = analysis.fastestLap.number;
+  const noFastest = sectorsWithout(all, new Set([fastest]));
+  assert.notEqual(noFastest.fastestLap, fastest);
+  assert.ok(noFastest.bestLapMs > all.bestLapMs);
+  assert.equal(noFastest.potentialMs, Math.max(0, noFastest.bestLapMs - noFastest.idealMs));
+  const none = sectorsWithout(all, new Set(all.laps.map((lap) => lap.number)));
+  assert.equal(none.idealMs, null);
+  assert.equal(none.potentialMs, null);
 });

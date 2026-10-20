@@ -5,6 +5,7 @@
 
 import { lapReport } from "./domain/lap-report.js";
 import { exclusionVersion, getExcludedLaps, setLapExcluded } from "./lap-exclusion.js";
+import { toSpeed } from "./units.js";
 
 const gap = (milliseconds) => (Number.isFinite(milliseconds) ? `${milliseconds > 0 ? "+" : milliseconds < 0 ? "−" : "±"}${(Math.abs(milliseconds) / 1000).toFixed(3)}` : "—");
 const fixed = (value, digits) => (Number.isFinite(value) ? value.toFixed(digits) : "—");
@@ -51,7 +52,7 @@ export function createLapReportPanel(ctx) {
     const best = (row, key, digits) => {
       const value = row[key];
       const isBest = !row.excluded && Number.isFinite(value) && Number.isFinite(bestValues[key]) && Math.abs(value - bestValues[key]) < 1e-9;
-      return `<td class="${isBest ? "best" : ""}">${fixed(value, digits)}</td>`;
+      return `<td class="${isBest ? "best" : ""}">${fixed(key.endsWith("Speed") ? toSpeed(value) : value, digits)}</td>`;
     };
     const head = `<thead><tr><th scope="col"><span class="visually-hidden">${t("lapReport.include")}</span></th><th scope="col">${t("lapReport.lap")}</th><th scope="col">${t("lapReport.time")}</th><th scope="col">Δ</th><th scope="col">V ${t("lapReport.max")}</th><th scope="col">V ${t("lapReport.min")}</th><th scope="col">V ${t("lapReport.avg")}</th><th scope="col">${t("lapReport.lat")}</th><th scope="col">${t("lapReport.brake")}</th><th scope="col">${t("lapReport.accel")}</th></tr></thead>`;
     const rows = data.rows.map((row) => {

@@ -23,8 +23,15 @@ import "@fontsource/jetbrains-mono/700.css";
 import { initWorkspace } from "./workspace.js";
 import { createAnalysisPanels } from "./analysis-panels.js";
 import { createCornersPanel } from "./corners-panel.js";
+import { createComparison } from "./comparison.js";
+import { createTrackMap } from "./track-map.js";
+import { distancePoints, downsample, lapsOf, pointAtProgress } from "./lap-series.js";
+import { startLandingTelemetry } from "./landing-telemetry.js";
 import { createLapReportPanel } from "./lap-report-panel.js";
-import { createExtraLaps, extraLapColor } from "./extra-laps.js";
+import { createExtraLaps, extraLapList } from "./extra-laps.js";
+import { getExcludedLaps } from "./lap-exclusion.js";
+import { setSpeedUnit, speedUnit, toSpeed } from "./units.js";
+import { sectorsWithout } from "./domain/sectors.js";
 import { deltaSeries } from "./domain/delta.js";
 import { isOverlayFrame, overlayFrame, paintLayers } from "./canvas-layers.js";
 import { makeLocalSession, mergeSessions } from "./domain/local-sessions.js";
@@ -35,6 +42,7 @@ import "./ai-sample.js";
 const elements = Object.fromEntries([...document.querySelectorAll("[id]")].map((element) => [element.id, element]));
 const state = { client: null, connected: false, deviceName: "", deviceModel: "", latestTelemetry: null, storage: null, sessions: [], selectedSession: null, analysis: null, sectors: null, trial: false, rival: null, comparisonSource: null, comparisonRival: false, selectedLapNumber: null, comparisonLapNumber: null, cursorProgress: null, chartView: { start: 0, end: 1 }, trackView: { scale: 1, offsetX: 0, offsetY: 0 }, telemetryMetric: "speed", track: null, user: null, cloudLogs: [], pollTimer: null, memoryBusy: false, aiReport: null, aiReportLanguage: null, aiAnalysisId: null, aiPending: false, aiHistory: [], aiHistoryLoading: false, aiHistoryError: "", aiHoverIndex: null, aiSelectedIndex: null };
 const trackAiMarkerAreas = new WeakMap();
+let drawTrackMap = null; // track-map.js, created on first draw
 const testMode = new URLSearchParams(location.search).has("mock");
 // Native apps (and ?app=1) use the telemetry-app layout; public/app-boot.js sets the class before paint.
 const appMode = document.documentElement.classList.contains("app-mode");
@@ -81,6 +89,12 @@ function setStatus(text, active = false) {
 
 // Phones: the analysis screen shows one tab at a time and short lap labels.
 const compactLayout = window.matchMedia("(max-width: 700px)");
+const {
+  pilotSource, useRivalComparison, sourceLapPoints, comparisonSessions, loadComparisonSession, comparisonCandidates, rememberTrack, rivalComparable, rivalFastestLap, extraLapPoints, comparisonLapPoints, shortName, comparisonLabel, comparisonSelectValue, rivalOptionText, comparisonOptionsHtml, comparisonAvailable, renderComparisonSource, changeComparisonSource,
+} = createComparison({
+  state, elements, t, escapeHtml, formatLapTime, formatDate, compactLayout,
+  lapPoints, loadLocalPoints, loadLog, updateLocalSession, showNotice, clearAiReport, updateLapView,
+});
 
 function setHint(text, isError = false) {
   elements.actionHint.textContent = text;
@@ -409,123 +423,7 @@ function canvasContext(canvas) {
   return { context, width: rect.width, height: rect.height };
 }
 
-function downsample(points, max = 1800) {
-  if (points.length <= max) return points;
-  const step = points.length / max;
-  return Array.from({ length: max }, (_, index) => points[Math.floor(index * step)]);
-}
 
-// ---- Comparison source: the comparison lap can come from this session, from a pilot's shared session
-// (state.rival) or from another of the pilot's own sessions on the same track. state.comparisonRival is
-// true when it comes from state.comparisonSource: { key, kind: "pilot" | "session", name, track, points, analysis }.
-function pilotSource() {
-  const rival = state.rival;
-  return rival ? { key: `r:${rival.token}`, kind: "pilot", name: rival.name, track: rival.track, points: rival.points, analysis: rival.analysis, token: rival.token } : null;
-}
-function useRivalComparison() {
-  state.comparisonSource = pilotSource();
-  state.comparisonLapNumber = rivalFastestLap();
-  state.comparisonRival = Boolean(state.comparisonSource && state.comparisonLapNumber);
-}
-function sourceLapPoints(number) {
-  return state.comparisonSource ? lapsOf(state.comparisonSource.points).get(number) ?? [] : [];
-}
-// Another own session, loaded without opening it; cached per session object.
-const comparisonSessions = new WeakMap();
-async function loadComparisonSession(session) {
-  if (comparisonSessions.has(session)) return comparisonSessions.get(session);
-  let points = session.points;
-  if (!points?.length && session.source === "local") points = await loadLocalPoints(session.id).catch(() => []);
-  if (!points?.length && session.source === "cloud") points = (await loadLog(session.cloudId).catch(() => null))?.points ?? [];
-  if (!points?.length) return null;
-  if (!session.points) { session.points = points; session.pointCount = points.length; }
-  const catalog = await loadTrackCatalog().catch(() => undefined);
-  const track = identifyTrack(points, catalog);
-  const lapped = splitSessionIntoLaps(points, track);
-  let analysis = null;
-  try { analysis = analyzeSession(lapped); } catch { return null; }
-  if (!analysis.laps.length) return null;
-  const source = { key: `s:${session.id}`, kind: "session", sessionId: String(session.id), name: session.title || formatDate(session.startedAt), track, points: lapped, analysis };
-  comparisonSessions.set(session, source);
-  return source;
-}
-const comparisonCandidates = () => state.sessions.filter((session) => session !== state.selectedSession && session.source !== "shared");
-// Laps of two sessions only line up when they were driven on the same, recognised track.
-function rivalComparable() {
-  const rival = state.rival;
-  return Boolean(rival && state.selectedSession && state.selectedSession.source !== "shared" && rival.track && state.track
-    && rival.track.id === state.track.id && rival.analysis.laps.length);
-}
-function rivalFastestLap() { return state.rival?.analysis.fastestLap?.number ?? state.rival?.analysis.laps[0]?.number ?? null; }
-function comparisonLapPoints() {
-  return state.comparisonRival && state.comparisonSource ? sourceLapPoints(state.comparisonLapNumber) : lapPoints(state.comparisonLapNumber);
-}
-function shortName(name, length = 14) { return name.length > length ? `${name.slice(0, length - 1)}…` : name; }
-function comparisonLabel(short = false) {
-  if (!state.comparisonLapNumber) return t("laps.none");
-  const lap = t("laps.legend", { lap: state.comparisonLapNumber });
-  const source = state.comparisonRival ? state.comparisonSource : null;
-  return source ? `${short ? shortName(source.name) : source.name} · ${lap}` : lap;
-}
-// Main selector: own laps, or laps of the chosen source as "x:N". AI page: own laps and a pilot's laps as "r:N".
-function comparisonSelectValue({ ai = false } = {}) {
-  if (!state.comparisonLapNumber) return "";
-  if (!state.comparisonRival) return String(state.comparisonLapNumber);
-  if (!ai) return `x:${state.comparisonLapNumber}`;
-  return state.comparisonSource?.kind === "pilot" ? `r:${state.comparisonLapNumber}` : "";
-}
-// A closed <select> shows only the chosen option, so the pilot's name goes into the text itself.
-function rivalOptionText(optionKey, lap) {
-  return compactLayout.matches ? `${shortName(state.rival.name, 8)} · ${t("laps.legend", { lap: lap.number })}` : `${state.rival.name} · ${t(optionKey, { lap: lap.number, time: formatLapTime(lap.durationMs) })}`;
-}
-function comparisonOptionsHtml(optionKey, own, { ai = false } = {}) {
-  const source = state.comparisonRival ? state.comparisonSource : null;
-  if (!ai && source) {
-    const laps = source.analysis.laps.map((lap) => `<option value="x:${lap.number}">${escapeHtml(t(optionKey, { lap: lap.number, time: formatLapTime(lap.durationMs) }))}</option>`).join("");
-    return `<option value="">${escapeHtml(t("laps.none"))}</option>${laps}`;
-  }
-  const rival = rivalComparable()
-    ? `<optgroup label="${escapeHtml(state.rival.name)}">${state.rival.analysis.laps.map((lap) => `<option value="r:${lap.number}">${escapeHtml(rivalOptionText(optionKey, lap))}</option>`).join("")}</optgroup>`
-    : "";
-  return `<option value="">${escapeHtml(t("laps.none"))}</option>${own}${rival}`;
-}
-function comparisonAvailable() { return (state.analysis?.laps.length ?? 0) > 1 || rivalComparable() || Boolean(state.comparisonRival && state.comparisonSource); }
-
-function renderComparisonSource() {
-  const select = elements.comparisonSourceSelect;
-  const others = comparisonCandidates();
-  const pilot = rivalComparable() ? `<option value="pilot">${escapeHtml(state.rival.name)}</option>` : "";
-  const sessions = others.length ? `<optgroup label="${escapeHtml(t("compare.mySessions"))}">${others.map((session) => `<option value="s:${escapeHtml(session.id)}">${escapeHtml(session.title || formatDate(session.startedAt))}${session.title ? ` · ${escapeHtml(formatDate(session.startedAt))}` : ""}</option>`).join("")}</optgroup>` : "";
-  select.innerHTML = `<option value="">${escapeHtml(t("compare.thisSession"))}</option>${pilot}${sessions}`;
-  const source = state.comparisonRival ? state.comparisonSource : null;
-  select.value = !source ? "" : source.kind === "pilot" ? "pilot" : `s:${source.sessionId}`;
-  select.disabled = !state.analysis || (!pilot && !sessions);
-}
-
-async function changeComparisonSource(value) {
-  const select = elements.comparisonSourceSelect;
-  if (!value) {
-    state.comparisonSource = null; state.comparisonRival = false;
-    const other = [...(state.analysis?.laps ?? [])].sort((a, b) => a.durationMs - b.durationMs).find((lap) => lap.number !== state.selectedLapNumber);
-    state.comparisonLapNumber = other?.number ?? null;
-  } else if (value === "pilot") {
-    useRivalComparison();
-  } else {
-    const session = state.sessions.find((item) => `s:${item.id}` === value);
-    const selectedBefore = state.selectedSession;
-    select.disabled = true;
-    const source = session ? await loadComparisonSession(session) : null;
-    select.disabled = false;
-    if (state.selectedSession !== selectedBefore) return;
-    if (!source) { showNotice(t("compare.loadFailed"), true); renderComparisonSource(); return; }
-    if (!source.track || !state.track || source.track.id !== state.track.id) { showNotice(t("compare.otherTrack"), true); renderComparisonSource(); return; }
-    state.comparisonSource = source;
-    state.comparisonLapNumber = source.analysis.fastestLap?.number ?? source.analysis.laps[0].number;
-    state.comparisonRival = true;
-  }
-  clearAiReport();
-  updateLapView();
-}
 
 // A short message that fades on its own; works for guests who see no account dialog.
 let noticeTimer = 0;
@@ -537,20 +435,6 @@ function showNotice(message, error = false) {
   noticeTimer = setTimeout(() => { elements.appNotice.hidden = true; }, error ? 8000 : 6000);
 }
 
-// Points grouped by lap, built once per points array: charts ask for laps on every cursor frame.
-const lapIndex = new WeakMap();
-function lapsOf(points) {
-  let laps = lapIndex.get(points);
-  if (!laps) {
-    laps = new Map();
-    for (const point of points) {
-      const lap = laps.get(point.lap);
-      if (lap) lap.push(point); else laps.set(point.lap, [point]);
-    }
-    lapIndex.set(points, laps);
-  }
-  return laps;
-}
 function lapPoints(number) {
   // Cloud sessions have no points until loadLog finishes; charts may redraw meanwhile (resize, view switch).
   const points = state.selectedSession?.points;
@@ -558,37 +442,7 @@ function lapPoints(number) {
   return number ? lapsOf(points).get(number) ?? [] : points;
 }
 
-// Distance resampling is cached per points array and sample count (laps come from lapsOf, so they are stable).
-const distanceCache = new WeakMap();
-function distancePoints(points, max = 2400) {
-  let bySize = distanceCache.get(points);
-  if (!bySize) { bySize = new Map(); distanceCache.set(points, bySize); }
-  if (!bySize.has(max)) bySize.set(max, computeDistancePoints(points, max));
-  return bySize.get(max);
-}
-function computeDistancePoints(points, max) {
-  const sampled = downsample(points, max);
-  if (sampled.length < 2) return [];
-  let distance = 0;
-  const series = sampled.map((point, index) => {
-    if (index) distance += distanceMeters(sampled[index - 1], point);
-    return { distance, point };
-  });
-  const total = Math.max(distance, 1);
-  return series.map((item) => ({ progress: item.distance / total, point: item.point }));
-}
 
-function pointAtProgress(series, progress) {
-  if (!series.length || progress === null) return null;
-  let low = 0; let high = series.length - 1;
-  while (low < high) {
-    const middle = Math.floor((low + high) / 2);
-    if (series[middle].progress < progress) low = middle + 1;
-    else high = middle;
-  }
-  if (low > 0 && Math.abs(series[low - 1].progress - progress) < Math.abs(series[low].progress - progress)) return series[low - 1];
-  return series[low];
-}
 
 // Track map colouring: plain laps, gain/loss against the comparison lap, or speed.
 const MAP_MODES = ["laps", "delta", "speed"];
@@ -642,11 +496,13 @@ function drawSectorMarkers(context, padding, plotWidth, height) {
 }
 
 function renderSectors() {
-  const sectors = state.sectors;
-  const available = Number.isFinite(sectors?.idealMs);
+  const excluded = getExcludedLaps(state);
+  const sectors = sectorsWithout(state.sectors, excluded);
+  const available = Boolean(sectors);
   elements.sectorsPanel.classList.toggle("is-empty", !available);
-  elements.idealLapValue.textContent = available ? formatLapTime(sectors.idealMs) : "—";
-  elements.idealGainValue.textContent = available ? `−${(sectors.potentialMs / 1000).toFixed(3)}` : "—";
+  const ideal = available && Number.isFinite(sectors.idealMs);
+  elements.idealLapValue.textContent = ideal ? formatLapTime(sectors.idealMs) : "—";
+  elements.idealGainValue.textContent = ideal ? `−${(sectors.potentialMs / 1000).toFixed(3)}` : "—";
   if (!available) {
     elements.sectorTable.innerHTML = "";
     elements.sectorNote.textContent = t("sectors.empty");
@@ -654,20 +510,23 @@ function renderSectors() {
   }
   const head = `<thead><tr><th scope="col">${t("sectors.lap")}</th>${sectors.best.map((_, index) => `<th scope="col">S${index + 1}</th>`).join("")}<th scope="col">${t("sectors.time")}</th></tr></thead>`;
   const rows = sectors.laps.map((lap) => {
-    const classes = [lap.number === state.selectedLapNumber && "is-primary", (!state.comparisonRival && lap.number === state.comparisonLapNumber) && "is-compare"].filter(Boolean).join(" ");
+    const left = excluded.has(lap.number);
+    const classes = [lap.number === state.selectedLapNumber && "is-primary", (!state.comparisonRival && lap.number === state.comparisonLapNumber) && "is-compare", left && "excluded"].filter(Boolean).join(" ");
     const cells = sectors.best.map((best, index) => {
       const value = lap.sectors?.[index];
       if (!Number.isFinite(value)) return `<td class="empty"><b>—</b><small>&nbsp;</small></td>`;
-      const isBest = best.lap === lap.number;
-      return `<td class="${isBest ? "best" : ""}"><b>${formatSectorTime(value)}</b><small>${isBest ? t("sectors.best") : formatGap(value - best.timeMs)}</small></td>`;
+      const isBest = best?.lap === lap.number;
+      return `<td class="${isBest ? "best" : ""}"><b>${formatSectorTime(value)}</b><small>${isBest ? t("sectors.best") : best && !left ? formatGap(value - best.timeMs) : "&nbsp;"}</small></td>`;
     }).join("");
-    const fastest = lap.number === sectors.referenceLap;
-    return `<tr class="${classes}" data-sector-lap="${lap.number}" tabindex="0" aria-selected="${lap.number === state.selectedLapNumber}"><th scope="row">${lap.number}</th>${cells}<td class="lap-time${fastest ? " fastest" : ""}"><b>${formatLapTime(lap.durationMs)}</b><small>${fastest ? t("sectors.best") : formatGap(lap.durationMs - sectors.bestLapMs)}</small></td></tr>`;
+    const fastest = lap.number === (sectors.fastestLap ?? sectors.referenceLap);
+    const lapGap = left || !Number.isFinite(sectors.bestLapMs) ? t("sectors.left") : formatGap(lap.durationMs - sectors.bestLapMs);
+    return `<tr class="${classes}" data-sector-lap="${lap.number}" tabindex="0" aria-selected="${lap.number === state.selectedLapNumber}"><th scope="row">${lap.number}</th>${cells}<td class="lap-time${fastest ? " fastest" : ""}"><b>${formatLapTime(lap.durationMs)}</b><small>${fastest ? t("sectors.best") : lapGap}</small></td></tr>`;
   }).join("");
-  const foot = `<tfoot><tr><th scope="row">${t("sectors.idealRow")}</th>${sectors.best.map((best) => `<td class="best"><b>${formatSectorTime(best.timeMs)}</b><small>${t("sectors.fromLap", { lap: best.lap })}</small></td>`).join("")}<td class="lap-time ideal"><b>${formatLapTime(sectors.idealMs)}</b><small>−${(sectors.potentialMs / 1000).toFixed(3)}</small></td></tr></tfoot>`;
+  const foot = ideal ? `<tfoot><tr><th scope="row">${t("sectors.idealRow")}</th>${sectors.best.map((best) => `<td class="best"><b>${formatSectorTime(best.timeMs)}</b><small>${t("sectors.fromLap", { lap: best.lap })}</small></td>`).join("")}<td class="lap-time ideal"><b>${formatLapTime(sectors.idealMs)}</b><small>−${(sectors.potentialMs / 1000).toFixed(3)}</small></td></tr></tfoot>` : "";
   elements.sectorTable.innerHTML = `${head}<tbody>${rows}</tbody>${foot}`;
   const partial = sectors.laps.some((lap) => !lap.sectors);
-  elements.sectorNote.textContent = `${t("sectors.note", { lap: sectors.referenceLap })}${partial ? ` ${t("sectors.partial")}` : ""}`;
+  const leftNote = excluded.size ? ` ${t("sectors.excludedNote", { laps: [...excluded].sort((a, b) => a - b).join(", ") })}` : "";
+  elements.sectorNote.textContent = `${t("sectors.note", { lap: sectors.referenceLap })}${partial ? ` ${t("sectors.partial")}` : ""}${leftNote}`;
 }
 
 function chartX(progress, padding, plotWidth) {
@@ -727,191 +586,15 @@ function resetTrackZoom() {
   drawTrack();
 }
 
+
+// Created on first use: everything it needs is defined by then.
 function drawTrackCanvas(canvas) {
-  if (!isOverlayFrame()) {
-    const rect = canvas.getBoundingClientRect();
-    if (rect.width < 2 || rect.height < 2) return;
-  }
-  // Static layer: grid, trajectories, sectors and AI markers. Cursor frames only redraw the cursor dots.
-  const { context, geometry } = paintLayers(canvas, canvasContext, (context, width, height) => {
-  trackAiMarkerAreas.set(canvas, []);
-  context.fillStyle = "#08080c";
-  context.fillRect(0, 0, width, height);
-  context.strokeStyle = "rgba(255,255,255,.035)"; context.lineWidth = 1;
-  const gridSize = width < 560 ? 38 : 52;
-  for (let x = gridSize; x < width; x += gridSize) {
-    context.beginPath(); context.moveTo(x, 0); context.lineTo(x, height); context.stroke();
-  }
-  for (let y = gridSize; y < height; y += gridSize) {
-    context.beginPath(); context.moveTo(0, y); context.lineTo(width, y); context.stroke();
-  }
-  const primarySeries = distancePoints(lapPoints(state.selectedLapNumber), 1800);
-  // The AI map of a single-lap report shows only that lap.
-  const hideComparison = canvas === elements.aiTrackCanvas && state.aiReport?.analysisMode === "single-lap";
-  const comparisonSeries = state.comparisonLapNumber && !hideComparison ? distancePoints(comparisonLapPoints(), 1800) : [];
-  const extraSeries = canvas === elements.trackCanvas ? (state.extraLaps ?? []).map((number) => ({ series: distancePoints(lapPoints(number), 1800), color: extraLapColor(state, number) })) : [];
-  const primaryPoints = primarySeries.map((item) => item.point);
-  const comparisonPoints = comparisonSeries.map((item) => item.point);
-  const boundsPoints = [...primaryPoints, ...comparisonPoints];
-  if (primaryPoints.length < 2) {
-    if (canvas === elements.trackCanvas) renderMapLegend("");
-    context.fillStyle = "#8c8d93";
-    context.font = "13px system-ui";
-    context.fillText(t("track.canvasEmpty"), 24, 38);
-    return null;
-  }
-  const lats = boundsPoints.map((point) => point.latitude);
-  const lons = boundsPoints.map((point) => point.longitude);
-  const minLat = Math.min(...lats); const maxLat = Math.max(...lats);
-  const minLon = Math.min(...lons); const maxLon = Math.max(...lons);
-  const padding = 38;
-  const scale = Math.min(
-    (width - padding * 2) / Math.max(maxLon - minLon, 1e-9),
-    (height - padding * 2) / Math.max(maxLat - minLat, 1e-9),
-  );
-  const offsetX = (width - (maxLon - minLon) * scale) / 2;
-  const offsetY = (height - (maxLat - minLat) * scale) / 2;
-  const project = (point) => {
-    const baseX = offsetX + (point.longitude - minLon) * scale;
-    const baseY = offsetY + (maxLat - point.latitude) * scale;
-    return [
-      width / 2 + (baseX - width / 2) * state.trackView.scale + state.trackView.offsetX,
-      height / 2 + (baseY - height / 2) * state.trackView.scale + state.trackView.offsetY,
-    ];
-  };
-  context.lineCap = "round"; context.lineJoin = "round";
-  extraSeries.forEach(({ series, color }) => {
-    if (series.length < 2) return;
-    context.strokeStyle = color; context.lineWidth = 1.6; context.globalAlpha = .85; context.beginPath();
-    series.forEach((item, index) => { const [x, y] = project(item.point); index ? context.lineTo(x, y) : context.moveTo(x, y); });
-    context.stroke(); context.globalAlpha = 1;
+  drawTrackMap ??= createTrackMap({
+    state, elements, t, isOverlayFrame, paintLayers, canvasContext, trackAiMarkerAreas,
+    lapPoints, comparisonLapPoints, extraLapPoints, sectorFractions, renderMapLegend, SECTOR_COLOR,
+    analysisPanels: () => analysisPanels, cornersPanel: () => cornersPanel,
   });
-  const drawTrajectory = (points, color, lineWidth) => {
-    if (points.length < 2) return;
-    context.strokeStyle = "rgba(255,255,255,.08)"; context.lineWidth = lineWidth + 6; context.beginPath();
-    points.forEach((point, index) => { const [x, y] = project(point); index ? context.lineTo(x, y) : context.moveTo(x, y); });
-    context.stroke();
-    context.strokeStyle = color; context.lineWidth = lineWidth; context.beginPath();
-    points.forEach((point, index) => { const [x, y] = project(point); index ? context.lineTo(x, y) : context.moveTo(x, y); });
-    context.stroke();
-  };
-  const coloring = canvas === elements.trackCanvas && state.mapMode !== "laps" && analysisPanels
-    ? analysisPanels.mapColors(state.mapMode, primarySeries)
-    : { colors: null, legend: "" };
-  if (canvas === elements.trackCanvas) renderMapLegend(coloring.legend);
-  if (coloring.colors) {
-    drawTrajectory(comparisonPoints, "rgba(225,6,0,.35)", 1.6);
-    context.strokeStyle = "rgba(255,255,255,.08)"; context.lineWidth = 10; context.beginPath();
-    primaryPoints.forEach((point, index) => { const [x, y] = project(point); index ? context.lineTo(x, y) : context.moveTo(x, y); });
-    context.stroke();
-    context.lineWidth = 4.2;
-    let runStart = 0;
-    for (let index = 1; index <= primaryPoints.length; index++) {
-      if (index < primaryPoints.length && coloring.colors[index] === coloring.colors[runStart] && index - runStart < 400) continue;
-      const end = Math.min(index, primaryPoints.length - 1);
-      context.strokeStyle = coloring.colors[runStart];
-      context.beginPath();
-      for (let point = runStart; point <= end; point++) { const [x, y] = project(primaryPoints[point]); point === runStart ? context.moveTo(x, y) : context.lineTo(x, y); }
-      context.stroke();
-      runStart = index;
-    }
-  } else {
-    drawTrajectory(comparisonPoints, "#e10600", 2.6);
-    drawTrajectory(primaryPoints, "#f4f4ee", 3.2);
-  }
-
-  if (canvas === elements.trackCanvas && state.sectors) {
-    // Sector gates as short ticks across the line, sector numbers at the middle of each sector.
-    context.save();
-    state.sectors.gates.forEach((gate) => {
-      const [ax, ay] = project(gate.a); const [bx, by] = project(gate.b); const [cx, cy] = project(gate.center);
-      const length = Math.hypot(bx - ax, by - ay) || 1;
-      const half = 11;
-      const ux = (bx - ax) / length; const uy = (by - ay) / length;
-      context.strokeStyle = "rgba(8,8,12,.9)"; context.lineWidth = 6;
-      context.beginPath(); context.moveTo(cx - ux * half, cy - uy * half); context.lineTo(cx + ux * half, cy + uy * half); context.stroke();
-      context.strokeStyle = SECTOR_COLOR; context.lineWidth = 3;
-      context.beginPath(); context.moveTo(cx - ux * half, cy - uy * half); context.lineTo(cx + ux * half, cy + uy * half); context.stroke();
-    });
-    const bounds = [0, ...sectorFractions(), 1];
-    context.font = "700 12px 'JetBrains Mono', ui-monospace, monospace";
-    context.textAlign = "center"; context.textBaseline = "middle";
-    bounds.slice(0, -1).forEach((start, index) => {
-      const middle = (start + bounds[index + 1]) / 2;
-      const here = pointAtProgress(primarySeries, middle)?.point;
-      const ahead = pointAtProgress(primarySeries, Math.min(1, middle + .01))?.point;
-      if (!here || !ahead) return;
-      const [hx, hy] = project(here); const [nx, ny] = project(ahead);
-      const length = Math.hypot(nx - hx, ny - hy) || 1;
-      const x = hx - (ny - hy) / length * 22; const y = hy + (nx - hx) / length * 22;
-      context.fillStyle = "rgba(8,8,12,.92)"; context.strokeStyle = SECTOR_COLOR; context.lineWidth = 1.5;
-      context.beginPath(); context.roundRect(x - 15, y - 10, 30, 20, 4); context.fill(); context.stroke();
-      context.fillStyle = SECTOR_COLOR; context.fillText(`S${index + 1}`, x, y + .5);
-    });
-    context.restore();
-  }
-
-  if (canvas === elements.trackCanvas && cornersPanel) {
-    // Corner names at the apexes, on the other side of the line from the sector numbers.
-    context.save();
-    context.font = "600 11px 'JetBrains Mono', ui-monospace, monospace";
-    context.textAlign = "center"; context.textBaseline = "middle";
-    cornersPanel.mapLabels().forEach(({ label, progress }) => {
-      const here = pointAtProgress(primarySeries, progress)?.point;
-      const ahead = pointAtProgress(primarySeries, Math.min(1, progress + .01))?.point;
-      if (!here || !ahead) return;
-      const [hx, hy] = project(here); const [nx, ny] = project(ahead);
-      const length = Math.hypot(nx - hx, ny - hy) || 1;
-      const x = hx + (ny - hy) / length * 20; const y = hy - (nx - hx) / length * 20;
-      const textWidth = context.measureText(label).width;
-      context.fillStyle = "rgba(8,8,12,.85)";
-      context.beginPath(); context.roundRect(x - textWidth / 2 - 4, y - 8, textWidth + 8, 16, 3); context.fill();
-      context.fillStyle = "#c9cad0"; context.fillText(label, x, y + .5);
-    });
-    context.restore();
-  }
-
-  const markerAreas = (state.aiReport?.timeLosses || []).map((item, index) => {
-    const progress = Math.max(0, Math.min(1, Number(item.distancePercent) / 100));
-    const markerPoint = pointAtProgress(primarySeries, progress)?.point;
-    if (!markerPoint) return null;
-    const [x, y] = project(markerPoint);
-    const active = index === state.aiHoverIndex || index === state.aiSelectedIndex;
-    const radius = active ? 13 : 10;
-    context.save();
-    context.shadowColor = "rgba(255,176,0,.85)"; context.shadowBlur = active ? 24 : 15;
-    context.fillStyle = "#ffb000"; context.beginPath(); context.arc(x, y, radius, 0, Math.PI * 2); context.fill();
-    context.shadowBlur = 0; context.strokeStyle = active ? "#ffffff" : "rgba(255,255,255,.8)"; context.lineWidth = active ? 2.5 : 1.5;
-    context.beginPath(); context.arc(x, y, radius + 4, 0, Math.PI * 2); context.stroke();
-    context.fillStyle = "#080b10"; context.font = `900 ${active ? 14 : 12}px 'JetBrains Mono', ui-monospace, monospace`;
-    context.textAlign = "center"; context.textBaseline = "middle"; context.fillText(String(index + 1), x, y + .5);
-    context.restore();
-    return { x, y, radius: radius + 8, index, progress };
-  }).filter(Boolean);
-  trackAiMarkerAreas.set(canvas, markerAreas);
-  return { project, primarySeries, comparisonSeries, extraSeries };
-  });
-  if (!geometry) return;
-  const { project, primarySeries, comparisonSeries, extraSeries } = geometry;
-  extraSeries.forEach(({ series, color }) => {
-    const point = pointAtProgress(series, state.cursorProgress)?.point;
-    if (!point) return;
-    const [x, y] = project(point);
-    context.fillStyle = color; context.beginPath(); context.arc(x, y, 4, 0, Math.PI * 2); context.fill();
-  });
-
-  const drawCursorPoint = (series, color, shadow) => {
-    const cursorPoint = pointAtProgress(series, state.cursorProgress)?.point;
-    if (!cursorPoint) return;
-    const [x, y] = project(cursorPoint);
-    context.shadowColor = shadow; context.shadowBlur = 14;
-    context.fillStyle = color; context.beginPath(); context.arc(x, y, 5.5, 0, Math.PI * 2); context.fill();
-    context.shadowBlur = 0; context.strokeStyle = "#ffffff"; context.lineWidth = 1.5;
-    context.beginPath(); context.arc(x, y, 8, 0, Math.PI * 2); context.stroke();
-  };
-  drawCursorPoint(comparisonSeries, "#e10600", "rgba(225,6,0,.8)");
-  drawCursorPoint(primarySeries, "#f4f4ee", "rgba(244,244,238,.8)");
-
+  drawTrackMap(canvas);
 }
 
 function drawTrack() {
@@ -1128,8 +811,10 @@ function drawComparisonChart(canvas, key, { speed = false } = {}) {
   // Static layer: grid, sectors and both traces. Cursor frames only redraw the cursor line and values.
   const { context, width, height, geometry } = paintLayers(canvas, canvasContext, (context, width, height) => {
   context.fillStyle = "#08080c"; context.fillRect(0, 0, width, height);
-  const primary = distanceSeries(lapPoints(state.selectedLapNumber), key);
-  const comparison = state.comparisonLapNumber ? distanceSeries(comparisonLapPoints(), key) : [];
+  // Speeds in the chosen unit (the cached series stay in km/h).
+  const shown = (series) => (speed && speedUnit() !== "kmh" ? series.map((item) => ({ ...item, value: toSpeed(item.value) })) : series);
+  const primary = shown(distanceSeries(lapPoints(state.selectedLapNumber), key));
+  const comparison = state.comparisonLapNumber ? shown(distanceSeries(comparisonLapPoints(), key)) : [];
   if (primary.length < 2) return null;
 
   const padding = { left: 48, right: 18, top: 18, bottom: 30 };
@@ -1361,7 +1046,7 @@ elements.chartZoomReset.addEventListener("click", resetChartZoom);
 
 analysisPanels = createAnalysisPanels({
   state, elements, t, onLanguageChange,
-  lapPoints, comparisonLapPoints, distancePoints, canvasContext, sectorFractions, paintLayers, isOverlayFrame,
+  lapPoints, comparisonLapPoints, extraLapPoints, distancePoints, canvasContext, sectorFractions, paintLayers, isOverlayFrame,
   setCursorProgress, setChartZoom, setChartRange, resetChartZoom,
 });
 cornersPanel = createCornersPanel({
@@ -1371,7 +1056,7 @@ cornersPanel = createCornersPanel({
 lapReportPanel = createLapReportPanel({
   state, elements, t, onLanguageChange, lapPoints, isOverlayFrame, formatLapTime,
   selectLap: (number) => changePrimaryLap(number),
-  onExclusionChange: () => drawCharts(),
+  onExclusionChange: () => { renderSectors(); drawCharts(); },
 });
 extraLaps = createExtraLaps({ state, elements, t, formatLapTime, onLanguageChange, onChange: () => { drawTrack(); drawCharts(); } });
 renderMapMode();
@@ -1613,7 +1298,7 @@ function updateLapView() {
   const lap = state.analysis.laps.find((item) => item.number === state.selectedLapNumber);
   elements.durationValue.textContent = lap ? formatLapTime(lap.durationMs) : formatDuration(state.analysis.session.durationMs);
   elements.durationMeta.textContent = lap ? t("laps.legend", { lap: lap.number }) : formatDate(state.selectedSession.startedAt);
-  elements.maxSpeedValue.textContent = (lap?.maxSpeed ?? state.analysis.session.maxSpeed).toFixed(1);
+  elements.maxSpeedValue.textContent = toSpeed(lap?.maxSpeed ?? state.analysis.session.maxSpeed).toFixed(1);
   elements.sampleRateValue.textContent = state.analysis.sampleRateHz.toFixed(0);
   const comparisonLap = (state.comparisonRival ? state.comparisonSource?.analysis.laps : state.analysis.laps)?.find((item) => item.number === state.comparisonLapNumber);
   const gapMs = lap && comparisonLap ? lap.durationMs - comparisonLap.durationMs : null;
@@ -1621,7 +1306,7 @@ function updateLapView() {
   elements.trackStatGap.textContent = gapMs === null ? "Δ —" : `Δ ${formatGap(gapMs)} ${t("unit.seconds")}`;
   elements.trackStatGap.classList.toggle("ahead", gapMs !== null && gapMs < 0);
   elements.trackStatGap.classList.toggle("behind", gapMs !== null && gapMs > 0);
-  elements.trackStatSpeed.textContent = `${(lap?.maxSpeed ?? state.analysis.session.maxSpeed).toFixed(1)} ${t("unit.speed")}`;
+  elements.trackStatSpeed.textContent = `${toSpeed(lap?.maxSpeed ?? state.analysis.session.maxSpeed).toFixed(1)} ${t("unit.speed")}`;
   elements.trackTitle.textContent = `${state.track ? `${state.track.name} · ` : ""}${state.selectedSession.title || t("sessions.item", { id: state.selectedSession.displayId ?? state.selectedSession.id })}${lap ? ` · ${t("laps.legend", { lap: lap.number })}` : ""}`;
   renderLapControls(); renderSectors(); renderAiPageContext(); drawTrack(); drawCharts();
 }
@@ -1861,6 +1546,7 @@ async function selectSession(id) {
   const trackCatalog = await loadTrackCatalog().catch(() => undefined);
   if (!state.selectedSession?.points?.length) return false;
   state.track = identifyTrack(state.selectedSession.points, trackCatalog);
+  rememberTrack(state.selectedSession, state.track);
   renderSessionState();
   state.selectedSession.points = splitSessionIntoLaps(state.selectedSession.points, state.track);
   state.analysis = analyzeSession(state.selectedSession.points);
@@ -2613,8 +2299,10 @@ elements.aiSessionSelect.addEventListener("change", async () => {
   if (elements.aiSessionSelect.value) await selectSession(elements.aiSessionSelect.value);
 });
 function changePrimaryLap(value) {
+  const previous = state.selectedLapNumber;
   state.selectedLapNumber = Number(value) || null;
-  if (!state.comparisonRival && state.comparisonLapNumber === state.selectedLapNumber) state.comparisonLapNumber = null;
+  // Picking the comparison lap as primary swaps the two instead of dropping the comparison.
+  if (!state.comparisonRival && state.comparisonLapNumber === state.selectedLapNumber) state.comparisonLapNumber = previous !== state.selectedLapNumber ? previous : null;
   clearAiReport();
   updateLapView();
 }
@@ -2630,6 +2318,26 @@ function changeComparisonLap(value) {
   updateLapView();
 }
 elements.primaryLapSelect.addEventListener("change", () => changePrimaryLap(elements.primaryLapSelect.value));
+document.addEventListener("keydown", (event) => {
+  if (event.code !== "BracketLeft" && event.code !== "BracketRight") return;
+  if (event.ctrlKey || event.metaKey || event.altKey || !state.analysis?.laps.length) return;
+  if (event.target.closest?.("input, select, textarea, [contenteditable]") || !document.body.classList.contains("has-session")) return;
+  const step = event.code === "BracketRight" ? 1 : -1;
+  const next = (laps, current) => {
+    const index = laps.findIndex((lap) => lap.number === current);
+    return laps[Math.max(0, Math.min(laps.length - 1, (index < 0 ? 0 : index + step)))]?.number ?? null;
+  };
+  event.preventDefault();
+  if (event.shiftKey) {
+    const source = state.comparisonRival ? state.comparisonSource : null;
+    const laps = (source ? source.analysis.laps : state.analysis.laps).filter((lap) => source || lap.number !== state.selectedLapNumber);
+    const number = next(laps, state.comparisonLapNumber);
+    if (number && number !== state.comparisonLapNumber) changeComparisonLap(source ? `x:${number}` : String(number));
+  } else {
+    const number = next(state.analysis.laps, state.selectedLapNumber);
+    if (number && number !== state.selectedLapNumber) changePrimaryLap(number);
+  }
+});
 elements.sectorTable.addEventListener("click", (event) => {
   const row = event.target.closest("[data-sector-lap]");
   if (row && Number(row.dataset.sectorLap) !== state.selectedLapNumber) changePrimaryLap(row.dataset.sectorLap);
@@ -2663,6 +2371,8 @@ window.addEventListener("popstate", applyRoute);
 window.addEventListener("routechange", applyRoute);
 // Language dropdown: rows slide out one after another; arrow keys, Home/End and Escape work like a menu.
 const languageOptions = [...elements.langMenuList.querySelectorAll("[data-lang]")];
+const unitOptions = [...elements.langMenuList.querySelectorAll("[data-speed-unit]")];
+const menuOptions = [...languageOptions, ...unitOptions];
 function setLanguageMenu(open, focusCurrent = false) {
   elements.langMenu.classList.toggle("open", open);
   elements.langMenuToggle.setAttribute("aria-expanded", String(open));
@@ -2672,7 +2382,13 @@ const syncLanguageButtons = () => {
   const current = getLanguage();
   elements.langMenuCurrent.textContent = current.toUpperCase();
   languageOptions.forEach((button) => button.setAttribute("aria-checked", String(button.dataset.lang === current)));
+  unitOptions.forEach((button) => button.setAttribute("aria-checked", String(button.dataset.speedUnit === speedUnit())));
 };
+unitOptions.forEach((button) => button.addEventListener("click", () => {
+  setLanguageMenu(false);
+  elements.langMenuToggle.focus({ preventScroll: true });
+  setSpeedUnit(button.dataset.speedUnit);
+}));
 elements.langMenuToggle.addEventListener("click", (event) => setLanguageMenu(!elements.langMenu.classList.contains("open"), event.detail === 0));
 elements.langMenuToggle.addEventListener("keydown", (event) => {
   if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
@@ -2685,11 +2401,11 @@ languageOptions.forEach((button) => button.addEventListener("click", () => {
   if (button.dataset.lang !== getLanguage()) setLanguage(button.dataset.lang);
 }));
 elements.langMenuList.addEventListener("keydown", (event) => {
-  const index = languageOptions.indexOf(document.activeElement);
-  const move = { ArrowDown: index + 1, ArrowUp: index - 1, Home: 0, End: languageOptions.length - 1 }[event.key];
+  const index = menuOptions.indexOf(document.activeElement);
+  const move = { ArrowDown: index + 1, ArrowUp: index - 1, Home: 0, End: menuOptions.length - 1 }[event.key];
   if (move !== undefined) {
     event.preventDefault();
-    languageOptions[(move + languageOptions.length) % languageOptions.length].focus();
+    menuOptions[(move + menuOptions.length) % menuOptions.length].focus();
   } else if (event.key === "Escape") {
     event.preventDefault();
     setLanguageMenu(false);
@@ -2768,117 +2484,6 @@ renderAccount();
 showView(testMode ? viewFromHash() : "analysis", false);
 drawTrack(); drawCharts();
 
-function startLandingTelemetry() {
-  const sessionTime = document.getElementById("heroSessionTime");
-  const lapTime = document.getElementById("heroLapTime");
-  const throttle = document.getElementById("heroThrottle");
-  const brake = document.getElementById("heroBrake");
-  const speed = document.getElementById("heroSpeed");
-  const lapNumber = document.getElementById("heroLapNumber");
-  if (!sessionTime || !lapTime || !throttle || !brake || !speed) return;
-  // One lap as [seconds, throttle %, brake %]; speed is integrated from the pedals in real time.
-  const lapProfile = [
-    [3.6, 100, 0], [1.1, 0, 92], [2.2, 35, 0], [1.4, 85, 0], [2.8, 100, 0], [.8, 0, 70], [1.9, 25, 0],
-    [1.2, 70, 0], [2.4, 100, 0], [1.3, 0, 96], [2.6, 20, 0], [1.6, 80, 0], [3.4, 100, 0], [.9, 0, 64],
-    [1.8, 40, 0], [2.2, 100, 0], [1, 0, 85], [2.3, 30, 0], [1.5, 90, 0], [4.2, 100, 0],
-  ];
-  const lapSeconds = lapProfile.reduce((total, [seconds]) => total + seconds, 0);
-  const sessionOffsetMs = 12 * 60_000;
-  const startedAt = performance.now();
-  let lastFrame = startedAt;
-  let speedKmh = 92;
-  // Build text nodes once and only touch them when the visible value changes: no innerHTML or layout work per frame.
-  const clock = (element) => {
-    element.textContent = "";
-    const main = document.createTextNode("00:00.");
-    const millis = document.createElement("i");
-    millis.textContent = "000";
-    element.append(main, millis);
-    let last = "";
-    return (milliseconds) => {
-      const whole = `${String(Math.floor(milliseconds / 60_000)).padStart(2, "0")}:${String(Math.floor(milliseconds / 1000) % 60).padStart(2, "0")}.`;
-      if (whole !== last) { main.nodeValue = whole; last = whole; }
-      millis.textContent = String(Math.floor(milliseconds % 1000)).padStart(3, "0");
-    };
-  };
-  const channel = (element, suffix, maximum = 100) => {
-    const row = element.closest(".race-channel");
-    element.textContent = "";
-    const value = document.createTextNode("0");
-    const unit = document.createElement("i");
-    unit.textContent = suffix;
-    element.append(value, unit);
-    let lastValue = -1;
-    return (next, updateText) => {
-      if (updateText && next !== lastValue) { value.nodeValue = String(next); lastValue = next; }
-      row?.style.setProperty("--scale", Math.min(1, Math.max(.02, next / maximum)).toFixed(3));
-    };
-  };
-  const setSessionClock = clock(sessionTime);
-  const setLapClock = clock(lapTime);
-  const setThrottle = channel(throttle, "%");
-  const setBrake = channel(brake, "%");
-  const setSpeed = channel(speed, "km/h", 130);
-  let lastLapLabel = "";
-  let lastTextPaint = 0;
-  const pedalsAt = (lapPosition) => {
-    let start = 0;
-    for (let index = 0; index < lapProfile.length; index++) {
-      const [seconds, throttleTarget, brakeTarget] = lapProfile[index];
-      if (lapPosition < start + seconds) {
-        const [, previousThrottle, previousBrake] = lapProfile[(index + lapProfile.length - 1) % lapProfile.length];
-        const blend = Math.min(1, (lapPosition - start) / .18);
-        return [previousThrottle + (throttleTarget - previousThrottle) * blend, previousBrake + (brakeTarget - previousBrake) * blend];
-      }
-      start += seconds;
-    }
-    return [lapProfile[0][1], lapProfile[0][2]];
-  };
-  const render = (now) => {
-    const dt = Math.min(.1, (now - lastFrame) / 1000);
-    lastFrame = now;
-    const elapsedMs = now - startedAt;
-    const lapPosition = (elapsedMs / 1000) % lapSeconds;
-    const jitter = Math.sin(now / 37) * 1.5 + Math.sin(now / 13) * .8;
-    const [throttleValue, brakeValue] = pedalsAt(lapPosition);
-    const acceleration = throttleValue / 100 * 26 - brakeValue / 100 * 62 - speedKmh * speedKmh * .0011 - 1.5;
-    speedKmh = Math.min(128, Math.max(38, speedKmh + acceleration * dt));
-    const textFrame = now - lastTextPaint >= 32;
-    if (textFrame) { lastTextPaint = now; setSessionClock(elapsedMs + sessionOffsetMs); setLapClock(lapPosition * 1000); }
-    const lapLabel = `LAP_${String(3 + Math.floor(elapsedMs / 1000 / lapSeconds) % 10).padStart(2, "0")}`;
-    if (lapNumber && lapLabel !== lastLapLabel) { lapNumber.textContent = lapLabel; lastLapLabel = lapLabel; }
-    // Bars move every frame (compositor-only transform); digits refresh at ~30 fps to keep repaints cheap on phones.
-    setThrottle(Math.round(Math.max(0, Math.min(100, throttleValue + (throttleValue > 5 && throttleValue < 100 ? jitter : 0)))), textFrame);
-    setBrake(Math.round(Math.max(0, brakeValue + (brakeValue > 5 ? jitter : 0))), textFrame);
-    setSpeed(Math.round(speedKmh), textFrame);
-  };
-  // The loop runs only while the live card is really on screen; otherwise it stops instead of spinning idle.
-  const card = sessionTime.closest(".landing-hero")?.querySelector(".race-live-card") || document.querySelector(".race-live-card");
-  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
-  let onScreen = true;
-  let running = false;
-  const shouldRun = () => onScreen && !document.hidden && document.body.classList.contains("auth-locked")
-    && !["guest-features", "guest-contact", "view-shop"].some((name) => document.body.classList.contains(name));
-  const frame = (now) => {
-    if (!shouldRun() || reduceMotion.matches) { running = false; return; }
-    render(now);
-    requestAnimationFrame(frame);
-  };
-  const update = () => {
-    if (reduceMotion.matches) { running = false; lastFrame = performance.now(); render(lastFrame); return; }
-    if (running || !shouldRun()) return;
-    running = true;
-    lastFrame = performance.now();
-    requestAnimationFrame(frame);
-  };
-  if (card && "IntersectionObserver" in window) {
-    new IntersectionObserver((entries) => { onScreen = entries.some((entry) => entry.isIntersecting); update(); }).observe(card);
-  }
-  new MutationObserver(update).observe(document.body, { attributes: true, attributeFilter: ["class"] });
-  document.addEventListener("visibilitychange", update);
-  reduceMotion.addEventListener?.("change", update);
-  update();
-}
 
 startLandingTelemetry();
 

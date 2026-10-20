@@ -8,7 +8,8 @@
 import { deriveChannels } from "./domain/channels.js";
 import { deltaRate, deltaSeries, timeAtProgress } from "./domain/delta.js";
 import { distanceMeters } from "./domain/tracks.js";
-import { extraLapColor } from "./extra-laps.js";
+import { extraLapList } from "./extra-laps.js";
+import { speedUnit, toSpeed } from "./units.js";
 
 const WHITE = "#f4f4ee";
 const RED = "#e10600";
@@ -22,7 +23,7 @@ const STORAGE_KEY = "d3-stack-channels";
 // Order on screen, top to bottom. `band` channels are drawn as a coloured strip instead of a line.
 export const STACK_CHANNELS = {
   phase: { band: true },
-  speed: { unit: "unit.speed", digits: 1, scale: "speed", value: (d) => d.speed },
+  speed: { unit: "unit.speed", digits: 1, scale: "speed", value: (d) => toSpeed(d.speed) },
   delta: { unit: "unit.seconds", digits: 3, scale: "symmetric", delta: true },
   longG: { unit: "g", digits: 2, scale: "symmetric", value: (d) => d.longG },
   latG: { unit: "g", digits: 2, scale: "symmetric", value: (d) => d.latG },
@@ -88,7 +89,7 @@ export function createAnalysisPanels(ctx) {
 
   // ---- Per-lap data: GPS channels on the same distance samples the other charts use ----
   function lapData(points, key) {
-    const source = `${state.selectedSession?.id ?? ""}|${state.comparisonSource?.key ?? ""}`;
+    const source = `${state.selectedSession?.id ?? ""}|${state.comparisonSource?.key ?? ""}|${speedUnit()}`;
     if (source !== cacheSource) { cache.clear(); cacheSource = source; }
     if (points.length < 3) return null;
     const cacheKey = `${key}:${points.length}:${points[0].timeMs}`;
@@ -111,8 +112,8 @@ export function createAnalysisPanels(ctx) {
     ? lapData(ctx.comparisonLapPoints(), `${state.comparisonRival ? state.comparisonSource?.key : "o"}${state.comparisonLapNumber}`)
     : null);
   // Extra overlay laps (extra-laps.js), each with its colour.
-  const extraData = () => (state.extraLaps ?? [])
-    .map((number) => ({ number, data: lapData(ctx.lapPoints(number), `o${number}`), color: extraLapColor(state, number) }))
+  const extraData = () => extraLapList(state)
+    .map((entry) => ({ ...entry, data: lapData(ctx.extraLapPoints(entry), entry.external ? `${state.comparisonSource?.key}${entry.number}` : `o${entry.number}`) }))
     .filter((extra) => extra.data);
   const memo = (key, build) => {
     if (!cache.has(key)) cache.set(key, build());
@@ -139,7 +140,7 @@ export function createAnalysisPanels(ctx) {
         const ratio = (speed) => (Number.isFinite(speed) ? (speed - min) / Math.max(max - min, 1) : 0);
         return {
           colors: primarySeries.map((item) => ramp(SPEED_RAMP, quantize(ratio(item.point.speed), 31))),
-          legend: `<span>${Math.round(min)}</span><i class="map-ramp"></i><span>${Math.round(max)} ${t("unit.speed")}</span>`,
+          legend: `<span>${Math.round(toSpeed(min))}</span><i class="map-ramp"></i><span>${Math.round(toSpeed(max))} ${t("unit.speed")}</span>`,
         };
       });
     }
@@ -205,7 +206,11 @@ export function createAnalysisPanels(ctx) {
   function autoScale(channel, values) {
     const finite = values.filter(Number.isFinite);
     const peak = finite.length ? Math.max(...finite.map(Math.abs)) : 1;
-    if (channel.scale === "speed") return [0, niceCeil(Math.max(...finite, 20), 20)];
+    if (channel.scale === "speed") {
+      const high = niceCeil(Math.max(...finite, 20), 20);
+      const low = finite.length ? Math.max(0, Math.floor(Math.min(...finite) / 20) * 20) : 0;
+      return [Math.min(low, high - 20), high];
+    }
     if (channel.scale === "positive") return [0, niceCeil(peak, .5)];
     const step = channel.unit === "°" ? 15 : channel.delta ? .1 : .5;
     const range = niceCeil(peak, step);
@@ -379,14 +384,18 @@ export function createAnalysisPanels(ctx) {
   function renderReadout(primary, comparison) {
     const zoomed = state.chartView.end - state.chartView.start < .999;
     if (!primary || (!selection && !zoomed)) {
-      setReadout(`<span class="stack-hint">${t("measure.hint")}</span>${selected.includes("phase") ? `<span class="stack-hint">${t("phase.legend")}</span>` : ""}`);
+      const help = `${t("measure.hint")} ${t("keys.laps")}`;
+      const phases = selected.includes("phase")
+        ? `<span class="phase-keys">${Object.entries(PHASE_COLORS).map(([phase, color]) => `<span><i style="background:${color}"></i>${t(`phase.${phase}`)}</span>`).join("")}</span>`
+        : "";
+      setReadout(`<button type="button" class="stack-help" title="${help}" aria-label="${help}">?</button><span class="stack-hint">${t("measure.short")}</span>${phases}`);
       return;
     }
     const from = selection ? Math.min(selection.from, selection.to) : state.chartView.start;
     const to = selection ? Math.max(selection.from, selection.to) : state.chartView.end;
     const time = (data) => (data ? (timeAtProgress(data.series, to) - timeAtProgress(data.series, from)) / 1000 : null);
     const primaryTime = time(primary); const comparisonTime = time(comparison);
-    const speeds = primary.series.filter((item) => item.progress >= from && item.progress <= to).map((item) => item.d.speed);
+    const speeds = primary.series.filter((item) => item.progress >= from && item.progress <= to).map((item) => toSpeed(item.d.speed));
     const parts = [
       `<b class="stack-a">${Math.round(from * 100)}–${Math.round(to * 100)}%</b>`,
       `<span>${Math.round((to - from) * primary.length)} ${t("measure.meters")}</span>`,
@@ -538,6 +547,11 @@ export function createAnalysisPanels(ctx) {
       context.fillStyle = color;
       items.forEach((item) => { const [x, y] = toXY(item.d); context.fillRect(x - 1.2, y - 1.2, 2.4, 2.4); });
     };
+    extraData().forEach((extra) => {
+      context.globalAlpha = .5;
+      dots(visible(extra.data), extra.color);
+      context.globalAlpha = 1;
+    });
     dots(comparisonPoints, "rgba(225,6,0,.45)");
     dots(primaryPoints, "rgba(244,244,238,.55)");
     const zoomed = state.chartView.end - state.chartView.start < .999;

@@ -117,3 +117,26 @@ export function computeSectors(points, analysis, options = {}) {
     potentialMs: complete ? Math.max(0, reference.durationMs - idealMs) : null,
   };
 }
+
+// The same sectors with some laps left out (lap report): best sectors, the ideal lap and the potential
+// are taken from the remaining laps only, so they agree with the corner report. Laps stay in the table.
+export function sectorsWithout(sectors, excluded) {
+  if (!sectors || !excluded?.size) return sectors;
+  const included = sectors.laps.filter((lap) => !excluded.has(lap.number));
+  const best = Array.from({ length: sectors.count }, (_, sector) => included.reduce((result, lap) => {
+    const value = lap.sectors?.[sector];
+    return value !== undefined && (!result || value < result.timeMs) ? { timeMs: value, lap: lap.number } : result;
+  }, null));
+  const complete = best.every(Boolean);
+  const idealMs = complete ? best.reduce((sum, item) => sum + item.timeMs, 0) : null;
+  const fastest = included.reduce((result, lap) => (Number.isFinite(lap.durationMs) && (!result || lap.durationMs < result.durationMs) ? lap : result), null);
+  return {
+    ...sectors,
+    best,
+    idealMs,
+    bestLapMs: fastest?.durationMs ?? null,
+    fastestLap: fastest?.number ?? null,
+    potentialMs: complete && fastest ? Math.max(0, fastest.durationMs - idealMs) : null,
+    excluded: [...excluded],
+  };
+}
