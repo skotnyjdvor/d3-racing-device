@@ -1,14 +1,13 @@
-import { RaceBoxBleClient } from "./ble/racebox.js";
 import { analyzeSession, generateLocalInsights } from "./domain/analysis.js";
 import { parseRaceBoxCsv } from "./domain/csv.js";
 import { distanceMeters, identifyTrack, loadTrackCatalog } from "./domain/tracks.js";
 import { splitSessionIntoLaps } from "./domain/laps.js";
 import { computeSectors } from "./domain/sectors.js";
 import { applyTranslations, getLanguage, onLanguageChange, setLanguage, t } from "./i18n.js";
-import { analyzeLog, askAiFollowUp, cloudConfigured, currentUser, deleteAiAnalysis, deleteLog, loadAiAnalyses, loadLog, loadLogs, loadSharedSession, renameLog, requestPasswordReset, resendVerification, resetPassword, saveLog, signIn, signOut, signUp, verifyEmail } from "./cloud/api.js";
+import { cloudConfigured, currentUser, deleteLog, loadLog, loadLogs, loadSharedSession, renameLog, saveLog } from "./cloud/api.js";
 import { initShop, onShopShown, setShopUser } from "./shop.js";
 import { initProfile, onProfileShown, setProfileUser } from "./profile.js";
-import { acceptInviteFlow, initStats, onStatsShown, setStatsUser } from "./stats.js";
+import { initStats, onStatsShown, setStatsUser } from "./stats.js";
 import { initShare, openShareDialog } from "./share.js";
 import { PAGE_PATHS, currentPage, interceptLinks, navigate, upgradeLegacyHash } from "./router.js";
 import "@fontsource/oswald/500.css";
@@ -25,17 +24,22 @@ import { createAnalysisPanels } from "./analysis-panels.js";
 import { createCornersPanel } from "./corners-panel.js";
 import { createComparison } from "./comparison.js";
 import { createTrackMap } from "./track-map.js";
-import { distancePoints, downsample, lapsOf, pointAtProgress } from "./lap-series.js";
+import { distancePoints, downsample, lapsOf } from "./lap-series.js";
 import { startLandingTelemetry } from "./landing-telemetry.js";
 import { createLapReportPanel } from "./lap-report-panel.js";
 import { createExtraLaps, extraLapList } from "./extra-laps.js";
 import { getExcludedLaps } from "./lap-exclusion.js";
 import { setSpeedUnit, speedUnit, toSpeed } from "./units.js";
 import { sectorsWithout } from "./domain/sectors.js";
-import { deltaSeries } from "./domain/delta.js";
-import { isOverlayFrame, overlayFrame, paintLayers } from "./canvas-layers.js";
+import { canvasContext, isOverlayFrame, overlayFrame, paintLayers } from "./canvas-layers.js";
 import { makeLocalSession, mergeSessions } from "./domain/local-sessions.js";
 import { deleteLocalSession, listLocalSessions, loadLocalPoints, saveLocalSession, updateLocalSession } from "./local-store.js";
+import { createAccount } from "./account.js";
+import { createAiPage } from "./ai-page.js";
+import { createAskDialog } from "./ask-dialog.js";
+import { createDevice } from "./device.js";
+import { escapeHtml, formatDate, formatDuration, formatGap, formatLapTime, formatSectorTime } from "./format.js";
+import { createLapCharts } from "./lap-charts.js";
 import "./demo.js";
 import "./ai-sample.js";
 
@@ -47,45 +51,7 @@ const testMode = new URLSearchParams(location.search).has("mock");
 // Native apps (and ?app=1) use the telemetry-app layout; public/app-boot.js sets the class before paint.
 const appMode = document.documentElement.classList.contains("app-mode");
 const accountRequired = () => !state.user && !testMode;
-let accountMode = "signin";
-// AI report mode: "single" analyses one lap on its own, "compare" explains the difference between two laps.
-let aiModePreference = "single";
-try { if (localStorage.getItem("d3-ai-mode") === "compare") aiModePreference = "compare"; } catch {}
 let routedUrl = "";
-let aiRequestToken = 0;
-let aiHistoryRequestToken = 0;
-
-const formatDuration = (milliseconds) => {
-  if (!Number.isFinite(milliseconds)) return "—";
-  const minutes = Math.floor(milliseconds / 60_000);
-  const seconds = Math.round((milliseconds % 60_000) / 1000);
-  return `${minutes}:${String(seconds).padStart(2, "0")}`;
-};
-
-const formatLapTime = (milliseconds) => {
-  if (!Number.isFinite(milliseconds)) return "—";
-  const rounded = Math.round(milliseconds);
-  const minutes = Math.floor(rounded / 60_000);
-  const seconds = Math.floor((rounded % 60_000) / 1000);
-  const millis = rounded % 1000;
-  return `${minutes}:${String(seconds).padStart(2, "0")}.${String(millis).padStart(3, "0")}`;
-};
-
-const formatDate = (iso) => new Intl.DateTimeFormat(getLanguage(), {
-  day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit",
-}).format(new Date(iso));
-
-const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
-  "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;",
-}[character]));
-
-function setStatus(text, active = false) {
-  elements.deviceStatus.textContent = text;
-  elements.statusDot.classList.toggle("live", active);
-  elements.railDeviceDot.classList.toggle("live", active);
-  elements.deviceSummaryStatus.textContent = text;
-  elements.deviceSummaryDot.classList.toggle("live", active);
-}
 
 // Phones: the analysis screen shows one tab at a time and short lap labels.
 const compactLayout = window.matchMedia("(max-width: 700px)");
@@ -93,13 +59,24 @@ const {
   pilotSource, useRivalComparison, sourceLapPoints, comparisonSessions, loadComparisonSession, comparisonCandidates, rememberTrack, rivalComparable, rivalFastestLap, extraLapPoints, comparisonLapPoints, shortName, comparisonLabel, comparisonSelectValue, rivalOptionText, comparisonOptionsHtml, comparisonAvailable, renderComparisonSource, changeComparisonSource,
 } = createComparison({
   state, elements, t, escapeHtml, formatLapTime, formatDate, compactLayout,
-  lapPoints, loadLocalPoints, loadLog, updateLocalSession, showNotice, clearAiReport, updateLapView,
+  lapPoints, loadLocalPoints, loadLog, updateLocalSession, showNotice, clearAiReport: () => clearAiReport(), updateLapView,
 });
-
-function setHint(text, isError = false) {
-  elements.actionHint.textContent = text;
-  elements.actionHint.classList.toggle("error", isError);
-}
+const askDialog = createAskDialog(elements);
+const { sectorFractions, setChartZoom, setChartRange, resetChartZoom, drawComparisonChart, drawDeltaChart } = createLapCharts({
+  state, elements, t, lapPoints, comparisonLapPoints, drawCharts, setCursorProgress,
+});
+const { renderAiPageContext, renderAiHistory, refreshAiHistory, drawAiCardVisuals, clearAiReport, renderAiReport, runAiAnalysis } = createAiPage({
+  state, elements, t, escapeHtml, formatDate, formatLapTime, askDialog, trackAiMarkerAreas,
+  lapPoints, comparisonLapPoints, comparisonAvailable, comparisonLabel, comparisonOptionsHtml, comparisonSelectValue,
+  rivalComparable, useRivalComparison, updateLapView, drawTrack, openAccountDialog: (mode) => openAccountDialog(mode),
+});
+const {
+  setAccountMessage, updateAccess, renderTrialBanner, endTrial, saveTrialLogs, openAccountDialog, renderAccount, handleAuthLink, handleFriendLink, pendingFriendInvite,
+} = createAccount({ state, elements, t, testMode, appMode, showView, applyUser, renderSessions, selectSession });
+const { setStatus, renderBluetoothSupport, renderStorage, renderTelemetry } = createDevice({
+  state, elements, t, formatDuration, askDialog, testMode, appMode, accountRequired, openAccountDialog, showView, currentView: () => currentView,
+  storeLocally, renderSessions, selectSession, syncLocalToCloud, saveDownloadedLogs,
+});
 
 function viewFromHash() {
   if (location.hash === "#device") return "device";
@@ -108,209 +85,6 @@ function viewFromHash() {
   if (currentPage() === "shop") return "shop";
   if (location.hash === "#profile") return "profile";
   return "analysis";
-}
-
-// What will actually be analysed: comparison needs a second lap to be selected.
-// The AI compares with own laps of the same session or with a pilot's shared lap, not with older sessions.
-function effectiveAiMode() {
-  const olderSession = state.comparisonRival && state.comparisonSource?.kind === "session";
-  return aiModePreference === "compare" && state.comparisonLapNumber && comparisonAvailable() && !olderSession ? "compare" : "single";
-}
-
-function renderAiMode() {
-  const mode = effectiveAiMode();
-  elements.aiModeGroup.querySelectorAll("[data-ai-mode]").forEach((button) => {
-    button.setAttribute("aria-checked", String(button.dataset.aiMode === mode));
-    button.tabIndex = button.dataset.aiMode === mode ? 0 : -1;
-    if (button.dataset.aiMode === "compare") button.disabled = !comparisonAvailable();
-  });
-  elements.aiModeGroup.setAttribute("aria-label", t("ai.modeLabel"));
-  elements.aiLapControls.classList.toggle("single", mode === "single");
-  elements.aiPrimaryLapLabel.textContent = t(mode === "single" ? "ai.lapToAnalyse" : "laps.primary");
-}
-
-function setAiMode(mode) {
-  aiModePreference = mode === "compare" ? "compare" : "single";
-  try { localStorage.setItem("d3-ai-mode", aiModePreference); } catch {}
-  if (aiModePreference === "compare" && !state.comparisonLapNumber && state.analysis) {
-    // Switching to comparison picks the fastest other lap, the same default as when a session opens.
-    const other = [...state.analysis.laps].sort((a, b) => a.durationMs - b.durationMs).find((lap) => lap.number !== state.selectedLapNumber);
-    if (other) { state.comparisonLapNumber = other.number; state.comparisonRival = false; }
-    else if (rivalComparable()) useRivalComparison();
-  }
-  clearAiReport();
-  updateLapView();
-}
-
-function renderAiPageContext() {
-  const session = state.selectedSession;
-  elements.aiSessionSelect.innerHTML = state.sessions.length
-    ? state.sessions.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.title || t("sessions.item", { id: item.displayId ?? item.id }))}${item.cloudId ? " ☁" : ""}</option>`).join("")
-    : `<option value="">${escapeHtml(t("aiPage.noLog"))}</option>`;
-  elements.aiSessionSelect.disabled = !state.sessions.length;
-  elements.aiSessionSelect.value = session ? String(session.id) : "";
-
-  const laps = state.analysis?.laps ?? [];
-  const options = laps.map((lap) => `<option value="${lap.number}">${escapeHtml(t("laps.option", { lap: lap.number, time: formatLapTime(lap.durationMs) }))}</option>`).join("");
-  elements.aiPrimaryLapSelect.innerHTML = options || `<option value="">—</option>`;
-  elements.aiComparisonLapSelect.innerHTML = comparisonOptionsHtml("laps.option", options, { ai: true });
-  elements.aiPrimaryLapSelect.disabled = !laps.length;
-  elements.aiComparisonLapSelect.disabled = !comparisonAvailable();
-  elements.aiPrimaryLapSelect.value = state.selectedLapNumber ? String(state.selectedLapNumber) : "";
-  elements.aiComparisonLapSelect.value = comparisonSelectValue({ ai: true });
-  renderAiMode();
-}
-
-function renderAiHistory() {
-  const available = Boolean(state.user && state.selectedSession?.cloudId);
-  elements.aiHistory.hidden = !available;
-  if (!available) return;
-  elements.aiHistoryCount.textContent = String(state.aiHistory.length);
-  if (state.aiHistoryLoading) {
-    elements.aiHistoryList.innerHTML = `<p class="ai-history-empty">${escapeHtml(t("ai.historyLoading"))}</p>`;
-    return;
-  }
-  if (state.aiHistoryError) {
-    elements.aiHistoryList.innerHTML = `<p class="ai-history-empty error">${escapeHtml(state.aiHistoryError)}</p>`;
-    return;
-  }
-  if (!state.aiHistory.length) {
-    elements.aiHistoryList.innerHTML = `<p class="ai-history-empty">${escapeHtml(t("ai.historyEmpty"))}</p>`;
-    return;
-  }
-  elements.aiHistoryList.innerHTML = state.aiHistory.map((item) => {
-    const comparison = Number(item.comparison_lap);
-    const primary = Number(item.primary_lap);
-    const pair = Number.isFinite(comparison) && comparison > 0
-      ? t(item.other_pilot ? "ai.historyPairRival" : "ai.historyPair", { primary, comparison })
-      : t("ai.historySingle", { lap: primary });
-    const language = ["ru", "en", "pl", "it"].includes(item.language) ? item.language.toUpperCase() : "RU";
-    const current = item.id === state.aiAnalysisId ? " current" : "";
-    return `<article class="ai-history-item${current}">
-      <div class="ai-history-meta"><span>${escapeHtml(formatDate(item.created_at))}</span><b>${escapeHtml(language)}</b></div>
-      <strong>${escapeHtml(pair)}</strong>
-      <p>${escapeHtml(item.report?.summary || t("ai.historyTitle"))}</p>
-      <div class="ai-history-actions">
-        <button class="secondary" type="button" data-ai-history-open="${escapeHtml(item.id)}">${escapeHtml(t("ai.historyOpen"))}</button>
-        <button class="ai-history-delete" type="button" data-ai-history-delete="${escapeHtml(item.id)}" aria-label="${escapeHtml(t("ai.historyDelete"))}">×</button>
-      </div>
-    </article>`;
-  }).join("");
-  elements.aiHistoryList.querySelectorAll("[data-ai-history-open]").forEach((button) => {
-    button.addEventListener("click", () => openAiHistoryReport(button.dataset.aiHistoryOpen));
-  });
-  elements.aiHistoryList.querySelectorAll("[data-ai-history-delete]").forEach((button) => {
-    button.addEventListener("click", () => removeAiHistoryReport(button.dataset.aiHistoryDelete));
-  });
-}
-
-async function refreshAiHistory() {
-  const cloudId = state.selectedSession?.cloudId;
-  const requestToken = ++aiHistoryRequestToken;
-  if (!state.user || !cloudId) {
-    state.aiHistory = []; state.aiHistoryLoading = false; state.aiHistoryError = "";
-    renderAiHistory();
-    return;
-  }
-  state.aiHistoryLoading = true;
-  state.aiHistoryError = "";
-  renderAiHistory();
-  try {
-    const result = await loadAiAnalyses(cloudId);
-    if (requestToken !== aiHistoryRequestToken || state.selectedSession?.cloudId !== cloudId) return;
-    state.aiHistory = result.analyses || [];
-  } catch (error) {
-    if (requestToken === aiHistoryRequestToken && state.selectedSession?.cloudId === cloudId) state.aiHistoryError = error.message;
-  } finally {
-    if (requestToken === aiHistoryRequestToken && state.selectedSession?.cloudId === cloudId) {
-      state.aiHistoryLoading = false;
-      renderAiHistory();
-    }
-  }
-}
-
-function openAiHistoryReport(id) {
-  const saved = state.aiHistory.find((item) => item.id === id);
-  if (!saved?.report || !state.analysis) return;
-  aiRequestToken += 1;
-  state.aiPending = false;
-  const availableLaps = new Set(state.analysis.laps.map((lap) => lap.number));
-  const primary = Number(saved.primary_lap);
-  const comparison = Number(saved.comparison_lap);
-  if (availableLaps.has(primary)) state.selectedLapNumber = primary;
-  if (comparison > 0 && saved.other_pilot) {
-    aiModePreference = "compare";
-    if (rivalComparable() && state.rival.analysis.laps.some((lap) => lap.number === comparison)) { useRivalComparison(); state.comparisonLapNumber = comparison; }
-  } else if (comparison > 0) {
-    aiModePreference = "compare";
-    state.comparisonRival = false; state.comparisonSource = null;
-    state.comparisonLapNumber = availableLaps.has(comparison) && comparison !== state.selectedLapNumber ? comparison : null;
-  } else {
-    aiModePreference = "single";
-    if (state.comparisonLapNumber === state.selectedLapNumber) state.comparisonLapNumber = null;
-  }
-  updateLapView();
-  renderAiReport(saved.report, saved.id, saved.language || getLanguage());
-  revealAiReport();
-  elements.copyStatus.textContent = t("ai.historyOpened");
-  elements.analyzeAiButton.disabled = false;
-  elements.analyzeAiButton.textContent = t("ai.analyze");
-  renderAiHistory();
-  requestAnimationFrame(() => elements.aiResults.scrollIntoView({ behavior: "smooth", block: "start" }));
-}
-
-// Styled replacement for window.confirm/prompt. Resolves to true / the entered text, or null when cancelled.
-function askDialog({ title, message = "", confirmLabel, danger = false, input = null }) {
-  const dialog = elements.confirmDialog;
-  elements.confirmTitle.textContent = title;
-  elements.confirmMessage.textContent = message;
-  elements.confirmMessage.hidden = !message;
-  elements.confirmSubmit.textContent = confirmLabel;
-  elements.confirmSubmit.classList.toggle("danger", danger);
-  elements.confirmField.hidden = !input;
-  elements.confirmInput.type = input?.type ?? "text";
-  elements.confirmInput.autocomplete = input?.type === "password" ? "current-password" : "off";
-  elements.confirmInput.value = input?.value ?? "";
-  elements.confirmFieldLabel.textContent = input?.label ?? "";
-  return new Promise((resolve) => {
-    const finish = (result) => {
-      elements.confirmForm.removeEventListener("submit", onSubmit);
-      elements.confirmCancel.removeEventListener("click", onCancel);
-      dialog.removeEventListener("cancel", onCancel);
-      dialog.removeEventListener("click", onBackdrop);
-      if (dialog.open) dialog.close();
-      resolve(result);
-    };
-    const onSubmit = (event) => {
-      event.preventDefault();
-      if (!input) return finish(true);
-      const value = input.type === "password" ? elements.confirmInput.value : elements.confirmInput.value.trim();
-      if (!value) { elements.confirmInput.focus(); return; }
-      finish(value);
-    };
-    const onCancel = (event) => { event?.preventDefault?.(); finish(null); };
-    const onBackdrop = (event) => { if (event.target === dialog) finish(null); };
-    elements.confirmForm.addEventListener("submit", onSubmit);
-    elements.confirmCancel.addEventListener("click", onCancel);
-    dialog.addEventListener("cancel", onCancel);
-    dialog.addEventListener("click", onBackdrop);
-    dialog.showModal();
-    if (input) { elements.confirmInput.focus(); elements.confirmInput.select(); }
-    else (danger ? elements.confirmCancel : elements.confirmSubmit).focus();
-  });
-}
-
-async function removeAiHistoryReport(id) {
-  if (!await askDialog({ title: t("ai.historyDeleteTitle"), message: t("ai.historyDeleteConfirm"), confirmLabel: t("dialog.delete"), danger: true })) return;
-  try {
-    await deleteAiAnalysis(id);
-    if (state.aiAnalysisId === id) clearAiReport();
-    await refreshAiHistory();
-    elements.copyStatus.textContent = t("ai.historyDeleted");
-  } catch (error) {
-    state.aiHistoryError = error.message;
-    renderAiHistory();
-  }
 }
 
 // App shell: screen title in the top bar and the highlighted rail / tab-bar item.
@@ -356,18 +130,6 @@ function showView(view, updateHash = true) {
   }
 }
 
-// Web Bluetooth exists only in Chromium browsers; iOS Safari and Firefox need the native app or a CSV import.
-const bluetoothAvailable = () => testMode || Boolean(globalThis.Capacitor?.isNativePlatform?.()) || Boolean(globalThis.navigator?.bluetooth);
-
-function renderBluetoothSupport() {
-  const available = bluetoothAvailable();
-  elements.bluetoothNotice.hidden = available;
-  elements.connectButton.disabled = !available && !state.client;
-  elements.onboardConnectButton.classList.toggle("unavailable", !available);
-  document.body.classList.toggle("bt-unavailable", !available);
-  elements.onboardConnectText.textContent = t(available ? "onboard.connectText" : "onboard.connectUnsupported");
-}
-
 function renderSessionState() {
   document.body.classList.toggle("no-session", !state.sessions.length);
   document.body.classList.toggle("has-session", Boolean(state.selectedSession?.points?.length));
@@ -394,37 +156,6 @@ async function openDemoSession() {
   }
 }
 
-function connectionErrorMessage(error) {
-  if (error?.code === "no-web-bluetooth") return t("bt.copy");
-  if (error?.code === "not-laptrace") return t("error.notLapTrace", { name: error.deviceName || "—" });
-  if (error?.name === "NotFoundError" || /cancelled.*chooser/i.test(error?.message || "")) return t("error.notSelected");
-  if (error?.name === "NetworkError") return t("error.network");
-  if (error?.name === "SecurityError") return t("error.security");
-  return error?.message || t("error.bluetoothUnknown");
-}
-
-function canvasContext(canvas) {
-  const ratio = window.devicePixelRatio || 1;
-  // Layout size, not getBoundingClientRect: panels animate their moves with transforms (workspace FLIP),
-  // and a canvas sized mid-animation would stay stretched.
-  const rect = { width: canvas.clientWidth, height: canvas.clientHeight };
-  const width = Math.max(1, Math.round(rect.width * ratio));
-  const height = Math.max(1, Math.round(rect.height * ratio));
-  // Resizing reallocates the backing store; charts redraw on every cursor move, so only do it when needed.
-  if (canvas.width !== width) canvas.width = width;
-  if (canvas.height !== height) canvas.height = height;
-  const context = canvas.getContext("2d");
-  // Without a resize the drawing state survives between frames: put back the defaults the charts expect.
-  Object.assign(context, { globalAlpha: 1, globalCompositeOperation: "source-over", shadowBlur: 0, shadowColor: "rgba(0,0,0,0)", lineCap: "butt", lineJoin: "miter", textAlign: "start", textBaseline: "alphabetic" });
-  context.setLineDash([]);
-  context.setTransform(1, 0, 0, 1, 0, 0);
-  context.clearRect(0, 0, width, height);
-  context.setTransform(ratio, 0, 0, ratio, 0, 0);
-  return { context, width: rect.width, height: rect.height };
-}
-
-
-
 // A short message that fades on its own; works for guests who see no account dialog.
 let noticeTimer = 0;
 function showNotice(message, error = false) {
@@ -441,8 +172,6 @@ function lapPoints(number) {
   if (!points) return [];
   return number ? lapsOf(points).get(number) ?? [] : points;
 }
-
-
 
 // Track map colouring: plain laps, gain/loss against the comparison lap, or speed.
 const MAP_MODES = ["laps", "delta", "speed"];
@@ -463,37 +192,6 @@ function renderMapLegend(html) {
 }
 
 const SECTOR_COLOR = "#b36bff";
-const formatSectorTime = (milliseconds) => !Number.isFinite(milliseconds) ? "—" : milliseconds < 60_000 ? (milliseconds / 1000).toFixed(3) : formatLapTime(milliseconds);
-const formatGap = (milliseconds) => `${milliseconds < 0 ? "−" : "+"}${(Math.abs(milliseconds) / 1000).toFixed(3)}`;
-
-// Sector boundaries as distance fractions of the primary lap (falls back to the reference gates).
-function sectorFractions() {
-  const sectors = state.sectors;
-  if (!sectors) return [];
-  return sectors.laps.find((lap) => lap.number === state.selectedLapNumber)?.gateFractions ?? sectors.gates.map((gate) => gate.fraction);
-}
-
-function drawSectorMarkers(context, padding, plotWidth, height) {
-  const fractions = sectorFractions();
-  if (!fractions.length) return;
-  const bounds = [0, ...fractions, 1];
-  context.save();
-  context.beginPath(); context.rect(padding.left, 0, plotWidth, height); context.clip();
-  context.font = "12px 'JetBrains Mono', ui-monospace, monospace";
-  context.textBaseline = "alphabetic";
-  bounds.slice(0, -1).forEach((start, index) => {
-    const xStart = chartX(start, padding, plotWidth);
-    if (index) {
-      context.strokeStyle = "rgba(179,107,255,.55)"; context.lineWidth = 1; context.setLineDash([4, 4]);
-      context.beginPath(); context.moveTo(xStart, padding.top); context.lineTo(xStart, height - padding.bottom); context.stroke();
-      context.setLineDash([]);
-    }
-    context.fillStyle = "rgba(179,107,255,.85)";
-    context.textAlign = "left";
-    context.fillText(`S${index + 1}`, Math.max(padding.left, xStart) + 6, padding.top + 12);
-  });
-  context.restore();
-}
 
 function renderSectors() {
   const excluded = getExcludedLaps(state);
@@ -529,42 +227,6 @@ function renderSectors() {
   elements.sectorNote.textContent = `${t("sectors.note", { lap: sectors.referenceLap })}${partial ? ` ${t("sectors.partial")}` : ""}${leftNote}`;
 }
 
-function chartX(progress, padding, plotWidth) {
-  const span = Math.max(state.chartView.end - state.chartView.start, 1e-6);
-  return padding.left + (progress - state.chartView.start) / span * plotWidth;
-}
-
-function chartProgress(clientX, canvas, paddingLeft = 48, paddingRight = 18) {
-  const rect = canvas.getBoundingClientRect();
-  const ratio = (clientX - rect.left - paddingLeft) / Math.max(rect.width - paddingLeft - paddingRight, 1);
-  return state.chartView.start + Math.max(0, Math.min(1, ratio)) * (state.chartView.end - state.chartView.start);
-}
-
-function setChartZoom(center, nextSpan) {
-  const span = Math.max(0.05, Math.min(1, nextSpan));
-  const centerRatio = (center - state.chartView.start) / Math.max(state.chartView.end - state.chartView.start, 1e-6);
-  let start = center - centerRatio * span;
-  start = Math.max(0, Math.min(1 - span, start));
-  state.chartView = { start, end: start + span };
-  elements.chartZoomReset.textContent = `${Math.round(100 / span)}%`;
-  drawCharts();
-}
-
-// Show exactly [start, end] of the lap (a stretch selected with the mouse).
-function setChartRange(start, end) {
-  const span = Math.max(.02, Math.min(1, end - start));
-  const from = Math.max(0, Math.min(1 - span, start));
-  state.chartView = { start: from, end: from + span };
-  elements.chartZoomReset.textContent = `${Math.round(100 / span)}%`;
-  drawCharts();
-}
-
-function resetChartZoom() {
-  state.chartView = { start: 0, end: 1 };
-  elements.chartZoomReset.textContent = "100%";
-  drawCharts();
-}
-
 function updateTrackZoom(nextScale, anchorX, anchorY) {
   const previous = state.trackView;
   const scale = Math.max(1, Math.min(12, nextScale));
@@ -586,7 +248,6 @@ function resetTrackZoom() {
   drawTrack();
 }
 
-
 // Created on first use: everything it needs is defined by then.
 function drawTrackCanvas(canvas) {
   drawTrackMap ??= createTrackMap({
@@ -600,382 +261,6 @@ function drawTrackCanvas(canvas) {
 function drawTrack() {
   drawTrackCanvas(elements.trackCanvas);
   drawTrackCanvas(elements.aiTrackCanvas);
-}
-
-function drawAiSegmentPreview(canvas, item, index) {
-  const series = distancePoints(lapPoints(state.selectedLapNumber), 700);
-  const { context, width, height } = canvasContext(canvas);
-  context.fillStyle = "#08080c";
-  context.fillRect(0, 0, width, height);
-  if (series.length < 2 || width < 2 || height < 2) return;
-
-  context.strokeStyle = "rgba(255,255,255,.03)";
-  context.lineWidth = 1;
-  const grid = 28;
-  for (let x = grid; x < width; x += grid) {
-    context.beginPath(); context.moveTo(x, 0); context.lineTo(x, height); context.stroke();
-  }
-  for (let y = grid; y < height; y += grid) {
-    context.beginPath(); context.moveTo(0, y); context.lineTo(width, y); context.stroke();
-  }
-
-  const points = series.map((entry) => entry.point);
-  const lats = points.map((point) => point.latitude);
-  const lons = points.map((point) => point.longitude);
-  const minLat = Math.min(...lats); const maxLat = Math.max(...lats);
-  const minLon = Math.min(...lons); const maxLon = Math.max(...lons);
-  const padding = 12;
-  const scale = Math.min(
-    (width - padding * 2) / Math.max(maxLon - minLon, 1e-9),
-    (height - padding * 2) / Math.max(maxLat - minLat, 1e-9),
-  );
-  const offsetX = (width - (maxLon - minLon) * scale) / 2;
-  const offsetY = (height - (maxLat - minLat) * scale) / 2;
-  const project = (point) => [
-    offsetX + (point.longitude - minLon) * scale,
-    offsetY + (maxLat - point.latitude) * scale,
-  ];
-  const drawSeries = (entries, color, lineWidth) => {
-    if (entries.length < 2) return;
-    context.strokeStyle = color;
-    context.lineWidth = lineWidth;
-    context.lineCap = "round";
-    context.lineJoin = "round";
-    context.beginPath();
-    entries.forEach((entry, pointIndex) => {
-      const [x, y] = project(entry.point);
-      if (pointIndex) context.lineTo(x, y); else context.moveTo(x, y);
-    });
-    context.stroke();
-  };
-
-  drawSeries(series, "rgba(255,255,255,.18)", 3);
-  const focus = Math.max(0, Math.min(1, Number(item.distancePercent) / 100));
-  let start = Number(item.startPercent) / 100;
-  let end = Number(item.endPercent) / 100;
-  if (!Number.isFinite(start) || !Number.isFinite(end)) {
-    start = Math.max(0, focus - .035);
-    end = Math.min(1, focus + .035);
-  }
-  start = Math.max(0, Math.min(1, start));
-  end = Math.max(0, Math.min(1, end));
-  const ranges = start <= end ? [[start, end]] : [[start, 1], [0, end]];
-  const highlighted = ranges.map(([rangeStart, rangeEnd]) => {
-    const inside = series.filter((entry) => entry.progress >= rangeStart && entry.progress <= rangeEnd);
-    const first = pointAtProgress(series, rangeStart);
-    const last = pointAtProgress(series, rangeEnd);
-    return [first, ...inside, last].filter(Boolean);
-  });
-  context.save();
-  context.shadowColor = "rgba(244,244,238,.6)";
-  context.shadowBlur = 10;
-  highlighted.forEach((segment) => drawSeries(segment, "#f4f4ee", 6));
-  context.restore();
-  highlighted.forEach((segment) => drawSeries(segment, "#f5f7fa", 2));
-
-  const marker = pointAtProgress(series, focus)?.point;
-  if (!marker) return;
-  const [markerX, markerY] = project(marker);
-  context.save();
-  context.shadowColor = "rgba(255,176,0,.85)";
-  context.shadowBlur = 12;
-  context.fillStyle = "#ffb000";
-  context.beginPath(); context.arc(markerX, markerY, 9, 0, Math.PI * 2); context.fill();
-  context.restore();
-  context.strokeStyle = "#ffffff";
-  context.lineWidth = 1.5;
-  context.beginPath(); context.arc(markerX, markerY, 11.5, 0, Math.PI * 2); context.stroke();
-  context.fillStyle = "#080b10";
-  context.font = "900 12px 'JetBrains Mono', ui-monospace, monospace";
-  context.textAlign = "center";
-  context.textBaseline = "middle";
-  context.fillText(String(index + 1), markerX, markerY + .5);
-}
-
-function drawAiSpeedPreview(canvas, item) {
-  const single = state.aiReport?.analysisMode === "single-lap";
-  const primary = distancePoints(lapPoints(state.selectedLapNumber), 700);
-  const comparison = !single && state.comparisonLapNumber ? distancePoints(comparisonLapPoints(), 700) : [];
-  const { context, width, height } = canvasContext(canvas);
-  context.fillStyle = "#08080c";
-  context.fillRect(0, 0, width, height);
-  if (primary.length < 2 || (!single && comparison.length < 2) || width < 2 || height < 2) return;
-
-  const focus = Math.max(0, Math.min(1, Number(item.distancePercent) / 100));
-  const rawStart = Math.max(0, Math.min(1, Number(item.startPercent) / 100));
-  const rawEnd = Math.max(0, Math.min(1, Number(item.endPercent) / 100));
-  const zoneStart = Number.isFinite(rawStart) ? rawStart : Math.max(0, focus - .03);
-  const zoneEnd = Number.isFinite(rawEnd) ? rawEnd : Math.min(1, focus + .03);
-  const zoneSpan = zoneEnd >= zoneStart ? zoneEnd - zoneStart : .08;
-  const viewSpan = Math.min(1, Math.max(.14, zoneSpan * 2.4));
-  const viewStart = Math.max(0, Math.min(1 - viewSpan, focus - viewSpan / 2));
-  const viewEnd = viewStart + viewSpan;
-  const visible = [...primary, ...comparison].filter((entry) => entry.progress >= viewStart && entry.progress <= viewEnd);
-  const speeds = visible.map((entry) => Number(entry.point.speed)).filter(Number.isFinite);
-  if (!speeds.length) return;
-
-  const padding = { left: 10, right: 10, top: 27, bottom: 10 };
-  const plotWidth = width - padding.left - padding.right;
-  const plotHeight = height - padding.top - padding.bottom;
-  const minimum = Math.max(0, Math.min(...speeds) - 8);
-  const maximum = Math.max(minimum + 20, Math.max(...speeds) + 8);
-  const x = (progress) => padding.left + (progress - viewStart) / viewSpan * plotWidth;
-  const y = (speed) => padding.top + (maximum - speed) / (maximum - minimum) * plotHeight;
-
-  context.fillStyle = "rgba(255,176,0,.08)";
-  const highlightStart = x(Math.max(viewStart, zoneStart));
-  const highlightEnd = x(Math.min(viewEnd, zoneEnd));
-  context.fillRect(highlightStart, padding.top, Math.max(2, highlightEnd - highlightStart), plotHeight);
-  context.strokeStyle = "rgba(255,255,255,.04)";
-  context.lineWidth = 1;
-  for (let row = 0; row <= 2; row += 1) {
-    const rowY = padding.top + plotHeight * row / 2;
-    context.beginPath(); context.moveTo(padding.left, rowY); context.lineTo(width - padding.right, rowY); context.stroke();
-  }
-
-  const drawLine = (series, color, lineWidth) => {
-    const section = series.filter((entry) => entry.progress >= viewStart && entry.progress <= viewEnd);
-    if (section.length < 2) return;
-    context.strokeStyle = color;
-    context.lineWidth = lineWidth;
-    context.lineCap = "round";
-    context.lineJoin = "round";
-    context.beginPath();
-    section.forEach((entry, pointIndex) => {
-      const pointX = x(entry.progress); const pointY = y(entry.point.speed);
-      if (pointIndex) context.lineTo(pointX, pointY); else context.moveTo(pointX, pointY);
-    });
-    context.stroke();
-  };
-  drawLine(comparison, "#e10600", 2);
-  drawLine(primary, "#f4f4ee", 2.4);
-
-  const focusX = x(focus);
-  context.strokeStyle = "rgba(255,255,255,.55)";
-  context.lineWidth = 1;
-  context.beginPath(); context.moveTo(focusX, padding.top); context.lineTo(focusX, height - padding.bottom); context.stroke();
-  [{ series: primary, color: "#f4f4ee" }, { series: comparison, color: "#e10600" }].forEach(({ series, color }) => {
-    const point = pointAtProgress(series, focus)?.point;
-    if (!point) return;
-    context.fillStyle = color;
-    context.beginPath(); context.arc(focusX, y(point.speed), 3.5, 0, Math.PI * 2); context.fill();
-  });
-
-  context.font = "700 12px 'JetBrains Mono', ui-monospace, monospace";
-  context.textBaseline = "middle";
-  const legends = [
-    { x: 10, color: "#f4f4ee", label: t("laps.legend", { lap: state.selectedLapNumber }) },
-    ...(single ? [] : [{ x: Math.min(width / 2, 116), color: "#e10600", label: comparisonLabel(true) }]),
-  ];
-  legends.forEach((legend) => {
-    context.fillStyle = legend.color; context.fillRect(legend.x, 10, 12, 2);
-    context.fillStyle = "#a8a9ac"; context.fillText(legend.label, legend.x + 17, 11);
-  });
-}
-
-function drawAiCardVisuals() {
-  elements.aiReport.querySelectorAll("[data-ai-segment]").forEach((canvas) => {
-    const index = Number(canvas.dataset.aiSegment);
-    const item = state.aiReport?.timeLosses?.[index];
-    if (item) drawAiSegmentPreview(canvas, item, index);
-  });
-  elements.aiReport.querySelectorAll("[data-ai-speed]").forEach((canvas) => {
-    const index = Number(canvas.dataset.aiSpeed);
-    const item = state.aiReport?.timeLosses?.[index];
-    if (item) drawAiSpeedPreview(canvas, item);
-  });
-}
-
-// Selecting an advice item (card or map marker) highlights both on the AI page; the page never switches views.
-function openAiRecommendation(index, progress, { scrollTo = "map" } = {}) {
-  state.aiSelectedIndex = index;
-  state.cursorProgress = progress;
-  elements.aiReport.querySelectorAll("[data-ai-index]").forEach((card) => card.classList.toggle("selected", Number(card.dataset.aiIndex) === index));
-  drawTrack();
-  // The map is sticky beside the cards on desktop; on phones it sits above them, so bring the right one into view.
-  const compact = window.matchMedia("(max-width: 1023px)").matches;
-  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const target = scrollTo === "card" ? elements.aiReport.querySelector(`[data-ai-index="${index}"]`) : compact ? elements.aiTrackCanvas : null;
-  target?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "center" });
-}
-
-const seriesCache = new WeakMap();
-function distanceSeries(points, key) {
-  let byKey = seriesCache.get(points);
-  if (!byKey) { byKey = new Map(); seriesCache.set(points, byKey); }
-  if (!byKey.has(key)) byKey.set(key, distancePoints(points).map((item) => ({ progress: item.progress, value: item.point[key] })));
-  return byKey.get(key);
-}
-
-function drawComparisonChart(canvas, key, { speed = false } = {}) {
-  // Static layer: grid, sectors and both traces. Cursor frames only redraw the cursor line and values.
-  const { context, width, height, geometry } = paintLayers(canvas, canvasContext, (context, width, height) => {
-  context.fillStyle = "#08080c"; context.fillRect(0, 0, width, height);
-  // Speeds in the chosen unit (the cached series stay in km/h).
-  const shown = (series) => (speed && speedUnit() !== "kmh" ? series.map((item) => ({ ...item, value: toSpeed(item.value) })) : series);
-  const primary = shown(distanceSeries(lapPoints(state.selectedLapNumber), key));
-  const comparison = state.comparisonLapNumber ? shown(distanceSeries(comparisonLapPoints(), key)) : [];
-  if (primary.length < 2) return null;
-
-  const padding = { left: 48, right: 18, top: 18, bottom: 30 };
-  const values = [...primary, ...comparison].map((point) => point.value).filter(Number.isFinite);
-  let minimum; let maximum; let step;
-  if (speed) {
-    minimum = 0;
-    maximum = Math.ceil(Math.max(...values, 20) / 20) * 20;
-    step = 20;
-  } else {
-    const range = Math.max(.5, Math.ceil(Math.max(...values.map(Math.abs), .5) * 2) / 2);
-    minimum = -range; maximum = range; step = range / 2;
-  }
-
-  const plotWidth = width - padding.left - padding.right;
-  const plotHeight = height - padding.top - padding.bottom;
-  const y = (value) => padding.top + (maximum - value) / Math.max(maximum - minimum, .001) * plotHeight;
-  context.font = "12px 'JetBrains Mono', ui-monospace, monospace"; context.fillStyle = "#8c8d93"; context.strokeStyle = "#1f1f2a"; context.lineWidth = 1;
-  for (let value = minimum; value <= maximum + step / 10; value += step) {
-    const yPosition = y(value);
-    context.beginPath(); context.moveTo(padding.left, yPosition); context.lineTo(width - padding.right, yPosition); context.stroke();
-    context.fillText(speed ? String(Math.round(value)) : value.toFixed(1), 12, yPosition + 3);
-  }
-  for (let tick = 0; tick <= 4; tick += 1) {
-    const progress = state.chartView.start + (state.chartView.end - state.chartView.start) * tick / 4;
-    const xPosition = padding.left + tick / 4 * plotWidth;
-    context.fillText(`${Math.round(progress * 100)}%`, xPosition - (tick === 4 ? 24 : 8), height - 9);
-  }
-
-  const draw = (series, color, widthPx) => {
-    if (series.length < 2) return;
-    context.save();
-    context.beginPath(); context.rect(padding.left, padding.top, plotWidth, plotHeight); context.clip();
-    context.strokeStyle = color; context.lineWidth = widthPx; context.beginPath();
-    series.forEach((point, index) => {
-      const xPosition = chartX(point.progress, padding, plotWidth);
-      const yPosition = y(point.value);
-      index ? context.lineTo(xPosition, yPosition) : context.moveTo(xPosition, yPosition);
-    });
-    context.stroke();
-    context.restore();
-  };
-  drawSectorMarkers(context, padding, plotWidth, height);
-  draw(comparison, "#e10600", 1.9);
-  draw(primary, "#f4f4ee", 2.2);
-  return { primary, comparison, padding, plotWidth, y };
-  });
-  if (!geometry) return;
-  const { primary, comparison, padding, plotWidth, y } = geometry;
-
-  if (state.cursorProgress !== null && state.cursorProgress >= state.chartView.start && state.cursorProgress <= state.chartView.end) {
-    const xPosition = chartX(state.cursorProgress, padding, plotWidth);
-    context.strokeStyle = "rgba(255,255,255,.55)"; context.lineWidth = 1;
-    context.beginPath(); context.moveTo(xPosition, padding.top); context.lineTo(xPosition, height - padding.bottom); context.stroke();
-    const markers = [
-      { item: pointAtProgress(primary, state.cursorProgress), color: "#f4f4ee", side: -1 },
-      { item: pointAtProgress(comparison, state.cursorProgress), color: "#e10600", side: 1 },
-    ];
-    markers.forEach(({ item, color, side }) => {
-      if (!item || !Number.isFinite(item.value)) return;
-      const yPosition = y(item.value);
-      context.fillStyle = color; context.beginPath(); context.arc(xPosition, yPosition, 4.5, 0, Math.PI * 2); context.fill();
-      const label = speed ? `${item.value.toFixed(1)}` : `${item.value.toFixed(2)} g`;
-      context.font = "bold 12px 'JetBrains Mono', ui-monospace, monospace";
-      const labelWidth = context.measureText(label).width + 10;
-      const labelX = Math.max(padding.left, Math.min(width - padding.right - labelWidth, xPosition + side * 8 - (side < 0 ? labelWidth : 0)));
-      context.fillStyle = "rgba(8,8,12,.92)"; context.fillRect(labelX, yPosition - 20, labelWidth, 17);
-      context.fillStyle = color; context.fillText(label, labelX + 5, yPosition - 8);
-    });
-  }
-}
-
-// The delta curve for a pair of laps, cached by their (stable) distance series.
-const deltaCache = new WeakMap();
-function cachedDelta(primary, comparison) {
-  let byComparison = deltaCache.get(primary);
-  if (!byComparison) { byComparison = new WeakMap(); deltaCache.set(primary, byComparison); }
-  if (!byComparison.has(comparison)) byComparison.set(comparison, deltaSeries(primary, comparison, 800));
-  return byComparison.get(comparison);
-}
-
-function drawDeltaChart() {
-  // Static layer: grid, sectors, the delta curve and its legend. Cursor frames only redraw the cursor.
-  const { context, width, height, geometry } = paintLayers(elements.deltaCanvas, canvasContext, (context, width, height) => {
-  context.fillStyle = "#08080c"; context.fillRect(0, 0, width, height);
-  if (!state.selectedLapNumber || !state.comparisonLapNumber) {
-    context.fillStyle = "#8c8d93";
-    context.font = "13px system-ui";
-    context.fillText(t("telemetry.deltaEmpty"), 24, 38);
-    return null;
-  }
-  const primary = distancePoints(lapPoints(state.selectedLapNumber));
-  const comparison = distancePoints(comparisonLapPoints());
-  if (primary.length < 2 || comparison.length < 2) return null;
-  const delta = cachedDelta(primary, comparison);
-  if (delta.length < 2) return null;
-
-  const padding = { left: 52, right: 18, top: 18, bottom: 30 };
-  const plotWidth = width - padding.left - padding.right;
-  const plotHeight = height - padding.top - padding.bottom;
-  const range = Math.max(.1, Math.ceil(Math.max(...delta.map((item) => Math.abs(item.value))) * 10) / 10);
-  const y = (value) => padding.top + (range - value) / (range * 2) * plotHeight;
-  context.font = "12px 'JetBrains Mono', ui-monospace, monospace"; context.fillStyle = "#8c8d93"; context.lineWidth = 1;
-  [-range, 0, range].forEach((value) => {
-    const yPosition = y(value);
-    context.strokeStyle = value === 0 ? "rgba(255,255,255,.28)" : "#1f1f2a";
-    context.beginPath(); context.moveTo(padding.left, yPosition); context.lineTo(width - padding.right, yPosition); context.stroke();
-    context.fillText(`${value > 0 ? "+" : ""}${value.toFixed(1)}`, 10, yPosition + 3);
-  });
-  for (let tick = 0; tick <= 4; tick += 1) {
-    const progress = state.chartView.start + (state.chartView.end - state.chartView.start) * tick / 4;
-    const xPosition = padding.left + tick / 4 * plotWidth;
-    context.fillText(`${Math.round(progress * 100)}%`, xPosition - (tick === 4 ? 24 : 8), height - 9);
-  }
-
-  // Sign legend on a dark plate so the delta line never crosses the text.
-  const signLabel = (text, baseline) => {
-    const labelWidth = context.measureText(text).width;
-    const right = width - padding.right - 6;
-    context.fillStyle = "rgba(8,8,12,.88)";
-    context.fillRect(right - labelWidth - 6, baseline - 12, labelWidth + 12, 17);
-    context.fillStyle = "#8c8d93";
-    context.fillText(text, right - labelWidth, baseline);
-  };
-
-  drawSectorMarkers(context, padding, plotWidth, height);
-  const zeroY = y(0);
-  context.save();
-  context.beginPath(); context.rect(padding.left, padding.top, plotWidth, plotHeight); context.clip();
-  context.beginPath(); context.moveTo(chartX(delta[0].progress, padding, plotWidth), zeroY);
-  delta.forEach((item) => context.lineTo(chartX(item.progress, padding, plotWidth), y(item.value)));
-  context.lineTo(chartX(delta.at(-1).progress, padding, plotWidth), zeroY); context.closePath();
-  context.fillStyle = "rgba(244,244,238,.06)"; context.fill();
-  context.strokeStyle = "#f4f4ee"; context.lineWidth = 2.2; context.beginPath();
-  delta.forEach((item, index) => {
-    const xPosition = chartX(item.progress, padding, plotWidth);
-    const yPosition = y(item.value);
-    index ? context.lineTo(xPosition, yPosition) : context.moveTo(xPosition, yPosition);
-  });
-  context.stroke();
-  context.restore();
-  signLabel(t("delta.behind", { lap: state.selectedLapNumber }), padding.top + 14);
-  signLabel(t("delta.ahead", { lap: state.selectedLapNumber }), height - padding.bottom - 6);
-  return { delta, padding, plotWidth, y };
-  });
-  if (!geometry) return;
-  const { delta, padding, plotWidth, y } = geometry;
-
-  if (state.cursorProgress !== null && state.cursorProgress >= state.chartView.start && state.cursorProgress <= state.chartView.end) {
-    const item = pointAtProgress(delta, state.cursorProgress);
-    const xPosition = chartX(state.cursorProgress, padding, plotWidth);
-    context.strokeStyle = "rgba(255,255,255,.55)"; context.lineWidth = 1;
-    context.beginPath(); context.moveTo(xPosition, padding.top); context.lineTo(xPosition, height - padding.bottom); context.stroke();
-    context.fillStyle = "#f4f4ee"; context.beginPath(); context.arc(xPosition, y(item.value), 4.5, 0, Math.PI * 2); context.fill();
-    const label = `${item.value >= 0 ? "+" : ""}${item.value.toFixed(3)} s`;
-    context.font = "bold 12px 'JetBrains Mono', ui-monospace, monospace";
-    const labelWidth = context.measureText(label).width + 10;
-    const labelX = Math.min(width - padding.right - labelWidth, Math.max(padding.left, xPosition + 8));
-    context.fillStyle = "rgba(8,8,12,.92)"; context.fillRect(labelX, y(item.value) - 21, labelWidth, 17);
-    context.fillStyle = "#f4f4ee"; context.fillText(label, labelX + 5, y(item.value) - 9);
-  }
 }
 
 function drawCharts() {
@@ -995,54 +280,6 @@ function setCursorProgress(progress) {
     overlayFrame(() => { drawTrack(); drawCharts(); });
   });
 }
-
-function updateCursorFromEvent(event) {
-  const paddingLeft = event.currentTarget === elements.deltaCanvas ? 52 : 48;
-  setCursorProgress(chartProgress(event.clientX, event.currentTarget, paddingLeft));
-}
-
-[elements.telemetryCanvas, elements.deltaCanvas].forEach((canvas) => {
-  const pointers = new Map();
-  let pinch = null;
-  canvas.addEventListener("pointerdown", (event) => {
-    canvas.setPointerCapture?.(event.pointerId);
-    pointers.set(event.pointerId, event.clientX);
-    if (pointers.size === 1) updateCursorFromEvent(event);
-    if (pointers.size === 2) {
-      const positions = [...pointers.values()];
-      pinch = {
-        distance: Math.abs(positions[1] - positions[0]),
-        span: state.chartView.end - state.chartView.start,
-        center: chartProgress((positions[0] + positions[1]) / 2, canvas, canvas === elements.deltaCanvas ? 52 : 48),
-      };
-    }
-  });
-  canvas.addEventListener("pointermove", (event) => {
-    if (pointers.has(event.pointerId)) pointers.set(event.pointerId, event.clientX);
-    if (pointers.size === 2 && pinch) {
-      const positions = [...pointers.values()];
-      const distance = Math.max(8, Math.abs(positions[1] - positions[0]));
-      setChartZoom(pinch.center, pinch.span * pinch.distance / distance);
-    } else if (event.pointerType === "mouse" || canvas.hasPointerCapture?.(event.pointerId)) {
-      updateCursorFromEvent(event);
-    }
-  });
-  const releasePointer = (event) => { pointers.delete(event.pointerId); if (pointers.size < 2) pinch = null; };
-  canvas.addEventListener("pointerup", releasePointer);
-  canvas.addEventListener("pointercancel", releasePointer);
-  canvas.addEventListener("pointerleave", (event) => {
-    if (event.pointerType === "mouse" && !event.buttons) setCursorProgress(null);
-  });
-  canvas.addEventListener("wheel", (event) => {
-    event.preventDefault();
-    const center = chartProgress(event.clientX, canvas, canvas === elements.deltaCanvas ? 52 : 48);
-    const factor = Math.exp(event.deltaY * 0.0015);
-    setChartZoom(center, (state.chartView.end - state.chartView.start) * factor);
-  }, { passive: false });
-  canvas.addEventListener("dblclick", resetChartZoom);
-});
-
-elements.chartZoomReset.addEventListener("click", resetChartZoom);
 
 analysisPanels = createAnalysisPanels({
   state, elements, t, onLanguageChange,
@@ -1117,15 +354,6 @@ elements.mapMode.addEventListener("click", (event) => {
   elements.trackZoomReset.addEventListener("click", resetTrackZoom);
 }
 
-elements.aiTrackCanvas.addEventListener("click", (event) => {
-  const rect = elements.aiTrackCanvas.getBoundingClientRect();
-  const x = event.clientX - rect.left;
-  const y = event.clientY - rect.top;
-  const marker = (trackAiMarkerAreas.get(elements.aiTrackCanvas) || [])
-    .find((item) => Math.hypot(item.x - x, item.y - y) <= item.radius);
-  if (marker) openAiRecommendation(marker.index, marker.progress, { scrollTo: "card" });
-});
-
 function selectTelemetryMetric(metric) {
   state.telemetryMetric = ["speed", "gForceX", "gForceY"].includes(metric) ? metric : "speed";
   const translationKey = state.telemetryMetric === "speed" ? "telemetry.speed" : state.telemetryMetric === "gForceX" ? "telemetry.longitudinal" : "telemetry.lateral";
@@ -1134,48 +362,6 @@ function selectTelemetryMetric(metric) {
   elements.telemetryChartUnit.textContent = state.telemetryMetric === "speed" ? t("unit.speed") : "g";
   document.querySelectorAll("[data-metric]").forEach((button) => button.classList.toggle("active", button.dataset.metric === state.telemetryMetric));
   drawCharts();
-}
-
-function renderStorage(storage) {
-  state.storage = storage;
-  elements.storageState.hidden = false;
-  elements.deviceHealth.hidden = false;
-  elements.memoryLevel.textContent = `${storage.memoryLevel}%`;
-  elements.storedMessages.textContent = storage.storedMessages.toLocaleString("ru-RU");
-  const freeMessages = Math.max(0, storage.capacityMessages - storage.storedMessages);
-  const freePercent = storage.capacityMessages ? Math.max(0, 100 - storage.memoryLevel) : 0;
-  elements.memoryFree.textContent = `${freePercent}%`;
-  elements.memoryFreeMeta.textContent = t("memory.remaining", { records: freeMessages.toLocaleString(getLanguage()), time: formatDuration(freeMessages / 25 * 1000) });
-  elements.unlockForm.hidden = !(storage.securityEnabled && !storage.unlocked);
-  elements.downloadButton.disabled = state.memoryBusy || storage.recording || storage.securityEnabled && !storage.unlocked || storage.storedMessages === 0;
-  elements.eraseButton.disabled = state.memoryBusy || storage.recording || storage.securityEnabled && !storage.unlocked || storage.storedMessages === 0;
-  elements.recordButton.disabled = state.memoryBusy || !state.client?.supportsStandaloneRecording || storage.securityEnabled && !storage.unlocked;
-  elements.recordButton.classList.toggle("recording", storage.recording);
-  elements.recordButton.innerHTML = `<span></span><b>${t(storage.recording ? "action.stop" : "action.start")}</b>`;
-  setHint(storage.recording ? t("hint.recording") : t("hint.ready", { model: state.deviceModel || "—" }));
-}
-
-function renderTelemetry(point) {
-  state.latestTelemetry = point;
-  const hasFix = point.fixStatus === 3 && (point.fixStatusFlags & 1) !== 0;
-  elements.deviceHealth.hidden = false;
-  elements.gpsFix.textContent = t(hasFix ? "device.fix" : "device.noFix");
-  elements.gpsFix.className = hasFix ? "good" : "bad";
-  elements.satellites.textContent = t("device.satellites", { count: point.satellites });
-  if (state.deviceModel === "RaceBoxMicro") {
-    elements.batteryLevel.textContent = `${(point.batteryRaw / 10).toFixed(1)} V`;
-    elements.batteryMeta.textContent = t("device.inputVoltage");
-  } else {
-    const charging = (point.batteryRaw & 0x80) !== 0;
-    elements.batteryLevel.textContent = `${point.batteryRaw & 0x7f}%`;
-    elements.batteryMeta.textContent = t(charging ? "device.charging" : "device.batteryPower");
-  }
-}
-
-async function refreshStorage() {
-  if (!state.client) return;
-  try { renderStorage(await state.client.readStorageStatus()); }
-  catch (error) { setHint(connectionErrorMessage(error), true); }
 }
 
 function sessionLabel(session) {
@@ -1311,210 +497,6 @@ function updateLapView() {
   renderLapControls(); renderSectors(); renderAiPageContext(); drawTrack(); drawCharts();
 }
 
-function clearAiReport() {
-  aiRequestToken += 1;
-  state.aiReport = null;
-  state.aiReportLanguage = null;
-  state.aiAnalysisId = null;
-  state.aiPending = false;
-  state.aiHoverIndex = null;
-  state.aiSelectedIndex = null;
-  elements.aiResults.hidden = true;
-  elements.aiReport.hidden = true;
-  elements.aiReport.innerHTML = "";
-  elements.aiFollowup.hidden = true;
-  elements.aiFollowupAnswer.hidden = true;
-  elements.aiFollowupAnswer.innerHTML = "";
-  elements.aiQuestion.value = "";
-  elements.aiQuestionStatus.textContent = "";
-  elements.askAiButton.disabled = true;
-  elements.aiTrackLegend.hidden = true;
-  elements.aiReportJumpButton.classList.remove("ready");
-  renderAiHistory();
-  drawTrack();
-}
-
-function aiQualityMarkup() {
-  const assessment = state.analysis?.quality?.assessment;
-  if (!assessment) return "";
-  const validLevels = new Set(["good", "warning", "poor", "unknown"]);
-  const level = ["good", "warning", "poor"].includes(assessment.level) ? assessment.level : "warning";
-  const checks = ["gps", "stream", "mounting"].map((name) => {
-    const checkLevel = validLevels.has(assessment.checks?.[name]) ? assessment.checks[name] : "unknown";
-    return `<div class="ai-quality-check ${checkLevel}"><span>${escapeHtml(t(`ai.qualityCheck.${name}`))}</span><strong>${escapeHtml(t(`ai.qualityLevel.${checkLevel}`))}</strong></div>`;
-  }).join("");
-  const issues = (assessment.issues || []).map((issue) => `<li>${escapeHtml(t(`ai.qualityIssue.${issue}`))}</li>`).join("");
-  return `<section class="ai-quality ${level}">
-    <div class="ai-quality-heading"><div><p class="eyebrow">${escapeHtml(t("ai.qualityTitle"))}</p><strong>${escapeHtml(t(`ai.quality.${level}`))}</strong></div><span class="ai-quality-light" aria-hidden="true"></span></div>
-    <p>${escapeHtml(t(`ai.qualityCopy.${level}`))}</p>
-    <div class="ai-quality-checks">${checks}</div>
-    ${issues ? `<ul>${issues}</ul>` : ""}
-  </section>`;
-}
-
-// A fresh or reopened report enters card by card; re-renders (language switch) stay still.
-let aiRevealTimer = 0;
-function revealAiReport() {
-  let index = 0;
-  [...elements.aiReport.children].forEach((block) => {
-    const cards = block.querySelectorAll(".ai-report-card");
-    (cards.length ? [...cards] : [block]).forEach((item) => {
-      item.classList.add("ai-reveal-item");
-      item.style.setProperty("--reveal", String(Math.min(index, 10)));
-      index += 1;
-    });
-  });
-  elements.aiReport.classList.remove("revealing");
-  void elements.aiReport.offsetWidth;
-  elements.aiReport.classList.add("revealing");
-  clearTimeout(aiRevealTimer);
-  aiRevealTimer = setTimeout(() => elements.aiReport.classList.remove("revealing"), 1200);
-}
-
-function renderAiReport(report, analysisId, reportLanguage = getLanguage()) {
-  state.aiReport = report;
-  state.aiReportLanguage = reportLanguage;
-  state.aiAnalysisId = analysisId;
-  state.aiHoverIndex = null;
-  state.aiSelectedIndex = null;
-  elements.aiResults.hidden = false;
-  elements.aiTrackLegend.hidden = !(report.timeLosses || []).length;
-  const singleLap = report.analysisMode === "single-lap";
-  elements.aiTrackComparisonLegend.hidden = singleLap;
-  elements.aiFollowupCopy.textContent = t(singleLap ? "ai.followupCopySingle" : "ai.followupCopy");
-  elements.aiQuestion.placeholder = t(singleLap ? "ai.placeholderSingle" : "ai.placeholder");
-  elements.aiReportJumpButton.classList.add("ready");
-  const strengths = (report.strengths || []).map((item) => `
-    <article class="ai-report-card"><strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(item.evidence)}</span></article>`).join("");
-  const losses = (report.timeLosses || []).map((item, index) => {
-    const phaseLabel = item.phaseType ? t(`ai.phase.${item.phaseType}`) : "";
-    const locationLabel = t(`ai.location.${item.driverLocation || "betweenCorners"}`);
-    const confidence = ["low", "medium", "high"].includes(item.confidence) ? item.confidence : "low";
-    return `
-    <article class="ai-report-card" data-ai-index="${index}" data-ai-progress="${Number(item.distancePercent) / 100}">
-      <i class="ai-marker-index">${index + 1}</i>
-      <button class="ai-card-focus" type="button" data-ai-open>
-        <canvas class="ai-segment-preview" data-ai-segment="${index}" aria-hidden="true"></canvas>
-        <canvas class="ai-speed-preview" data-ai-speed="${index}" aria-label="${escapeHtml(t("ai.speedPreview"))}"></canvas>
-        <strong>${escapeHtml(locationLabel)}</strong>
-        <small class="ai-phase">${escapeHtml(item.zoneId || "ZONE")}${phaseLabel ? ` · ${escapeHtml(phaseLabel)}` : ""}</small>
-        <span class="ai-observation"><b>${escapeHtml(t("ai.observation"))}:</b> ${escapeHtml(item.observation)}</span>
-        <small class="ai-action"><b>${escapeHtml(t("ai.recommendation"))}:</b> ${escapeHtml(item.recommendation)}</small>
-      </button>
-      <details class="ai-card-details">
-        <summary>${escapeHtml(t("ai.details"))}</summary>
-        <small><b>${escapeHtml(t("ai.hypothesis"))}:</b> ${escapeHtml(item.hypothesis)}</small>
-        <small class="ai-confidence ${confidence}">${escapeHtml(t("ai.confidence", { value: t(`ai.confidence.${confidence}`) }))}</small>
-      </details>
-    </article>`;
-  }).join("");
-  const warnings = (report.dataWarnings || []).length
-    ? `<ul class="ai-warnings">${report.dataWarnings.map((warning) => `<li>${escapeHtml(warning)}</li>`).join("")}</ul>` : "";
-  elements.aiReport.innerHTML = `
-    ${aiQualityMarkup()}
-    <div><p class="eyebrow">${escapeHtml(t("ai.summary"))}</p><div class="ai-report-summary">${escapeHtml(report.summary)}</div></div>
-    ${strengths ? `<div><p class="eyebrow">${escapeHtml(t("ai.strengths"))}</p><div class="ai-report-grid">${strengths}</div></div>` : ""}
-    ${losses ? `<div><p class="eyebrow">${escapeHtml(t("ai.losses"))}</p><div class="ai-report-grid">${losses}</div></div>` : ""}
-    <article class="ai-report-card"><strong>${escapeHtml(t("ai.consistency"))}</strong><span>${escapeHtml(report.consistency?.assessment)}</span></article>
-    ${warnings ? `<div><p class="eyebrow">${escapeHtml(t("ai.warnings"))}</p>${warnings}</div>` : ""}`;
-  elements.aiReport.hidden = false;
-  elements.aiFollowup.hidden = false;
-  elements.aiFollowupAnswer.hidden = true;
-  elements.aiFollowupAnswer.innerHTML = "";
-  elements.aiQuestion.value = "";
-  elements.aiQuestionStatus.textContent = "";
-  elements.askAiButton.disabled = true;
-  elements.aiReport.querySelectorAll("[data-ai-progress]").forEach((card) => {
-    card.addEventListener("mouseenter", () => { state.aiHoverIndex = Number(card.dataset.aiIndex); drawTrack(); });
-    card.addEventListener("mouseleave", () => { state.aiHoverIndex = null; drawTrack(); });
-    card.querySelector("[data-ai-open]").addEventListener("click", () => {
-      const progress = Math.max(0, Math.min(1, Number(card.dataset.aiProgress)));
-      openAiRecommendation(Number(card.dataset.aiIndex), progress);
-    });
-  });
-  requestAnimationFrame(() => { drawTrack(); drawAiCardVisuals(); });
-}
-
-async function runAiAnalysis() {
-  const local = state.selectedSession?.source === "local" ? state.selectedSession : null;
-  if (local && !local.cloudId) {
-    if (!state.user) { openAccountDialog("signin"); return; }
-    try {
-      elements.copyStatus.textContent = t("app.aiUploading");
-      local.cloudId = await saveLog(local, local.deviceName);
-      if (local.title) await renameLog(local.cloudId, local.title).catch(() => {});
-      await updateLocalSession(local.id, { cloudId: local.cloudId });
-    } catch (error) { elements.copyStatus.textContent = error.message; return; }
-  }
-  const cloudId = state.selectedSession?.cloudId;
-  if (!cloudId) { elements.copyStatus.textContent = t("ai.cloudRequired"); return; }
-  const requestLanguage = getLanguage();
-  const requestPrimaryLap = state.selectedLapNumber;
-  const requestMode = effectiveAiMode();
-  const requestComparisonLap = requestMode === "compare" ? state.comparisonLapNumber : null;
-  const requestRivalToken = requestMode === "compare" && state.comparisonRival ? state.comparisonSource?.token : undefined;
-  const requestToken = ++aiRequestToken;
-  state.aiPending = true;
-  elements.analyzeAiButton.disabled = true;
-  elements.analyzeAiButton.textContent = t("ai.analyzing");
-  elements.copyStatus.textContent = t("ai.analyzing");
-  try {
-    const result = await analyzeLog(cloudId, {
-      mode: requestMode,
-      primaryLap: requestPrimaryLap,
-      comparisonLap: requestComparisonLap,
-      rivalToken: requestRivalToken,
-      question: "",
-      language: requestLanguage,
-    });
-    if (requestToken !== aiRequestToken || requestLanguage !== getLanguage()) return;
-    renderAiReport(result.analysis.report, result.analysis.id, requestLanguage);
-    revealAiReport();
-    elements.copyStatus.textContent = `${t("ai.reportReady")}${result.cached ? " · cache" : ""}`;
-    void refreshAiHistory();
-  } catch (error) {
-    if (requestToken === aiRequestToken) elements.copyStatus.textContent = error.message;
-  } finally {
-    if (requestToken === aiRequestToken) {
-      state.aiPending = false;
-      elements.analyzeAiButton.disabled = !state.selectedSession?.cloudId || !state.analysis?.laps.length;
-      elements.analyzeAiButton.textContent = t("ai.analyze");
-      const sameComparison = state.selectedSession?.cloudId === cloudId
-        && state.selectedLapNumber === requestPrimaryLap
-        && effectiveAiMode() === requestMode
-        && (requestMode === "single" || (state.comparisonLapNumber === requestComparisonLap && state.comparisonSource?.token === requestRivalToken && state.comparisonRival === Boolean(requestRivalToken)));
-      if (sameComparison && requestLanguage !== getLanguage()) void runAiAnalysis();
-    }
-  }
-}
-
-async function askAiQuestion() {
-  const question = elements.aiQuestion.value.trim();
-  if (!state.aiAnalysisId || question.length < 3) return;
-  elements.askAiButton.disabled = true;
-  elements.askAiButton.textContent = t("ai.asking");
-  elements.aiQuestionStatus.textContent = t("ai.asking");
-  elements.aiFollowupAnswer.hidden = true;
-  try {
-    const result = await askAiFollowUp(state.aiAnalysisId, question);
-    const followUp = result.followUp || {};
-    const evidence = (followUp.evidence || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("");
-    const warnings = (followUp.dataWarnings || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("");
-    elements.aiFollowupAnswer.innerHTML = `
-      <strong>${escapeHtml(t("ai.answer"))}</strong>
-      <p>${escapeHtml(followUp.answer)}</p>
-      ${evidence ? `<b>${escapeHtml(t("ai.evidence"))}</b><ul>${evidence}</ul>` : ""}
-      ${warnings ? `<b>${escapeHtml(t("ai.warnings"))}</b><ul class="ai-warnings">${warnings}</ul>` : ""}`;
-    elements.aiFollowupAnswer.hidden = false;
-    elements.aiQuestionStatus.textContent = t("ai.answerReady");
-  } catch (error) {
-    elements.aiQuestionStatus.textContent = error.message;
-  } finally {
-    elements.askAiButton.disabled = elements.aiQuestion.value.trim().length < 3;
-    elements.askAiButton.textContent = t("ai.ask");
-  }
-}
-
 async function selectSession(id) {
   const isNewSession = String(state.selectedSession?.id) !== String(id);
   if (isNewSession) {
@@ -1571,152 +553,6 @@ async function selectSession(id) {
   return true;
 }
 
-function setAccountMessage(message = "", error = false) {
-  elements.accountMessage.textContent = message;
-  elements.accountMessage.classList.toggle("error", error);
-}
-
-// A guest who opened a shared link sees the app (read-only) without an account, like in the CSV trial.
-function viewingShared() { return state.sessions.some((session) => session.source === "shared"); }
-function updateAccess() {
-  const unlocked = Boolean(state.user) || testMode || (!appMode && (state.trial || viewingShared()));
-  document.body.classList.toggle("auth-locked", !unlocked);
-  elements.authGate.hidden = unlocked;
-  renderTrialBanner();
-}
-
-function renderTrialBanner() {
-  const guest = !state.user && (state.trial || viewingShared());
-  elements.trialBanner.hidden = !guest;
-  if (!guest) return;
-  const shared = state.selectedSession?.source === "shared" && state.rival;
-  elements.trialBannerTitle.textContent = shared ? t("share.bannerTitle", { name: state.rival.name }) : t("trial.bannerTitle");
-  elements.trialBannerText.textContent = t(shared ? "share.bannerText" : "trial.bannerText");
-  elements.trialUploadButton.hidden = !shared;
-}
-
-// Guest trial: a CSV is parsed in the browser and analysed without an account; nothing leaves the device
-// until the visitor registers, at which point the log is saved to the new account.
-const TRIAL_MAX_BYTES = 60 * 1024 * 1024;
-function setTrialStatus(message = "", error = false) {
-  for (const status of [elements.trialStatus, elements.appTrialStatus]) {
-    status.textContent = message;
-    status.classList.toggle("error", error);
-  }
-}
-
-async function startTrial(file) {
-  if (!file) return;
-  if (!/\.csv$/i.test(file.name) && file.type !== "text/csv") return setTrialStatus(t("trial.notCsv"), true);
-  if (file.size > TRIAL_MAX_BYTES) return setTrialStatus(t("trial.tooLarge"), true);
-  setTrialStatus(t("trial.reading"));
-  elements.trialButton.disabled = true;
-  try {
-    const points = parseRaceBoxCsv(await file.text());
-    if (!points.length) throw new Error("empty log");
-    const session = { id: `trial-${Date.now()}`, title: file.name.replace(/\.csv$/i, "").slice(0, 100) || t("trial.bannerTitle"), source: "trial", deviceName: "LapTrace", startedAt: points[0].time, endedAt: points.at(-1).time, points };
-    state.trial = true;
-    state.sessions = [session, ...state.sessions.filter((item) => item.source !== "trial")];
-    updateAccess();
-    renderSessions();
-    if (!await selectSession(session.id)) throw new Error("selection failed");
-    showView("analysis");
-    window.scrollTo(0, 0);
-    setTrialStatus();
-  } catch {
-    endTrial();
-    setTrialStatus(t("trial.error"), true);
-  } finally {
-    elements.trialButton.disabled = false;
-    elements.trialInput.value = "";
-  }
-}
-
-function endTrial() {
-  state.trial = false;
-  state.sessions = state.sessions.filter((session) => session.source !== "trial" && session.source !== "shared");
-  state.rival = null; state.comparisonRival = false; state.comparisonSource = null;
-  if (state.selectedSession?.source === "trial" || state.selectedSession?.source === "shared") { state.selectedSession = null; state.analysis = null; state.sectors = null; }
-  updateAccess();
-  renderSessions();
-}
-
-// Called right after sign-up/sign-in: the visitor asked to keep the trial log, so it goes to their account.
-async function saveTrialLogs() {
-  const sessions = state.sessions.filter((session) => session.source === "trial" && !session.cloudId);
-  state.trial = false;
-  if (!sessions.length || !state.user) return;
-  try {
-    for (const session of sessions) {
-      session.cloudId = await saveLog(session, "LapTrace");
-      if (session.cloudId) await renameLog(session.cloudId, session.title);
-    }
-    if (sessions.includes(state.selectedSession)) {
-      elements.analyzeAiButton.disabled = !state.analysis?.laps.length;
-      elements.copyStatus.textContent = t("ai.ready");
-    }
-    setAccountMessage(t("trial.saved"));
-  } catch (error) { setAccountMessage(error.message, true); }
-}
-
-const ACCOUNT_MODES = {
-  signin: { title: "account.title", copy: "account.copy", submit: "account.signIn" },
-  register: { title: "account.registerTitle", copy: "account.registerCopy", submit: "account.create" },
-  forgot: { title: "account.forgotTitle", copy: "account.forgotCopy", submit: "account.sendLink" },
-  reset: { title: "account.resetTitle", copy: "account.resetCopy", submit: "account.savePassword" },
-};
-let resetToken = "";
-
-function setAccountMode(mode) {
-  accountMode = ACCOUNT_MODES[mode] ? mode : "signin";
-  const registering = accountMode === "register";
-  const recovering = accountMode === "forgot" || accountMode === "reset";
-  const labels = ACCOUNT_MODES[accountMode];
-  elements.accountSignInTab.parentElement.hidden = recovering;
-  elements.accountSignInTab.classList.toggle("active", accountMode === "signin");
-  elements.accountRegisterTab.classList.toggle("active", registering);
-  elements.accountSignInTab.setAttribute("aria-selected", String(accountMode === "signin"));
-  elements.accountRegisterTab.setAttribute("aria-selected", String(registering));
-  elements.accountEmail.closest("label").hidden = accountMode === "reset";
-  elements.accountEmail.required = accountMode !== "reset";
-  elements.accountPassword.closest("label").hidden = accountMode === "forgot";
-  elements.accountPassword.required = accountMode !== "forgot";
-  elements.accountConfirmLabel.hidden = !(registering || accountMode === "reset");
-  elements.accountPasswordConfirm.required = registering || accountMode === "reset";
-  elements.accountPassword.autocomplete = accountMode === "signin" ? "current-password" : "new-password";
-  elements.accountForgotButton.hidden = accountMode !== "signin";
-  elements.accountBackButton.hidden = !recovering;
-  elements.accountDialogTitle.textContent = t(labels.title);
-  elements.accountDialogCopy.textContent = t(labels.copy);
-  elements.accountSubmitButton.textContent = t(labels.submit);
-  elements.accountPassword.classList.remove("invalid");
-  elements.accountPasswordConfirm.classList.remove("invalid");
-  elements.accountPasswordConfirm.setCustomValidity("");
-  setAccountMessage("");
-}
-
-function openAccountDialog(mode = "signin") {
-  renderAccount();
-  if (!state.user) setAccountMode(mode);
-  elements.accountDialog.showModal();
-}
-
-function renderAccount() {
-  const email = state.user?.email ?? "";
-  elements.accountGuest.hidden = Boolean(state.user);
-  elements.accountMember.hidden = !state.user;
-  elements.accountLabel.textContent = email || t("account.signIn");
-  elements.accountAvatar.textContent = email ? email[0] : "?";
-  elements.accountUserEmail.textContent = email;
-  elements.cloudLogStatus.textContent = state.user ? t("account.logs", { count: state.cloudLogs.length }) : "";
-  elements.accountVerifyNotice.hidden = !state.user || state.user.emailVerified !== false;
-  if (!cloudConfigured) {
-    setAccountMessage(t("account.notConfigured"), true);
-    elements.accountForm.querySelectorAll("input, button").forEach((element) => { element.disabled = true; });
-  }
-  updateAccess();
-}
-
 async function syncCloudLogs() {
   if (!state.user) return;
   try {
@@ -1754,54 +590,7 @@ async function applyUser(user) {
   await saveTrialLogs();
   await syncCloudLogs();
   showView(viewFromHash(), false);
-  if (pendingFriendToken) void handleFriendLink();
-}
-
-async function submitAccount(action) {
-  const email = elements.accountEmail.value.trim();
-  const password = elements.accountPassword.value;
-  if (accountMode === "forgot") return submitPasswordResetRequest(email);
-  if ((accountMode === "register" || accountMode === "reset") && password !== elements.accountPasswordConfirm.value) {
-    elements.accountPassword.classList.add("invalid");
-    elements.accountPasswordConfirm.classList.add("invalid");
-    elements.accountPasswordConfirm.setCustomValidity(t("account.passwordMismatch"));
-    elements.accountPasswordConfirm.reportValidity();
-    setAccountMessage(t("account.passwordMismatch"), true);
-    return;
-  }
-  setAccountMessage("");
-  elements.accountSubmitButton.disabled = true;
-  elements.accountSubmitButton.textContent = t("account.working");
-  try {
-    const user = accountMode === "reset" ? await resetPassword(resetToken, password)
-      : accountMode === "register" ? await action(email, password, getLanguage())
-      : await action(email, password);
-    if (accountMode === "reset") { resetToken = ""; history.replaceState(null, "", location.pathname + location.search); }
-    if (user) {
-      await applyUser(user);
-      elements.accountForm.reset();
-      elements.accountDialog.close();
-    }
-    else setAccountMessage(t("account.confirm"));
-  } catch (error) { setAccountMessage(error.message, true); }
-  finally {
-    elements.accountSubmitButton.disabled = false;
-    elements.accountSubmitButton.textContent = t(ACCOUNT_MODES[accountMode].submit);
-  }
-}
-
-async function submitPasswordResetRequest(email) {
-  setAccountMessage("");
-  elements.accountSubmitButton.disabled = true;
-  elements.accountSubmitButton.textContent = t("account.working");
-  try {
-    await requestPasswordReset(email, getLanguage());
-    setAccountMessage(t("account.linkSent"));
-  } catch (error) { setAccountMessage(error.message, true); }
-  finally {
-    elements.accountSubmitButton.disabled = false;
-    elements.accountSubmitButton.textContent = t(ACCOUNT_MODES[accountMode].submit);
-  }
+  if (pendingFriendInvite()) void handleFriendLink();
 }
 
 // Links from emails arrive as #reset=<token> or #verify=<token>.
@@ -1837,48 +626,6 @@ async function handleSharedLink() {
     window.scrollTo(0, 0);
   } catch (error) {
     showNotice(/no longer|invalid|not found/i.test(error.message) ? t("share.invalid") : t("share.loadFailed"), true);
-  }
-}
-
-// Open "#friend=<token>": signed-out visitors sign in first (the token waits), then the invitation is confirmed.
-let pendingFriendToken = null;
-async function handleFriendLink() {
-  const match = location.hash.match(/^#friend=([A-Za-z0-9_-]{32,64})$/);
-  if (match) { pendingFriendToken = match[1]; history.replaceState(null, "", location.pathname + location.search + "#profile"); }
-  if (!pendingFriendToken) return;
-  if (!state.user) {
-    if (!elements.accountDialog.open) openAccountDialog("signup");
-    setAccountMessage(t("invite.signIn"));
-    return;
-  }
-  const token = pendingFriendToken;
-  pendingFriendToken = null;
-  if (await acceptInviteFlow(token)) showView("profile", true);
-}
-
-async function handleAuthLink() {
-  const match = location.hash.match(/^#(reset|verify)=([A-Za-z0-9_-]{32,128})$/);
-  if (!match) return;
-  const [, kind, token] = match;
-  history.replaceState(null, "", location.pathname + location.search);
-  if (kind === "reset") {
-    resetToken = token;
-    elements.accountForm.reset();
-    renderAccount();
-    elements.accountGuest.hidden = false;
-    elements.accountMember.hidden = true;
-    setAccountMode("reset");
-    if (!elements.accountDialog.open) elements.accountDialog.showModal();
-    return;
-  }
-  try {
-    const user = await verifyEmail(token);
-    if (state.user && state.user.id === user.id) { state.user = { ...state.user, emailVerified: true }; renderAccount(); }
-    openAccountDialog("signin");
-    setAccountMessage(t("account.verified"));
-  } catch (error) {
-    openAccountDialog("signin");
-    setAccountMessage(error.message, true);
   }
 }
 
@@ -2006,124 +753,6 @@ async function importLogFile(file) {
   }
 }
 
-async function createClient() {
-  let Client = RaceBoxBleClient;
-  if (testMode) Client = (await import("./ble/mock-racebox.js")).MockRaceBoxClient;
-  else if (globalThis.Capacitor?.isNativePlatform?.()) {
-    Client = (await import("./ble/capacitor-racebox.js")).CapacitorRaceBoxClient;
-  }
-  return new Client({ onTelemetry: renderTelemetry, onStatus: (status, name) => {
-    const connected = status === "connected";
-    state.connected = connected;
-    setStatus(connected ? t("state.connected", { name }) : t("status.disconnected"), connected);
-    elements.connectButton.textContent = t(connected ? "action.disconnect" : "action.connect");
-    if (!connected) {
-      clearInterval(state.pollTimer); state.pollTimer = null; state.client = null;
-      elements.downloadButton.disabled = true; elements.recordButton.disabled = true;
-      elements.eraseButton.disabled = true;
-    }
-  }});
-}
-
-async function connect() {
-  if (accountRequired()) { openAccountDialog(); return; }
-  if (state.client) { state.client.disconnect(); return; }
-  try {
-    setStatus(t("status.searching")); setHint(t("error.notSelected"));
-    const client = await createClient();
-    state.deviceName = await client.connect(); state.client = client; state.deviceModel = client.model;
-    setStatus(t("state.reading", { name: state.deviceName }), true);
-    await refreshStorage();
-    clearInterval(state.pollTimer);
-    state.pollTimer = setInterval(refreshStorage, 10_000);
-    setStatus(t("state.ready", { name: state.deviceName }), true);
-  } catch (error) { state.client = null; setStatus(t("status.connectFailed")); setHint(connectionErrorMessage(error), true); }
-}
-
-async function toggleRecording() {
-  if (accountRequired()) { openAccountDialog(); return; }
-  if (!state.client || !state.storage) return;
-  const wasRecording = state.storage.recording;
-  elements.recordButton.disabled = true;
-  try {
-    setStatus(t(wasRecording ? "state.stopped" : "state.recording", { name: state.deviceName }), true);
-    if (wasRecording) await state.client.stopRecording();
-    else await state.client.startRecording();
-    await refreshStorage();
-    setStatus(t(wasRecording ? "state.stopped" : "state.recording", { name: state.deviceName }), true);
-  } catch (error) {
-    setHint(error.message, true);
-    setStatus(t("state.recordRejected", { name: state.deviceName }), true);
-  } finally {
-    elements.recordButton.disabled = !state.client?.supportsStandaloneRecording || state.storage?.securityEnabled && !state.storage?.unlocked;
-  }
-}
-
-async function downloadHistory() {
-  if (accountRequired()) { openAccountDialog(); return; }
-  try {
-    elements.downloadButton.disabled = true; elements.downloadProgress.hidden = false; elements.cancelButton.hidden = false;
-    setStatus(t("state.downloading", { name: state.deviceName }), true);
-    const sessions = await state.client.downloadHistory(({ expected, received, percent }) => {
-      elements.progressBar.value = percent;
-      elements.progressLabel.textContent = expected ? t("progress.records", { received: received.toLocaleString(getLanguage()), expected: expected.toLocaleString(getLanguage()) }) : t("progress.preparing");
-    });
-    if (!sessions.length) throw new Error(t("error.noRecords"));
-    if (appMode) {
-      // Keep everything already on the device; the newest downloaded session opens.
-      const stored = [];
-      for (const session of sessions) stored.push(await storeLocally(session.points, { deviceName: state.deviceName }));
-      renderSessions(); await selectSession(stored.at(-1).id);
-      void syncLocalToCloud();
-    } else {
-      state.sessions = sessions; state.selectedSession = sessions.at(-1);
-      renderSessions(); selectSession(state.selectedSession.id);
-      await saveDownloadedLogs(sessions);
-    }
-    elements.progressBar.value = 100; elements.progressLabel.textContent = t("progress.done", { count: sessions.length });
-    elements.cancelButton.hidden = true;
-    setStatus(t("state.loaded", { name: state.deviceName }), true); setHint(t("state.loaded", { name: state.deviceName }));
-    // In the app the device controls have their own tab: show the fresh session straight away.
-    if (appMode && currentView === "device") showView("analysis");
-  } catch (error) { elements.cancelButton.hidden = true; setStatus(t("state.downloadFailed", { name: state.deviceName }), true); setHint(error.message, true); }
-  finally { elements.downloadButton.disabled = false; }
-}
-
-async function eraseDeviceMemory() {
-  if (accountRequired()) { openAccountDialog(); return; }
-  if (!state.client || !state.storage || state.storage.recording || state.storage.storedMessages === 0) return;
-  if (!await askDialog({ title: t("erase.title"), message: t("erase.confirm"), confirmLabel: t("action.erase"), danger: true })) return;
-  elements.eraseButton.disabled = true;
-  elements.downloadButton.disabled = true;
-  elements.recordButton.disabled = true;
-  state.memoryBusy = true;
-  elements.eraseProgress.hidden = false;
-  elements.eraseProgressBar.value = 0;
-  elements.eraseProgressLabel.textContent = t("erase.progress", { percent: 0 });
-  try {
-    await state.client.eraseHistory((percent) => {
-      elements.eraseProgressBar.value = percent;
-      elements.eraseProgressLabel.textContent = t("erase.progress", { percent });
-    });
-    elements.eraseProgressBar.value = 100;
-    elements.eraseProgressLabel.textContent = t("erase.done");
-    await refreshStorage();
-    setHint(t("erase.done"));
-  } catch (error) {
-    setHint(error.message, true);
-  } finally {
-    state.memoryBusy = false;
-    if (state.storage) renderStorage(state.storage);
-  }
-}
-
-elements.connectButton.addEventListener("click", connect);
-elements.onboardConnectButton.addEventListener("click", () => {
-  if (appMode) showView("device");
-  if (!bluetoothAvailable()) { elements.bluetoothNotice.scrollIntoView({ behavior: "smooth", block: "center" }); return; }
-  elements.connectButton.scrollIntoView({ behavior: "smooth", block: "center" });
-  void connect();
-});
 elements.onboardImportButton.addEventListener("click", () => {
   if (accountRequired()) { openAccountDialog("signin"); return; }
   elements.importLogInput.click();
@@ -2157,10 +786,6 @@ initWorkspace({
 onLanguageChange(renderBluetoothSupport);
 renderBluetoothSupport();
 renderSessionState();
-elements.recordButton.addEventListener("click", toggleRecording);
-elements.downloadButton.addEventListener("click", downloadHistory);
-elements.eraseButton.addEventListener("click", eraseDeviceMemory);
-elements.cancelButton.addEventListener("click", () => state.client?.cancelDownload());
 elements.analysisNavButton.addEventListener("click", () => showView("analysis"));
 elements.logsNavButton.addEventListener("click", () => accountRequired() ? openAccountDialog("signin") : showView("logs"));
 elements.aiNavButton.addEventListener("click", () => accountRequired() ? openAccountDialog("signin") : showView("ai"));
@@ -2168,79 +793,18 @@ elements.logsBackButton.addEventListener("click", () => showView("analysis"));
 elements.aiBackButton.addEventListener("click", () => showView("analysis"));
 elements.importLogButton.addEventListener("click", () => elements.importLogInput.click());
 elements.importLogInput.addEventListener("change", () => importLogFile(elements.importLogInput.files?.[0]));
-elements.trialButton.addEventListener("click", () => elements.trialInput.click());
-elements.trialInput.addEventListener("change", () => startTrial(elements.trialInput.files?.[0]));
-elements.trialRegisterButton.addEventListener("click", () => openAccountDialog("register"));
-elements.trialUploadButton.addEventListener("click", () => elements.trialInput.click());
 elements.sessionShareButton.addEventListener("click", () => { if (state.selectedSession?.cloudId) openShareDialog(state.selectedSession, state.user?.displayName || state.user?.email); });
 initShare();
 onLanguageChange(() => { renderTrialBanner(); if (state.rival && state.selectedSession?.source === "shared") { state.selectedSession.title = t("share.sessionTitle", { name: state.rival.name }); } });
 elements.trialExitButton.addEventListener("click", () => { endTrial(); history.replaceState(null, "", "/"); routedUrl = location.href; showView("analysis", false); syncGuestPage(); window.scrollTo(0, 0); });
-// Dropping a CSV anywhere on the landing hero starts the trial too.
-{
-  let depth = 0;
-  const hero = elements.landingHero;
-  const isFileDrag = (event) => [...(event.dataTransfer?.types || [])].includes("Files");
-  hero.addEventListener("dragenter", (event) => { if (!isFileDrag(event)) return; depth += 1; hero.classList.add("dragging"); });
-  hero.addEventListener("dragleave", () => { depth = Math.max(0, depth - 1); if (!depth) hero.classList.remove("dragging"); });
-  hero.addEventListener("dragover", (event) => { if (isFileDrag(event)) event.preventDefault(); });
-  hero.addEventListener("drop", (event) => {
-    if (!isFileDrag(event)) return;
-    event.preventDefault();
-    depth = 0; hero.classList.remove("dragging");
-    void startTrial(event.dataTransfer.files?.[0]);
-  });
-}
-elements.accountButton.addEventListener("click", () => (state.user ? showView("profile") : openAccountDialog("signin")));
-elements.gateAccountButton.addEventListener("click", () => openAccountDialog("register"));
-elements.demoAccountButton.addEventListener("click", () => openAccountDialog("register"));
-elements.aiSampleAccountButton.addEventListener("click", () => openAccountDialog("register"));
-elements.accountSignInTab.addEventListener("click", () => setAccountMode("signin"));
-elements.accountRegisterTab.addEventListener("click", () => setAccountMode("register"));
-elements.accountForgotButton.addEventListener("click", () => setAccountMode("forgot"));
-elements.accountBackButton.addEventListener("click", () => { resetToken = ""; setAccountMode("signin"); });
-elements.accountResendButton.addEventListener("click", async () => {
-  elements.accountResendButton.disabled = true;
-  try {
-    const result = await resendVerification(getLanguage());
-    if (result.alreadyVerified) { state.user = { ...state.user, emailVerified: true }; renderAccount(); setAccountMessage(t("account.verified")); }
-    else setAccountMessage(t("account.verifySent"));
-  } catch (error) { setAccountMessage(error.message, true); }
-  finally { elements.accountResendButton.disabled = false; }
-});
 window.addEventListener("hashchange", handleAuthLink);
 window.addEventListener("hashchange", handleSharedLink);
 window.addEventListener("hashchange", handleFriendLink);
-elements.accountPasswordConfirm.addEventListener("input", () => {
-  elements.accountPassword.classList.remove("invalid");
-  elements.accountPasswordConfirm.classList.remove("invalid");
-  elements.accountPasswordConfirm.setCustomValidity("");
-});
 document.querySelectorAll("input:not([type='range']):not([type='file']), textarea").forEach((field) => {
   field.addEventListener("focus", () => {
     if (!globalThis.Capacitor?.isNativePlatform?.()) return;
     setTimeout(() => field.scrollIntoView({ block: "center", behavior: "smooth" }), 250);
   });
-});
-elements.accountClose.addEventListener("click", () => elements.accountDialog.close());
-elements.accountDialog.addEventListener("click", (event) => { if (event.target === elements.accountDialog) elements.accountDialog.close(); });
-elements.accountForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  await submitAccount(accountMode === "register" ? signUp : signIn);
-});
-elements.logoutButton.addEventListener("click", async () => { try { await signOut(); await applyUser(null); } catch (error) { setAccountMessage(error.message, true); } });
-elements.unlockForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  try {
-    const ok = await state.client.unlockMemory(Number(elements.securityCode.value));
-    if (!ok) throw new Error(t("memory.wrongCode"));
-    renderStorage(await state.client.readStorageStatus()); setHint(t("memory.unlocked"));
-  } catch (error) { setHint(error.message, true); }
-});
-elements.analyzeAiButton.addEventListener("click", runAiAnalysis);
-elements.askAiButton.addEventListener("click", askAiQuestion);
-elements.aiQuestion.addEventListener("input", () => {
-  elements.askAiButton.disabled = !state.aiAnalysisId || elements.aiQuestion.value.trim().length < 3;
 });
 elements.aiReportJumpButton.addEventListener("click", () => showView("ai"));
 elements.aiReportJumpButton.setAttribute("aria-label", t("ai.reportButton"));
@@ -2283,18 +847,6 @@ const stepSession = (offset) => {
 };
 elements.sessionNewerButton.addEventListener("click", () => stepSession(-1));
 elements.sessionOlderButton.addEventListener("click", () => stepSession(1));
-elements.aiModeGroup.querySelectorAll("[data-ai-mode]").forEach((button) => button.addEventListener("click", () => {
-  if (button.dataset.aiMode !== effectiveAiMode()) setAiMode(button.dataset.aiMode);
-}));
-elements.aiModeGroup.addEventListener("keydown", (event) => {
-  if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
-  event.preventDefault();
-  const next = effectiveAiMode() === "single" ? "compare" : "single";
-  const target = elements.aiModeGroup.querySelector(`[data-ai-mode="${next}"]`);
-  if (target.disabled) return;
-  setAiMode(next);
-  target.focus();
-});
 elements.aiSessionSelect.addEventListener("change", async () => {
   if (elements.aiSessionSelect.value) await selectSession(elements.aiSessionSelect.value);
 });
@@ -2483,7 +1035,6 @@ applyTranslations();
 renderAccount();
 showView(testMode ? viewFromHash() : "analysis", false);
 drawTrack(); drawCharts();
-
 
 startLandingTelemetry();
 
