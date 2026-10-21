@@ -43,3 +43,24 @@ export function paintLayers(canvas, prepare, paintStatic) {
   layers.set(canvas, { snapshot, geometry, width, height, ratio });
   return { context, width, height, geometry };
 }
+
+// The `prepare` step for paintLayers: sizes the canvas for the device pixel ratio and clears it.
+export function canvasContext(canvas) {
+  const ratio = window.devicePixelRatio || 1;
+  // Layout size, not getBoundingClientRect: panels animate their moves with transforms (workspace FLIP),
+  // and a canvas sized mid-animation would stay stretched.
+  const rect = { width: canvas.clientWidth, height: canvas.clientHeight };
+  const width = Math.max(1, Math.round(rect.width * ratio));
+  const height = Math.max(1, Math.round(rect.height * ratio));
+  // Resizing reallocates the backing store; charts redraw on every cursor move, so only do it when needed.
+  if (canvas.width !== width) canvas.width = width;
+  if (canvas.height !== height) canvas.height = height;
+  const context = canvas.getContext("2d");
+  // Without a resize the drawing state survives between frames: put back the defaults the charts expect.
+  Object.assign(context, { globalAlpha: 1, globalCompositeOperation: "source-over", shadowBlur: 0, shadowColor: "rgba(0,0,0,0)", lineCap: "butt", lineJoin: "miter", textAlign: "start", textBaseline: "alphabetic" });
+  context.setLineDash([]);
+  context.setTransform(1, 0, 0, 1, 0, 0);
+  context.clearRect(0, 0, width, height);
+  context.setTransform(ratio, 0, 0, ratio, 0, 0);
+  return { context, width: rect.width, height: rect.height };
+}
