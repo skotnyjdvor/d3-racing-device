@@ -23,6 +23,7 @@ Opens the app on `http://127.0.0.1:4173`. `?mock=1` uses a simulated LapTrace in
 The API needs PostgreSQL: copy `.env.example` to `.env`, then run `npm run start:server`.
 
 ```bash
+npm run lint
 npm test
 npm run build
 ```

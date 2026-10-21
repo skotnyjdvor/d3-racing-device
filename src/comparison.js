@@ -39,7 +39,7 @@ export function createComparison(ctx) {
     const track = identifyTrack(points, catalog);
     rememberTrack(session, track);
     const lapped = splitSessionIntoLaps(points, track);
-    let analysis = null;
+    let analysis;
     try { analysis = analyzeSession(lapped); } catch { return null; }
     if (!analysis.laps.length) return null;
     const source = { key: `s:${session.id}`, kind: "session", sessionId: String(session.id), name: session.title || formatDate(session.startedAt), track, points: lapped, analysis };
