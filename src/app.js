@@ -184,6 +184,7 @@ try { state.mapSatellite = localStorage.getItem("d3-map-satellite") === "1"; } c
 function renderMapMode() {
   elements.mapMode.querySelectorAll("[data-map-mode]").forEach((button) => button.setAttribute("aria-checked", String(button.dataset.mapMode === state.mapMode)));
   elements.mapSatelliteButton.setAttribute("aria-pressed", String(state.mapSatellite));
+  elements.mapSatelliteButton.title = t("map.satellite");
 }
 function renderMapLegend(html) {
   if (elements.mapLegend.dataset.html === html) return;
@@ -817,6 +818,7 @@ document.querySelectorAll("input:not([type='range']):not([type='file']), textare
 elements.aiReportJumpButton.addEventListener("click", () => showView("ai"));
 elements.aiReportJumpButton.setAttribute("aria-label", t("ai.reportButton"));
 onLanguageChange(() => elements.aiReportJumpButton.setAttribute("aria-label", t("ai.reportButton")));
+onLanguageChange(renderMapMode);
 
 const analysisTabButtons = [...elements.analysisTabs.querySelectorAll("[data-analysis-tab]")];
 function selectAnalysisTab(tab, focus = false) {
