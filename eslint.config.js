@@ -2,7 +2,7 @@ import js from "@eslint/js";
 import globals from "globals";
 
 export default [
-  { ignores: ["dist/", "release/", "android/", "ios/", "desktop/app/www/", "src/domain/track-catalog.generated.js"] },
+  { ignores: ["dist/", "release/", "android/", "ios/", "desktop/app/web/", "src/domain/track-catalog.generated.js"] },
   js.configs.recommended,
   {
     rules: {
