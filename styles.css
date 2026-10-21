@@ -2048,7 +2048,8 @@ body.ws-editing .ws-area { background-image: linear-gradient(90deg, rgba(255,255
 .map-mode button[aria-checked="true"] { color: var(--race-text); background: rgba(225,6,0,.16); }
 .map-mode button:focus-visible { outline: 1px solid var(--race-red); outline-offset: -2px; }
 .track-panel .panel-head { gap: 8px; }
-/* Satellite photo under the trajectory (src/satellite.js). */
+/* Satellite photo under the trajectory (src/satellite.js). Native apps only. */
+html:not(.app-mode) .map-satellite { display: none; }
 .map-satellite { flex: none; min-height: 30px; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; color: var(--race-muted); background: transparent; border: 1px solid var(--race-line-2); font: 700 12px/1 var(--font-code); letter-spacing: .08em; text-transform: uppercase; cursor: pointer; transition: color .15s, background-color .15s, border-color .15s; }
 .map-satellite svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linejoin: round; }
 .map-satellite[aria-pressed="true"] { color: var(--race-text); background: rgba(225,6,0,.16); border-color: rgba(225,6,0,.55); }

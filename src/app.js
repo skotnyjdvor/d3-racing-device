@@ -180,7 +180,8 @@ let cornersPanel = null;
 let lapReportPanel = null;
 let extraLaps = null;
 try { state.mapMode = MAP_MODES.includes(localStorage.getItem("d3-map-mode")) ? localStorage.getItem("d3-map-mode") : "laps"; } catch { state.mapMode = "laps"; }
-try { state.mapSatellite = localStorage.getItem("d3-map-satellite") === "1"; } catch { state.mapSatellite = false; }
+// Satellite imagery is a native-app feature (desktop, Android, iOS); the website keeps the plain map.
+try { state.mapSatellite = appMode && localStorage.getItem("d3-map-satellite") === "1"; } catch { state.mapSatellite = false; }
 function renderMapMode() {
   elements.mapMode.querySelectorAll("[data-map-mode]").forEach((button) => button.setAttribute("aria-checked", String(button.dataset.mapMode === state.mapMode)));
   elements.mapSatelliteButton.setAttribute("aria-pressed", String(state.mapSatellite));
