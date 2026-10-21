@@ -2055,6 +2055,15 @@ html:not(.app-mode) .map-satellite { display: none; }
 .map-satellite[aria-pressed="true"] { color: var(--race-text); background: rgba(225,6,0,.16); border-color: rgba(225,6,0,.55); }
 .map-satellite:focus-visible { outline: 1px solid var(--race-red); outline-offset: -2px; }
 @media (hover: hover) { .map-satellite:hover { color: var(--race-text); } }
+/* Photo alignment under the map: one row of small controls; the map takes drags while it is on. */
+.map-align { padding: 8px 12px 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
+.map-align[hidden], .map-align [hidden] { display: none; }
+.map-align-hint { flex: 1 1 200px; color: var(--race-text-2); font: 400 12px/1.4 var(--font-body); }
+.map-align button { min-height: 32px; padding: 0 12px; color: var(--race-text-2); background: transparent; border: 1px solid var(--race-line-2); font: 700 12px/1 var(--font-code); letter-spacing: .08em; text-transform: uppercase; cursor: pointer; transition: color .15s, border-color .15s, background-color .15s; }
+.map-align-toggle[aria-pressed="true"] { color: var(--race-text); background: rgba(225,6,0,.16); border-color: rgba(225,6,0,.55); }
+@media (hover: hover) { .map-align button:hover { color: var(--race-text); border-color: var(--race-text-2); } }
+@media (pointer: coarse) { .map-align button { min-height: 40px; } }
+#trackCanvas.aligning { cursor: move; touch-action: none; }
 /* Narrow map panels (desktop workspace tiles): icon only, so the track name keeps its room. */
 .track-panel { container: track-panel / inline-size; }
 @container track-panel (max-width: 620px) {

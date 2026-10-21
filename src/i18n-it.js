@@ -70,7 +70,7 @@ export default {
   "app.aiUploading": "Caricamento della sessione sull'account…",
   "map.laps": "Giri",
   "map.delta": "Delta",
-  "map.speed": "Velocità", "map.satellite": "Satellite",
+  "map.speed": "Velocità", "map.satellite": "Satellite", "map.align": "Allinea foto", "map.alignDone": "Fatto", "map.alignReset": "Ripristina", "map.alignHint": "Trascina la foto finché la pista combacia con la traiettoria",
   "map.gain": "il giro {lap} guadagna",
   "map.loss": "il giro {lap} perde",
   "map.needCompare": "Scegli un giro da confrontare per vedere guadagni e perdite",

@@ -14,6 +14,14 @@ export function mercatorY(latitude) {
   return Math.log(Math.tan(Math.PI / 4 + radians / 2)) * 180 / Math.PI;
 }
 
+// Photo alignment is saved per place: the middle of the lap rounded to ~100 m.
+export function satelliteOffsetKey(points) {
+  const lats = points.map((point) => point.latitude);
+  const lons = points.map((point) => point.longitude);
+  const middle = (values) => (Math.min(...values) + Math.max(...values)) / 2;
+  return `${middle(lats).toFixed(3)},${middle(lons).toFixed(3)}`;
+}
+
 // One tile cache for all map canvases. `onLoad` repaints the maps when a tile arrives.
 export function createSatelliteLayer({ onLoad }) {
   const tiles = new Map(); // "z/x/y" -> { image, ready, failed }

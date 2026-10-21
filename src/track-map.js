@@ -3,7 +3,7 @@
 // change; cursor frames only add the dots (canvas-layers.js).
 import { extraLapList } from "./extra-laps.js";
 import { distancePoints, pointAtProgress } from "./lap-series.js";
-import { createSatelliteLayer, mercatorY, SATELLITE_ATTRIBUTION } from "./satellite.js";
+import { createSatelliteLayer, mercatorY, satelliteOffsetKey, SATELLITE_ATTRIBUTION } from "./satellite.js";
 
 export function createTrackMap(ctx) {
   const {
@@ -72,7 +72,12 @@ export function createTrackMap(ctx) {
     };
     const project = (point) => toCanvas(point.longitude, mercatorY(point.latitude));
     // Satellite photo under the lines, dimmed so the trajectory stays the brightest thing on the map.
-    const onSatellite = Boolean(state.mapSatellite && satellite?.draw(context, width, height, toCanvas, scale * state.trackView.scale));
+    // Photos and GPS can disagree by a few metres; the user's alignment for this place shifts the photo.
+    const satelliteKey = satelliteOffsetKey(boundsPoints);
+    const [shiftLon, shiftMercator] = state.satelliteOffsets?.[satelliteKey] ?? [0, 0];
+    const photoToCanvas = (longitude, mercator) => toCanvas(longitude + shiftLon, mercator + shiftMercator);
+    if (canvas === elements.trackCanvas) state.satelliteView = { key: satelliteKey, pixelsPerDegree: scale * state.trackView.scale };
+    const onSatellite = Boolean(state.mapSatellite && satellite?.draw(context, width, height, photoToCanvas, scale * state.trackView.scale));
     if (onSatellite) {
       context.fillStyle = "rgba(8,8,12,.38)"; context.fillRect(0, 0, width, height);
     } else {

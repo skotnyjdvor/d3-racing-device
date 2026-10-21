@@ -182,10 +182,24 @@ let extraLaps = null;
 try { state.mapMode = MAP_MODES.includes(localStorage.getItem("d3-map-mode")) ? localStorage.getItem("d3-map-mode") : "laps"; } catch { state.mapMode = "laps"; }
 // Satellite imagery is a native-app feature (desktop, Android, iOS); the website keeps the plain map.
 try { state.mapSatellite = appMode && localStorage.getItem("d3-map-satellite") === "1"; } catch { state.mapSatellite = false; }
+// Photo shifts per place ({ "lat,lon": [longitude°, Mercator°] }): GPS and photos can be a few metres apart.
+try { state.satelliteOffsets = JSON.parse(localStorage.getItem("d3-satellite-offsets") || "{}") || {}; } catch { state.satelliteOffsets = {}; }
+state.satelliteAlign = false;
+function saveSatelliteOffsets() {
+  try { localStorage.setItem("d3-satellite-offsets", JSON.stringify(state.satelliteOffsets)); } catch {}
+}
 function renderMapMode() {
   elements.mapMode.querySelectorAll("[data-map-mode]").forEach((button) => button.setAttribute("aria-checked", String(button.dataset.mapMode === state.mapMode)));
   elements.mapSatelliteButton.setAttribute("aria-pressed", String(state.mapSatellite));
   elements.mapSatelliteButton.title = t("map.satellite");
+  if (!state.mapSatellite) state.satelliteAlign = false;
+  const shifted = Boolean(state.satelliteView && state.satelliteOffsets[state.satelliteView.key]);
+  elements.mapAlign.hidden = !state.mapSatellite;
+  elements.mapAlignButton.textContent = t(state.satelliteAlign ? "map.alignDone" : "map.align");
+  elements.mapAlignButton.setAttribute("aria-pressed", String(state.satelliteAlign));
+  elements.mapAlignHint.hidden = !state.satelliteAlign;
+  elements.mapAlignReset.hidden = !state.satelliteAlign || !shifted;
+  elements.trackCanvas.classList.toggle("aligning", state.satelliteAlign);
 }
 function renderMapLegend(html) {
   if (elements.mapLegend.dataset.html === html) return;
@@ -315,6 +329,16 @@ elements.mapSatelliteButton.addEventListener("click", () => {
   renderMapMode();
   drawTrack();
 });
+elements.mapAlignButton.addEventListener("click", () => {
+  state.satelliteAlign = !state.satelliteAlign;
+  renderMapMode();
+});
+elements.mapAlignReset.addEventListener("click", () => {
+  if (state.satelliteView) delete state.satelliteOffsets[state.satelliteView.key];
+  saveSatelliteOffsets();
+  renderMapMode();
+  drawTrack();
+});
 
 {
   const canvas = elements.trackCanvas;
@@ -324,7 +348,11 @@ elements.mapSatelliteButton.addEventListener("click", () => {
     canvas.setPointerCapture?.(event.pointerId);
     pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
     const rect = canvas.getBoundingClientRect();
-    if (pointers.size === 1) {
+    if (pointers.size === 1 && state.satelliteAlign && state.satelliteView) {
+      // Align mode: one finger moves the photo under the trajectory, not the map.
+      const { key } = state.satelliteView;
+      gesture = { mode: "align", key, x: event.clientX, y: event.clientY, shift: state.satelliteOffsets[key] ?? [0, 0] };
+    } else if (pointers.size === 1) {
       gesture = { mode: "pan", x: event.clientX, y: event.clientY, offsetX: state.trackView.offsetX, offsetY: state.trackView.offsetY };
     } else if (pointers.size === 2) {
       const [a, b] = [...pointers.values()];
@@ -344,13 +372,23 @@ elements.mapSatelliteButton.addEventListener("click", () => {
       const [a, b] = [...pointers.values()];
       const distance = Math.max(8, Math.hypot(b.x - a.x, b.y - a.y));
       updateTrackZoom(gesture.scale * distance / Math.max(gesture.distance, 8), gesture.anchorX, gesture.anchorY);
+    } else if (pointers.size === 1 && gesture?.mode === "align") {
+      const perDegree = state.satelliteView.pixelsPerDegree || 1;
+      state.satelliteOffsets[gesture.key] = [
+        gesture.shift[0] + (event.clientX - gesture.x) / perDegree,
+        gesture.shift[1] - (event.clientY - gesture.y) / perDegree,
+      ];
+      drawTrack();
     } else if (pointers.size === 1 && gesture?.mode === "pan" && state.trackView.scale > 1) {
       state.trackView.offsetX = gesture.offsetX + event.clientX - gesture.x;
       state.trackView.offsetY = gesture.offsetY + event.clientY - gesture.y;
       drawTrack();
     }
   });
-  const release = (event) => { pointers.delete(event.pointerId); gesture = null; };
+  const release = (event) => {
+    if (gesture?.mode === "align") { saveSatelliteOffsets(); renderMapMode(); }
+    pointers.delete(event.pointerId); gesture = null;
+  };
   canvas.addEventListener("pointerup", release);
   canvas.addEventListener("pointercancel", release);
   canvas.addEventListener("wheel", (event) => {

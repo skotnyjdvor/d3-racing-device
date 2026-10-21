@@ -940,6 +940,11 @@
             <b id="trackStatTime">—</b><span id="trackStatGap">Δ —</span><span id="trackStatSpeed">—</span>
           </div>
           <canvas id="trackCanvas"></canvas>
+          <div class="map-align" id="mapAlign" hidden>
+            <span class="map-align-hint" id="mapAlignHint" data-i18n="map.alignHint" hidden></span>
+            <button type="button" class="map-align-reset" id="mapAlignReset" data-i18n="map.alignReset" hidden></button>
+            <button type="button" class="map-align-toggle" id="mapAlignButton" aria-pressed="false"></button>
+          </div>
           <div class="legend trajectory-legend">
             <span class="trajectory-primary" data-i18n="laps.primary"></span>
             <span class="trajectory-comparison" data-i18n="laps.compare"></span>
