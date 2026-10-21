@@ -82,7 +82,7 @@ jobs:
           cp android/app/build/outputs/apk/debug/app-debug.apk "out/D3CF-${APP_VERSION}-android-debug.apk"
           if [ -f android/app/build/outputs/apk/release/app-release.apk ]; then cp android/app/build/outputs/apk/release/app-release.apk "out/D3CF-${APP_VERSION}-android.apk"; fi
           if [ -f android/app/build/outputs/bundle/release/app-release.aab ]; then cp android/app/build/outputs/bundle/release/app-release.aab "out/D3CF-${APP_VERSION}-android.aab"; fi
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: android
           path: out/*
@@ -132,7 +132,7 @@ jobs:
         run: npm --prefix desktop/app pkg set "version=$VERSION"
       - name: Build installer
         run: npm run desktop:build -- --publish never
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: desktop-${{ matrix.os }}
           path: |
