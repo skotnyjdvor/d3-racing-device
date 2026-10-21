@@ -8,6 +8,7 @@
     "start:server": "node server/api.mjs",
     "start:render": "node server/api.mjs",
     "test": "node --test",
+    "test:e2e": "playwright test",
     "lint": "eslint .",
     "build": "vite build",
     "tracks:import": "node scripts/convert-ztracks.mjs",
@@ -39,6 +40,7 @@
   "devDependencies": {
     "@capacitor/cli": "^8.5.3",
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.64.1",
     "electron": "^44.9.0",
     "electron-builder": "^26.15.3",
     "eslint": "^10.13.0",

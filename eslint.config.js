@@ -16,7 +16,7 @@ export default [
     languageOptions: { globals: globals.browser },
   },
   {
-    files: ["server/**/*.mjs", "scripts/**/*.mjs", "tests/**/*.js", "vite.config.js"],
+    files: ["server/**/*.mjs", "scripts/**/*.mjs", "tests/**/*.js", "e2e/**/*.js", "vite.config.js", "playwright.config.js"],
     languageOptions: { globals: globals.node },
   },
   {
