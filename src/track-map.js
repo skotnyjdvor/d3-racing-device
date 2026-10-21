@@ -3,12 +3,14 @@
 // change; cursor frames only add the dots (canvas-layers.js).
 import { extraLapList } from "./extra-laps.js";
 import { distancePoints, pointAtProgress } from "./lap-series.js";
+import { createSatelliteLayer, mercatorY, SATELLITE_ATTRIBUTION } from "./satellite.js";
 
 export function createTrackMap(ctx) {
   const {
     state, elements, t, isOverlayFrame, paintLayers, canvasContext, trackAiMarkerAreas,
-    lapPoints, comparisonLapPoints, extraLapPoints, sectorFractions, renderMapLegend, SECTOR_COLOR,
+    lapPoints, comparisonLapPoints, extraLapPoints, sectorFractions, renderMapLegend, SECTOR_COLOR, redraw,
   } = ctx;
+  const satellite = typeof Image === "function" && redraw ? createSatelliteLayer({ onLoad: redraw }) : null;
   const panels = ctx.analysisPanels;
   const corners = ctx.cornersPanel;
 
@@ -22,14 +24,16 @@ export function createTrackMap(ctx) {
     trackAiMarkerAreas.set(canvas, []);
     context.fillStyle = "#08080c";
     context.fillRect(0, 0, width, height);
-    context.strokeStyle = "rgba(255,255,255,.035)"; context.lineWidth = 1;
-    const gridSize = width < 560 ? 38 : 52;
-    for (let x = gridSize; x < width; x += gridSize) {
-      context.beginPath(); context.moveTo(x, 0); context.lineTo(x, height); context.stroke();
-    }
-    for (let y = gridSize; y < height; y += gridSize) {
-      context.beginPath(); context.moveTo(0, y); context.lineTo(width, y); context.stroke();
-    }
+    const drawGrid = () => {
+      context.strokeStyle = "rgba(255,255,255,.035)"; context.lineWidth = 1;
+      const gridSize = width < 560 ? 38 : 52;
+      for (let x = gridSize; x < width; x += gridSize) {
+        context.beginPath(); context.moveTo(x, 0); context.lineTo(x, height); context.stroke();
+      }
+      for (let y = gridSize; y < height; y += gridSize) {
+        context.beginPath(); context.moveTo(0, y); context.lineTo(width, y); context.stroke();
+      }
+    };
     const primarySeries = distancePoints(lapPoints(state.selectedLapNumber), 1800);
     // The AI map of a single-lap report shows only that lap.
     const hideComparison = canvas === elements.aiTrackCanvas && state.aiReport?.analysisMode === "single-lap";
@@ -39,13 +43,15 @@ export function createTrackMap(ctx) {
     const comparisonPoints = comparisonSeries.map((item) => item.point);
     const boundsPoints = [...primaryPoints, ...comparisonPoints];
     if (primaryPoints.length < 2) {
+      drawGrid();
       if (canvas === elements.trackCanvas) renderMapLegend("");
       context.fillStyle = "#8c8d93";
       context.font = "13px system-ui";
       context.fillText(t("track.canvasEmpty"), 24, 38);
       return null;
     }
-    const lats = boundsPoints.map((point) => point.latitude);
+    // Web Mercator (longitude, Mercator latitude) with one scale: true shape, and it matches satellite tiles.
+    const lats = boundsPoints.map((point) => mercatorY(point.latitude));
     const lons = boundsPoints.map((point) => point.longitude);
     const minLat = Math.min(...lats); const maxLat = Math.max(...lats);
     const minLon = Math.min(...lons); const maxLon = Math.max(...lons);
@@ -56,18 +62,27 @@ export function createTrackMap(ctx) {
     );
     const offsetX = (width - (maxLon - minLon) * scale) / 2;
     const offsetY = (height - (maxLat - minLat) * scale) / 2;
-    const project = (point) => {
-      const baseX = offsetX + (point.longitude - minLon) * scale;
-      const baseY = offsetY + (maxLat - point.latitude) * scale;
+    const toCanvas = (longitude, mercator) => {
+      const baseX = offsetX + (longitude - minLon) * scale;
+      const baseY = offsetY + (maxLat - mercator) * scale;
       return [
         width / 2 + (baseX - width / 2) * state.trackView.scale + state.trackView.offsetX,
         height / 2 + (baseY - height / 2) * state.trackView.scale + state.trackView.offsetY,
       ];
     };
+    const project = (point) => toCanvas(point.longitude, mercatorY(point.latitude));
+    // Satellite photo under the lines, dimmed so the trajectory stays the brightest thing on the map.
+    const onSatellite = Boolean(state.mapSatellite && satellite?.draw(context, width, height, toCanvas, scale * state.trackView.scale));
+    if (onSatellite) {
+      context.fillStyle = "rgba(8,8,12,.38)"; context.fillRect(0, 0, width, height);
+    } else {
+      drawGrid();
+    }
+    const halo = onSatellite ? "rgba(0,0,0,.55)" : "rgba(255,255,255,.08)";
     context.lineCap = "round"; context.lineJoin = "round";
     const drawTrajectory = (points, color, lineWidth) => {
       if (points.length < 2) return;
-      context.strokeStyle = "rgba(255,255,255,.08)"; context.lineWidth = lineWidth + 6; context.beginPath();
+      context.strokeStyle = halo; context.lineWidth = lineWidth + 6; context.beginPath();
       points.forEach((point, index) => { const [x, y] = project(point); index ? context.lineTo(x, y) : context.moveTo(x, y); });
       context.stroke();
       context.strokeStyle = color; context.lineWidth = lineWidth; context.beginPath();
@@ -80,7 +95,7 @@ export function createTrackMap(ctx) {
     if (canvas === elements.trackCanvas) renderMapLegend(coloring.legend);
     if (coloring.colors) {
       drawTrajectory(comparisonPoints, "rgba(225,6,0,.35)", 1.6);
-      context.strokeStyle = "rgba(255,255,255,.08)"; context.lineWidth = 10; context.beginPath();
+      context.strokeStyle = halo; context.lineWidth = 10; context.beginPath();
       primaryPoints.forEach((point, index) => { const [x, y] = project(point); index ? context.lineTo(x, y) : context.moveTo(x, y); });
       context.stroke();
       context.lineWidth = 4.2;
@@ -176,6 +191,16 @@ export function createTrackMap(ctx) {
       return { x, y, radius: radius + 8, index, progress };
     }).filter(Boolean);
     trackAiMarkerAreas.set(canvas, markerAreas);
+    if (onSatellite) {
+      context.save();
+      context.font = "10px system-ui, sans-serif";
+      context.textAlign = "right"; context.textBaseline = "bottom";
+      const text = `© ${SATELLITE_ATTRIBUTION}`;
+      const textWidth = context.measureText(text).width;
+      context.fillStyle = "rgba(8,8,12,.7)"; context.fillRect(width - textWidth - 10, height - 16, textWidth + 10, 16);
+      context.fillStyle = "rgba(244,244,238,.75)"; context.fillText(text, width - 5, height - 3);
+      context.restore();
+    }
     return { project, primarySeries, comparisonSeries, extraSeries };
     });
     if (!geometry) return;

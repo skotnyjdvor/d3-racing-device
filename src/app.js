@@ -180,8 +180,10 @@ let cornersPanel = null;
 let lapReportPanel = null;
 let extraLaps = null;
 try { state.mapMode = MAP_MODES.includes(localStorage.getItem("d3-map-mode")) ? localStorage.getItem("d3-map-mode") : "laps"; } catch { state.mapMode = "laps"; }
+try { state.mapSatellite = localStorage.getItem("d3-map-satellite") === "1"; } catch { state.mapSatellite = false; }
 function renderMapMode() {
   elements.mapMode.querySelectorAll("[data-map-mode]").forEach((button) => button.setAttribute("aria-checked", String(button.dataset.mapMode === state.mapMode)));
+  elements.mapSatelliteButton.setAttribute("aria-pressed", String(state.mapSatellite));
 }
 function renderMapLegend(html) {
   if (elements.mapLegend.dataset.html === html) return;
@@ -253,7 +255,7 @@ function drawTrackCanvas(canvas) {
   drawTrackMap ??= createTrackMap({
     state, elements, t, isOverlayFrame, paintLayers, canvasContext, trackAiMarkerAreas,
     lapPoints, comparisonLapPoints, extraLapPoints, sectorFractions, renderMapLegend, SECTOR_COLOR,
-    analysisPanels: () => analysisPanels, cornersPanel: () => cornersPanel,
+    analysisPanels: () => analysisPanels, cornersPanel: () => cornersPanel, redraw: () => drawTrack(),
   });
   drawTrackMap(canvas);
 }
@@ -302,6 +304,12 @@ elements.mapMode.addEventListener("click", (event) => {
   if (!button) return;
   state.mapMode = button.dataset.mapMode;
   try { localStorage.setItem("d3-map-mode", state.mapMode); } catch {}
+  renderMapMode();
+  drawTrack();
+});
+elements.mapSatelliteButton.addEventListener("click", () => {
+  state.mapSatellite = !state.mapSatellite;
+  try { localStorage.setItem("d3-map-satellite", state.mapSatellite ? "1" : "0"); } catch {}
   renderMapMode();
   drawTrack();
 });

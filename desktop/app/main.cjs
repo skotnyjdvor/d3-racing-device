@@ -9,7 +9,7 @@ const { pickerStrings } = require("./picker-strings.cjs");
 
 const webRoot = process.env.D3CF_WEB_DIR || path.join(__dirname, "web");
 // Same policy as d3cf.com (server/api.mjs), plus the live API the app talks to.
-const CONTENT_SECURITY_POLICY = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; connect-src 'self' https://d3cf.com; object-src 'none'; base-uri 'self'; form-action 'self'";
+const CONTENT_SECURITY_POLICY = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https://server.arcgisonline.com; connect-src 'self' https://d3cf.com; object-src 'none'; base-uri 'self'; form-action 'self'";
 
 protocol.registerSchemesAsPrivileged([
   { scheme: APP_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } },
