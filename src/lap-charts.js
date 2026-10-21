@@ -32,9 +32,10 @@ export function createLapCharts(ctx) {
         context.beginPath(); context.moveTo(xStart, padding.top); context.lineTo(xStart, height - padding.bottom); context.stroke();
         context.setLineDash([]);
       }
+      // Labels sit in the band above the plot, so traces and the delta legend never cover them.
       context.fillStyle = "rgba(179,107,255,.85)";
       context.textAlign = "left";
-      context.fillText(`S${index + 1}`, Math.max(padding.left, xStart) + 6, padding.top + 12);
+      context.fillText(`S${index + 1}`, Math.max(padding.left, xStart) + 6, padding.top - 6);
     });
     context.restore();
   }
@@ -93,7 +94,7 @@ export function createLapCharts(ctx) {
     const comparison = state.comparisonLapNumber ? shown(distanceSeries(comparisonLapPoints(), key)) : [];
     if (primary.length < 2) return null;
 
-    const padding = { left: 48, right: 18, top: 18, bottom: 30 };
+    const padding = { left: 48, right: 18, top: 24, bottom: 30 };
     const values = [...primary, ...comparison].map((point) => point.value).filter(Number.isFinite);
     let minimum; let maximum; let step;
     if (speed) {
@@ -188,7 +189,7 @@ export function createLapCharts(ctx) {
     const delta = cachedDelta(primary, comparison);
     if (delta.length < 2) return null;
 
-    const padding = { left: 52, right: 18, top: 18, bottom: 30 };
+    const padding = { left: 52, right: 18, top: 24, bottom: 30 };
     const plotWidth = width - padding.left - padding.right;
     const plotHeight = height - padding.top - padding.bottom;
     const range = Math.max(.1, Math.ceil(Math.max(...delta.map((item) => Math.abs(item.value))) * 10) / 10);

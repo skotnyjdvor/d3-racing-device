@@ -2234,3 +2234,35 @@ html.app-mode #appTrialButton, html.app-mode #appTrialStatus { display: none; }
 .ai-report-jump.ready::after { content: ""; position: absolute; inset: 0; box-shadow: 0 0 34px rgba(225,6,0,.5); opacity: 0; pointer-events: none; animation: aiGlowFade 1.2s var(--ease-out) 2; }
 @keyframes aiGlowFade { 50% { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .record-button.recording span::after, .ai-report-jump.ready::after { animation: none; } }
+
+/* ---------- Phone app polish ---------- */
+html.app-mode body { -webkit-tap-highlight-color: transparent; }
+/* Language menu: a solid sheet; every option stays on one line. */
+.lang-menu-list { min-width: max-content; background: var(--race-surface); }
+.lang-menu-list button span { white-space: nowrap; }
+/* Disabled primary actions read as "not yet" instead of a muddy half-transparent red. */
+html.app-mode body .primary:disabled { opacity: 1; color: var(--race-muted); background: transparent; border-color: var(--race-line-2); box-shadow: none; }
+@media (max-width: 700px) {
+  /* Session picker: no empty column when the share button is hidden. */
+  html.app-mode body .session-bar:has(> .session-share[hidden]) { grid-template-columns: 44px minmax(0, 1fr) 44px; }
+  /* Analysis tabs size to their labels, so the gaps between them are even. */
+  /* Labels are never cut: on very narrow phones the row scrolls instead. */
+  html.app-mode body.has-session .analysis-tabs { display: flex; padding-left: 4px; overflow-x: auto; scrollbar-width: none; }
+  html.app-mode body .analysis-tabs::-webkit-scrollbar { display: none; }
+  html.app-mode body .analysis-tabs button { flex: 1 0 auto; padding: 0 4px; letter-spacing: .04em; overflow: visible; text-overflow: clip; }
+  @media (max-width: 380px) { html.app-mode body .analysis-tabs button { padding: 0 2px; letter-spacing: .01em; } }
+  /* A long track name wraps to a second line instead of being cut off. */
+  html.app-mode body .dashboard .track-panel .panel-head h2 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; white-space: normal; }
+  /* Corner report: the corner column stays put while the numbers scroll sideways. */
+  html.app-mode body .corners-table :is(thead th:first-child, tbody th) { position: sticky; left: 0; z-index: 2; background: var(--race-surface); box-shadow: inset -1px 0 0 var(--race-line); }
+  html.app-mode body .corners-table thead th:first-child { z-index: 3; }
+  html.app-mode body .corners-table tbody tr.current th { background-image: linear-gradient(rgba(244,244,238,.07), rgba(244,244,238,.07)); box-shadow: inset 3px 0 0 var(--race-curb), inset -1px 0 0 var(--race-line); }
+}
+/* The right edge fades while more columns are hidden and clears once scrolled to the end. */
+@property --corners-fade { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@supports (animation-timeline: scroll()) {
+  @media (max-width: 700px) {
+    html.app-mode body .corners-wrap { mask-image: linear-gradient(to right, #000 calc(100% - var(--corners-fade)), transparent); animation: cornersFade linear both; animation-timeline: scroll(self inline); }
+  }
+}
+@keyframes cornersFade { 0%, 92% { --corners-fade: 32px; } 100% { --corners-fade: 0px; } }
