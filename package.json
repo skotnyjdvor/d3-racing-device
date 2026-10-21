@@ -22,7 +22,7 @@
     "icons": "electron scripts/render-icons.cjs && npx --yes @capacitor/assets@3 generate --assetPath resources --android --ios --iconBackgroundColor #08080c --iconBackgroundColorDark #08080c --splashBackgroundColor #08080c --splashBackgroundColorDark #08080c"
   },
   "dependencies": {
-    "@capacitor-community/bluetooth-le": "^8.0.0",
+    "@capacitor-community/bluetooth-le": "^8.3.0",
     "@capacitor/android": "^8.5.3",
     "@capacitor/core": "^8.5.3",
     "@capacitor/ios": "^8.5.3",
