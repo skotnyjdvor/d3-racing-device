@@ -6,3 +6,5 @@ output/
 release/
 desktop/app/web/
 desktop/app/icon.png
+test-results/
+playwright-report/

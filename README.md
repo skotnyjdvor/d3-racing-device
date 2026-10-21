@@ -25,6 +25,7 @@ The API needs PostgreSQL: copy `.env.example` to `.env`, then run `npm run start
 ```bash
 npm run lint
 npm test
+npm run test:e2e   # browser smoke tests (Playwright, Chromium)
 npm run build
 ```
 
