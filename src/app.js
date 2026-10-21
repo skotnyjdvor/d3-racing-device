@@ -1,6 +1,6 @@
 import { analyzeSession, generateLocalInsights } from "./domain/analysis.js";
 import { parseRaceBoxCsv } from "./domain/csv.js";
-import { distanceMeters, identifyTrack, loadTrackCatalog } from "./domain/tracks.js";
+import { identifyTrack, loadTrackCatalog } from "./domain/tracks.js";
 import { splitSessionIntoLaps } from "./domain/laps.js";
 import { computeSectors } from "./domain/sectors.js";
 import { applyTranslations, getLanguage, onLanguageChange, setLanguage, t } from "./i18n.js";
@@ -9,7 +9,7 @@ import { initShop, onShopShown, setShopUser } from "./shop.js";
 import { initProfile, onProfileShown, setProfileUser } from "./profile.js";
 import { initStats, onStatsShown, setStatsUser } from "./stats.js";
 import { initShare, openShareDialog } from "./share.js";
-import { PAGE_PATHS, currentPage, interceptLinks, navigate, upgradeLegacyHash } from "./router.js";
+import { PAGE_PATHS, currentPage, interceptLinks, upgradeLegacyHash } from "./router.js";
 import "@fontsource/oswald/500.css";
 import "@fontsource/oswald/700.css";
 import "@fontsource/manrope/400.css";
@@ -24,10 +24,10 @@ import { createAnalysisPanels } from "./analysis-panels.js";
 import { createCornersPanel } from "./corners-panel.js";
 import { createComparison } from "./comparison.js";
 import { createTrackMap } from "./track-map.js";
-import { distancePoints, downsample, lapsOf } from "./lap-series.js";
+import { distancePoints, lapsOf } from "./lap-series.js";
 import { startLandingTelemetry } from "./landing-telemetry.js";
 import { createLapReportPanel } from "./lap-report-panel.js";
-import { createExtraLaps, extraLapList } from "./extra-laps.js";
+import { createExtraLaps } from "./extra-laps.js";
 import { getExcludedLaps } from "./lap-exclusion.js";
 import { setSpeedUnit, speedUnit, toSpeed } from "./units.js";
 import { sectorsWithout } from "./domain/sectors.js";
@@ -56,7 +56,7 @@ let routedUrl = "";
 // Phones: the analysis screen shows one tab at a time and short lap labels.
 const compactLayout = window.matchMedia("(max-width: 700px)");
 const {
-  pilotSource, useRivalComparison, sourceLapPoints, comparisonSessions, loadComparisonSession, comparisonCandidates, rememberTrack, rivalComparable, rivalFastestLap, extraLapPoints, comparisonLapPoints, shortName, comparisonLabel, comparisonSelectValue, rivalOptionText, comparisonOptionsHtml, comparisonAvailable, renderComparisonSource, changeComparisonSource,
+  pilotSource, useRivalComparison, rememberTrack, rivalComparable, extraLapPoints, comparisonLapPoints, comparisonLabel, comparisonSelectValue, comparisonOptionsHtml, comparisonAvailable, renderComparisonSource, changeComparisonSource,
 } = createComparison({
   state, elements, t, escapeHtml, formatLapTime, formatDate, compactLayout,
   lapPoints, loadLocalPoints, loadLog, updateLocalSession, showNotice, clearAiReport: () => clearAiReport(), updateLapView,
